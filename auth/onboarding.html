@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circl · Bienvenida</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/styles.css">
+  <style>
+
+    /* ── Page base ─────────────────────────────── */
+    @keyframes heroGradientDrift {
+      0%, 100% {
+        background:
+          radial-gradient(ellipse at 15% 15%, rgba(61,199,166,0.06) 0%, transparent 55%),
+          radial-gradient(ellipse at 85% 10%, rgba(80,220,175,0.14) 0%, transparent 50%),
+          radial-gradient(ellipse at 88% 82%, rgba(224,121,49,0.16) 0%, transparent 52%),
+          radial-gradient(ellipse at 12% 88%, rgba(158,160,81,0.16) 0%, transparent 50%),
+          radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.3) 0%, transparent 65%),
+          #f0f4f8;
+      }
+      25% {
+        background:
+          radial-gradient(ellipse at 22% 10%, rgba(61,199,166,0.06) 0%, transparent 55%),
+          radial-gradient(ellipse at 90% 20%, rgba(80,220,175,0.14) 0%, transparent 50%),
+          radial-gradient(ellipse at 80% 88%, rgba(224,121,49,0.16) 0%, transparent 52%),
+          radial-gradient(ellipse at 6%  78%, rgba(158,160,81,0.16) 0%, transparent 50%),
+          radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.3) 0%, transparent 65%),
+          #f0f4f8;
+      }
+      50% {
+        background:
+          radial-gradient(ellipse at 10% 22%, rgba(61,199,166,0.06) 0%, transparent 55%),
+          radial-gradient(ellipse at 78% 8%,  rgba(80,220,175,0.14) 0%, transparent 50%),
+          radial-gradient(ellipse at 92% 75%, rgba(224,121,49,0.16) 0%, transparent 52%),
+          radial-gradient(ellipse at 18% 92%, rgba(158,160,81,0.16) 0%, transparent 50%),
+          radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.3) 0%, transparent 65%),
+          #f0f4f8;
+      }
+      75% {
+        background:
+          radial-gradient(ellipse at 20% 22%, rgba(61,199,166,0.06) 0%, transparent 55%),
+          radial-gradient(ellipse at 82% 18%, rgba(80,220,175,0.14) 0%, transparent 50%),
+          radial-gradient(ellipse at 85% 90%, rgba(224,121,49,0.16) 0%, transparent 52%),
+          radial-gradient(ellipse at 14% 82%, rgba(158,160,81,0.16) 0%, transparent 50%),
+          radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.3) 0%, transparent 65%),
+          #f0f4f8;
+      }
+    }
+
+    .onboarding-page {
+      min-height: 100vh;
+      background:
+        radial-gradient(ellipse at 15% 15%, rgba(61,199,166,0.06) 0%, transparent 55%),
+        radial-gradient(ellipse at 85% 10%, rgba(80,220,175,0.14) 0%, transparent 50%),
+        radial-gradient(ellipse at 88% 82%, rgba(224,121,49,0.16) 0%, transparent 52%),
+        radial-gradient(ellipse at 12% 88%, rgba(158,160,81,0.16) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.3) 0%, transparent 65%),
+        #f0f4f8;
+      animation: heroGradientDrift 30s ease-in-out infinite;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* ── Background deco circles — slow drift ──── */
+    .ob-deco-1 {
+      animation: driftA 22s ease-in-out infinite;
+    }
+    .ob-deco-2 {
+      animation: driftB 28s ease-in-out infinite;
+    }
+    @keyframes driftA {
+      0%,  100% { transform: translate(0, 0); }
+      50%       { transform: translate(-28px, -20px); }
+    }
+    @keyframes driftB {
+      0%,  100% { transform: translate(0, 0); }
+      50%       { transform: translate(22px, 28px); }
+    }
+
+    /* ── Welcome screen (fullscreen, no card) ─── */
+    #welcome-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      position: relative;
+      z-index: 2;
+      max-width: 760px;
+      width: 100%;
+    }
+
+    /* Decorative circles above the text */
+    .welcome-rings {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      margin-bottom: 44px;
+      transform: scale(0);
+      opacity: 0;
+    }
+    .welcome-rings.rings-visible {
+      animation: circleGrowIn 0.82s ease-out forwards;
+    }
+    @keyframes circleGrowIn {
+      0%   { transform: scale(0);    opacity: 0; }
+      60%  { transform: scale(1.1);  opacity: 1; }
+      100% { transform: scale(1);    opacity: 1; }
+    }
+    .welcome-rings.rings-pulsing {
+      animation: circlePulse 3s ease-in-out infinite;
+    }
+    @keyframes circlePulse {
+      0%, 100% { transform: scale(1);    }
+      50%      { transform: scale(1.05); }
+    }
+    .welcome-rings-center {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #0a7e8c 0%, #2ecda7 50%, #065e6a 100%);
+      background-size: 300% 300%;
+      box-shadow: var(--shadow-float);
+      display: flex; align-items: center; justify-content: center;
+      animation: gradientFlow 10s ease-in-out infinite;
+    }
+    @keyframes gradientFlow {
+      0%   { background-position: 0% 0%;     }
+      50%  { background-position: 100% 100%; }
+      100% { background-position: 0% 0%;     }
+    }
+    .welcome-rings-center svg { position: relative; z-index: 1; }
+    .welcome-ring {
+      position: absolute;
+      top: 50%; left: 50%;
+      border-radius: 50%;
+      border: 1.5px solid rgba(10,126,140,0.15);
+      transform: translate(-50%, -50%);
+    }
+    .welcome-ring-1 {
+      width: 120px; height: 120px;
+      animation: ringPulse 18s ease-in-out infinite;
+    }
+    .welcome-ring-2 {
+      width: 168px; height: 168px;
+      border-color: rgba(10,126,140,0.07);
+      animation: ringPulse 18s ease-in-out infinite 3s;
+    }
+    .welcome-ring-3 {
+      width: 220px; height: 220px;
+      border-color: rgba(10,126,140,0.04);
+      animation: ringPulse 18s ease-in-out infinite 6s;
+    }
+    @keyframes ringPulse {
+      0%,  100% { transform: translate(-50%, -50%) scale(1);    opacity: 1;   }
+      50%        { transform: translate(-50%, -50%) scale(1.07); opacity: 0.6; }
+    }
+
+    .welcome-title {
+      font-size: clamp(2.5rem, 6.5vw, 4.75rem);
+      font-weight: 800;
+      letter-spacing: -0.035em;
+      line-height: 1.1;
+      color: var(--color-dark);
+      margin-bottom: 48px;
+    }
+    .welcome-title em {
+      font-style: normal;
+      color: var(--color-teal);
+    }
+
+    .btn-skip {
+      background: none;
+      border: none;
+      color: var(--color-muted);
+      font-family: var(--font);
+      font-size: var(--text-sm);
+      font-weight: 600;
+      cursor: pointer;
+      padding: 8px 12px;
+      margin-top: 12px;
+      transition: color 0.18s;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .btn-skip:hover { color: var(--color-teal); }
+
+    /* ── Card (steps 2 & 3 only) ──────────────── */
+    #ob-card {
+      display: none;
+      position: relative;
+      z-index: 2;
+      max-width: 720px;
+    }
+
+    /* ── Form steps ───────────────────────────── */
+    .step-panel {
+      display: none;
+      animation: fadeStep 0.35s ease forwards;
+    }
+    .step-panel.active { display: block; }
+    @keyframes fadeStep {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .ob-title {
+      font-size: var(--text-2xl);
+      font-weight: 800;
+      color: var(--color-dark);
+      margin-bottom: 8px;
+      letter-spacing: -0.03em;
+    }
+    .ob-subtitle {
+      color: var(--color-muted);
+      margin-bottom: 24px;
+      font-size: var(--text-md);
+      line-height: 1.6;
+    }
+
+    /* ── Contact cards ────────────────────────── */
+    .ob-contact-card {
+      background: var(--color-cream);
+      border: 1.5px solid var(--color-border);
+      border-radius: var(--radius-card);
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      display: grid;
+      grid-template-columns: 36px auto auto 1fr auto;
+      grid-template-rows: auto;
+      column-gap: 8px;
+      row-gap: 8px;
+      align-items: center;
+    }
+    .ob-contact-card .ob-av {
+      grid-column: 1;
+      grid-row: 1;
+    }
+    .ob-contact-card .ob-contact-fields {
+      grid-column: 2 / 4;
+      grid-row: 1;
+      display: flex;
+      gap: 8px;
+    }
+    .ob-contact-card .ob-contact-fields .form-input {
+      flex: 1;
+      min-width: 0;
+      padding: 10px 14px;
+    }
+    .ob-contact-card .ob-contact-selects {
+      grid-column: 4;
+      grid-row: 1;
+      display: flex;
+      gap: 8px;
+    }
+    .ob-contact-card .ob-contact-selects .form-select {
+      flex: 1;
+      min-width: 0;
+      padding: 10px 32px 10px 14px;
+      font-size: var(--text-sm);
+    }
+    .ob-contact-card .ob-remove {
+      grid-column: 5;
+      grid-row: 1;
+    }
+    .ob-av {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--gradient-primary);
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-weight: 700; font-size: 0.78rem;
+      flex-shrink: 0;
+      grid-row: 1 / 3;
+    }
+    .ob-av.av-orange { background: linear-gradient(135deg, #f4ab66, var(--color-orange)); }
+    .ob-av.av-teal   { background: linear-gradient(135deg, var(--color-teal), #065e6a); }
+
+    .ob-contact-fields {
+      display: flex;
+      gap: 8px;
+      grid-column: 2;
+      grid-row: 1;
+    }
+    .ob-contact-fields .form-input { flex: 1; min-width: 0; padding: 10px 16px; }
+
+    .ob-contact-role {
+      grid-column: 2;
+      grid-row: 2;
+    }
+    .ob-contact-role .form-select { padding: 10px 36px 10px 16px; font-size: var(--text-sm); }
+
+    .ob-remove {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      border: 1.5px solid var(--color-border);
+      background: none;
+      color: var(--color-muted);
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: border-color 0.15s, color 0.15s;
+      grid-column: 3;
+      grid-row: 1 / 3;
+      align-self: center;
+    }
+    .ob-remove:hover { border-color: #ba1a1a; color: #ba1a1a; }
+
+    /* ── Orbit preview ────────────────────────── */
+    .ob-orbit {
+      position: relative;
+      width: 180px; height: 180px;
+      margin: 24px auto 0;
+    }
+    .ob-orbit-ring {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 148px; height: 148px;
+      margin: -74px 0 0 -74px;
+      border: 1.5px dashed rgba(10,126,140,0.16);
+      border-radius: 50%;
+    }
+    .ob-center {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      background: var(--gradient-primary);
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-weight: 800; font-size: 0.7rem;
+      box-shadow: var(--shadow-float);
+      z-index: 2;
+    }
+    .ob-sat {
+      position: absolute;
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-weight: 700; font-size: 0.68rem;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    }
+
+    /* ── Navigation ───────────────────────────── */
+    .ob-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 28px;
+      gap: 12px;
+    }
+    .ob-nav-end {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 28px;
+    }
+    .btn-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: 1.5px solid var(--color-border);
+      border-radius: var(--radius-pill);
+      padding: 12px 22px;
+      font-family: var(--font);
+      font-size: var(--text-md);
+      font-weight: 700;
+      color: var(--color-muted);
+      cursor: pointer;
+      text-decoration: none;
+      transition: border-color 0.18s, color 0.18s;
+    }
+    .btn-back:hover {
+      border-color: var(--color-teal);
+      color: var(--color-teal);
+    }
+
+    /* ── Onboarding chat (paso 4) ─────────────── */
+    .ob-chat-wrap {
+      border: 1.5px solid var(--color-border);
+      border-radius: var(--radius-card);
+      background: var(--color-cream);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .ob-chat-messages {
+      height: 230px;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      scroll-behavior: smooth;
+    }
+    .ob-chat-msg {
+      max-width: 82%;
+      padding: 10px 14px;
+      border-radius: 18px;
+      font-size: var(--text-sm);
+      line-height: 1.5;
+      animation: fadeStep 0.3s ease forwards;
+    }
+    .ob-chat-msg.from-circl {
+      background: white;
+      border: 1.5px solid var(--color-border);
+      color: var(--color-dark);
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+    }
+    .ob-chat-msg.from-user {
+      background: var(--color-teal);
+      color: white;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+    .ob-chat-typing {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 10px 14px;
+      background: white;
+      border: 1.5px solid var(--color-border);
+      border-radius: 18px;
+      border-bottom-left-radius: 4px;
+      align-self: flex-start;
+      width: 60px;
+    }
+    .ob-chat-typing span {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--color-muted);
+      animation: typingDot 1.2s ease-in-out infinite;
+    }
+    .ob-chat-typing span:nth-child(2) { animation-delay: 0.2s; }
+    .ob-chat-typing span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typingDot {
+      0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+      30%            { opacity: 1;   transform: translateY(-3px); }
+    }
+    .ob-chat-input-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-top: 1px solid var(--color-border);
+      background: white;
+    }
+    .ob-chat-input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-family: var(--font);
+      font-size: var(--text-sm);
+      background: transparent;
+      color: var(--color-dark);
+    }
+    .ob-chat-input::placeholder { color: var(--color-muted); }
+    .ob-chat-send {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      background: var(--color-teal);
+      border: none;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    .ob-chat-send:hover { background: #065e6a; }
+
+    /* ── Welcome typewriter actions ──────────── */
+    .welcome-action {
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    .welcome-action.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ── Stepper ──────────────────────────────── */
+    .ob-stepper {
+      display: flex;
+      align-items: center;
+      margin-bottom: 28px;
+    }
+    .ob-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      opacity: 0.25;
+      transition: opacity 0.2s;
+    }
+    .ob-step.active { opacity: 1; }
+    .ob-step-dot {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      border: 1.5px solid var(--color-border);
+      background: white;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--color-muted);
+      transition: background 0.2s, border-color 0.2s, color 0.2s;
+    }
+    .ob-step.active .ob-step-dot {
+      background: var(--color-teal);
+      border-color: var(--color-teal);
+      color: white;
+    }
+    .ob-step.done .ob-step-dot {
+      background: var(--color-teal-wash);
+      border-color: var(--color-teal);
+      color: var(--color-teal);
+    }
+    .ob-step-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--color-muted);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .ob-step.active .ob-step-label,
+    .ob-step.done .ob-step-label { color: var(--color-teal); }
+    .ob-step-line {
+      flex: 1;
+      height: 1.5px;
+      background: var(--color-border);
+      min-width: 32px;
+      margin-bottom: 17px;
+      transition: background 0.2s;
+    }
+    .ob-step-line.done { background: var(--color-teal); }
+  </style>
+</head>
+<body>
+
+<div class="onboarding-page">
+  <div class="onboarding-deco ob-deco-1"></div>
+  <div class="onboarding-deco ob-deco-2"></div>
+
+  <!-- ══ PASO 1 — Splash (sin card) ══════════════ -->
+  <div id="welcome-screen">
+
+    <div class="welcome-rings">
+      <div class="welcome-ring welcome-ring-3"></div>
+      <div class="welcome-ring welcome-ring-2"></div>
+      <div class="welcome-ring welcome-ring-1"></div>
+      <div class="welcome-rings-center">
+        <svg width="28" height="28" viewBox="0 0 40 40" fill="none">
+          <circle cx="20" cy="20" r="14" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+          <circle cx="20" cy="20" r="5" fill="white"/>
+        </svg>
+      </div>
+    </div>
+
+    <h1 class="welcome-title" id="welcome-title">
+      Bienvenida, Valeria.<br><em>No estás sola.</em>
+    </h1>
+
+    <button class="btn btn-primary btn-lg welcome-action" id="welcome-cta" onclick="goStep(2)">¿Cuál es tu crisis?</button>
+    <a class="btn-skip welcome-action" id="welcome-skip" href="../app/dashboard.html">Omitir por ahora</a>
+
+  </div>
+
+  <!-- ══ CARD — Pasos 2 y 3 ═══════════════════════ -->
+  <div class="onboarding-card" id="ob-card">
+
+    <!-- Stepper -->
+    <div class="ob-stepper">
+      <div class="ob-step active" id="ob-step-1">
+        <div class="ob-step-dot">1</div>
+        <div class="ob-step-label">Situación</div>
+      </div>
+      <div class="ob-step-line" id="ob-line-1"></div>
+      <div class="ob-step" id="ob-step-2">
+        <div class="ob-step-dot">2</div>
+        <div class="ob-step-label">Círculo</div>
+      </div>
+      <div class="ob-step-line" id="ob-line-2"></div>
+      <div class="ob-step" id="ob-step-3">
+        <div class="ob-step-dot">3</div>
+        <div class="ob-step-label">Contexto</div>
+      </div>
+    </div>
+
+    <!-- ── PASO 2 — Crisis ──────────────────────── -->
+    <div class="step-panel active" id="step-2">
+      <p class="ob-title">¿Qué está pasando?</p>
+      <p class="ob-subtitle">Contalo con tus palabras. Voy a armar el contexto para ayudarte.</p>
+
+      <div class="form-group">
+        <textarea class="form-input" id="crisis-input" rows="4"
+          style="border-radius:var(--radius-md);resize:none;"
+          placeholder=" "></textarea>
+      </div>
+
+      <div class="ob-nav">
+        <button class="btn-back" onclick="goStep(1)">Atrás</button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button class="btn-skip" style="margin-top:0;" onclick="goStep(3)">Omitir</button>
+          <button class="btn btn-primary" onclick="goStep(3)">Continuar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PASO 3 — Círculo ──────────────────────── -->
+    <div class="step-panel" id="step-3">
+      <p class="ob-title">¿Quién forma tu círculo?</p>
+      <p class="ob-subtitle">Nombre, rol y cercanía. El agente los activa según lo que necesites.</p>
+
+      <div id="contacts-list">
+        <div class="ob-contact-card">
+          <div class="ob-av">LA</div>
+          <div class="ob-contact-fields">
+            <input class="form-input" type="text" placeholder="Nombre">
+            <input class="form-input" type="tel"  placeholder="Teléfono">
+          </div>
+          <div class="ob-contact-selects">
+            <select class="form-select" aria-label="Rol">
+              <option value="">¿Qué rol tiene?</option>
+              <option value="acompanamiento">Acompañamiento</option>
+              <option value="logistica">Logístico</option>
+              <option value="prestador">Prestador de servicios</option>
+            </select>
+            <select class="form-select" aria-label="Cercanía">
+              <option value="">¿Qué tan cercana?</option>
+              <option value="nucleo">Es parte de mi núcleo</option>
+              <option value="ayuda">Me ayuda o puede ayudar</option>
+              <option value="profesional">Proveedor o profesional</option>
+            </select>
+          </div>
+          <button class="ob-remove" onclick="removeContact(this)" title="Quitar">×</button>
+        </div>
+      </div>
+
+      <button class="btn btn-outline btn-sm" style="margin:8px 0 20px;" onclick="addContact()">
+        + Agregar persona
+      </button>
+
+      <!-- Orbit preview 
+      <div class="ob-orbit">
+        <div class="ob-orbit-ring"></div>
+        <div class="ob-center">Vos</div>
+        <div class="ob-sat" style="top:-2px;left:50%;transform:translateX(-50%);background:var(--gradient-primary);">SG</div>
+        <div class="ob-sat" style="right:-2px;top:50%;transform:translateY(-50%);background:linear-gradient(135deg,#f4ab66,var(--color-orange));">DR</div>
+        <div class="ob-sat" style="bottom:-2px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--color-teal),#065e6a);opacity:0.35;">+</div>
+        <div class="ob-sat" style="left:-2px;top:50%;transform:translateY(-50%);background:var(--gradient-primary);opacity:0.35;">+</div>
+      </div>-->
+
+      <div class="ob-nav">
+        <button class="btn-back" onclick="goStep(2)">Atrás</button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button class="btn-skip" style="margin-top:0;" onclick="goStep(4)">Omitir</button>
+          <button class="btn btn-primary" onclick="goStep(4)">Continuar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PASO 4 — Chat contextual ──────────────── -->
+    <div class="step-panel" id="step-4">
+      <p class="ob-title">¿Qué más podés contarme?</p>
+      <p class="ob-subtitle">Todo lo que me cuentes me contextualizará mejor.</p>
+
+      <div class="ob-chat-wrap">
+        <div class="ob-chat-messages" id="ob-chat-log"></div>
+        <div class="ob-chat-input-row">
+          <input class="ob-chat-input" id="ob-chat-input" type="text" placeholder="Escribí tu respuesta…" autocomplete="off">
+          <button class="ob-chat-send" id="ob-chat-send" aria-label="Enviar">
+            <span class="material-symbols-outlined" style="font-size:18px;">send</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="ob-nav">
+        <button class="btn-back" onclick="goStep(3)">Atrás</button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <a class="btn-skip" style="margin-top:0;" href="../app/dashboard.html">Omitir</a>
+          <a href="../app/dashboard.html" class="btn btn-gradient">Finalizar</a>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /ob-card -->
+
+</div><!-- /onboarding-page -->
+
+<script src="../assets/js/main.js"></script>
+<script>
+  const welcome = document.getElementById('welcome-screen');
+  const card    = document.getElementById('ob-card');
+
+  function goStep(n) {
+    if (n === 1) {
+      // Back to splash
+      card.style.display    = 'none';
+      welcome.style.display = 'flex';
+    } else {
+      // Show card, hide splash
+      welcome.style.display = 'none';
+      card.style.display    = 'block';
+      // Activate the right panel inside the card
+      document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('step-' + n).classList.add('active');
+      updateStepper(n);
+      if (n === 4) obChatInit();
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function updateStepper(n) {
+    // n is the card step (2, 3, 4) — maps to stepper positions (1, 2, 3)
+    const pos = n - 1;
+    for (let i = 1; i <= 3; i++) {
+      const el = document.getElementById('ob-step-' + i);
+      el.classList.remove('active', 'done');
+      if (i < pos) el.classList.add('done');
+      else if (i === pos) el.classList.add('active');
+    }
+    document.getElementById('ob-line-1').classList.toggle('done', pos > 1);
+    document.getElementById('ob-line-2').classList.toggle('done', pos > 2);
+  }
+
+  // Palette for new contacts
+  const AV_STYLES  = [
+    'background:linear-gradient(135deg,var(--color-teal),#065e6a)',
+    'background:var(--gradient-primary)',
+    'background:linear-gradient(135deg,#9b7fe8,#6c4fc7)',
+    'background:linear-gradient(135deg,#f4ab66,var(--color-orange))',
+  ];
+  const INIT_POOL = ['LA', 'CR', 'MR', 'JP', 'PG', 'RM'];
+
+  function addContact() {
+    const list = document.getElementById('contacts-list');
+    const idx  = list.children.length;
+    const init = INIT_POOL[idx % INIT_POOL.length];
+    const av   = AV_STYLES[idx % AV_STYLES.length];
+    const card = document.createElement('div');
+    card.className = 'ob-contact-card';
+    card.innerHTML = `
+      <div class="ob-av" style="${av}">${init}</div>
+      <div class="ob-contact-fields">
+        <input class="form-input" type="text" placeholder="Nombre">
+        <input class="form-input" type="tel"  placeholder="Teléfono">
+      </div>
+      <div class="ob-contact-selects">
+        <select class="form-select" aria-label="Rol">
+          <option value="">¿Qué rol tiene?</option>
+          <option value="acompanamiento">Acompañamiento</option>
+          <option value="logistica">Logístico</option>
+          <option value="prestador">Prestador de servicios</option>
+        </select>
+        <select class="form-select" aria-label="Cercanía">
+          <option value="">¿Qué tan cercana?</option>
+          <option value="nucleo">Es parte de mi núcleo</option>
+          <option value="ayuda">Me ayuda o puede ayudar</option>
+          <option value="profesional">Proveedor o profesional</option>
+        </select>
+      </div>
+      <button class="ob-remove" onclick="removeContact(this)" title="Quitar">×</button>`;
+    list.appendChild(card);
+    card.querySelector('input[type="text"]').focus();
+  }
+
+  function removeContact(btn) {
+    btn.closest('.ob-contact-card').remove();
+  }
+
+  // ── Paso 4: chat contextual ────────────────────────
+  const OB_QUESTIONS = [
+    '¿En qué ciudad o barrio viven?',
+    '¿Hay niños o adolescentes en la familia?',
+    '¿Tienen obra social o prepaga? ¿Cuál?',
+    '¿Hay algo más que creas importante que sepa sobre la situación?',
+  ];
+  let obChatStep  = 0;
+  let obChatReady = false;
+
+  function obChatInit() {
+    if (obChatReady) return;
+    obChatReady = true;
+    const log = document.getElementById('ob-chat-log');
+    log.innerHTML = '';
+    obChatStep = 0;
+    setTimeout(() => obAskNext(log), 500);
+  }
+
+  function obAskNext(log) {
+    if (obChatStep >= OB_QUESTIONS.length) return;
+    const typing = document.createElement('div');
+    typing.className = 'ob-chat-typing';
+    typing.innerHTML = '<span></span><span></span><span></span>';
+    log.appendChild(typing);
+    log.scrollTop = log.scrollHeight;
+    setTimeout(() => {
+      typing.remove();
+      const msg = document.createElement('div');
+      msg.className = 'ob-chat-msg from-circl';
+      msg.textContent = OB_QUESTIONS[obChatStep];
+      log.appendChild(msg);
+      log.scrollTop = log.scrollHeight;
+    }, 900);
+  }
+
+  function obSendMessage() {
+    const input = document.getElementById('ob-chat-input');
+    const log   = document.getElementById('ob-chat-log');
+    const text  = input.value.trim();
+    if (!text) return;
+    const msg = document.createElement('div');
+    msg.className = 'ob-chat-msg from-user';
+    msg.textContent = text;
+    log.appendChild(msg);
+    input.value = '';
+    log.scrollTop = log.scrollHeight;
+    obChatStep++;
+    if (obChatStep < OB_QUESTIONS.length) {
+      setTimeout(() => obAskNext(log), 400);
+    }
+  }
+
+  // ── Welcome screen: circle → typewriter → actions ──
+  (function () {
+    const el    = document.getElementById('welcome-title');
+    const rings = document.querySelector('.welcome-rings');
+    if (!el || !rings) return;
+
+    // Build spans upfront (invisible) to lock layout height
+    el.innerHTML = '';
+    const spans1 = [];
+    const spans2 = [];
+
+    Array.from('Bienvenida, Valeria.').forEach(ch => {
+      const s = document.createElement('span');
+      s.textContent = ch; s.style.opacity = '0';
+      el.appendChild(s); spans1.push(s);
+    });
+    el.appendChild(document.createElement('br'));
+    Array.from('No estás sola.').forEach(ch => {
+      const s = document.createElement('span');
+      s.textContent = ch; s.style.opacity = '0';
+      s.style.color = 'var(--color-teal)';
+      el.appendChild(s); spans2.push(s);
+    });
+
+    const showActions = () => {
+      setTimeout(() => {
+        const cta  = document.getElementById('welcome-cta');
+        const skip = document.getElementById('welcome-skip');
+        if (cta)  cta.classList.add('visible');
+        setTimeout(() => { if (skip) skip.classList.add('visible'); }, 160);
+      }, 1000);
+    };
+
+    const typeLine = (spans, onDone) => {
+      let i = 0;
+      const t = setInterval(() => {
+        spans[i].style.opacity = '1';
+        i++;
+        if (i >= spans.length) { clearInterval(t); onDone(); }
+      }, 38);
+    };
+
+    const startTypewriter = () => {
+      typeLine(spans1, () => {
+        setTimeout(() => typeLine(spans2, showActions), 500);
+      });
+    };
+
+    // 1. Trigger circle grow-in
+    setTimeout(() => rings.classList.add('rings-visible'), 80);
+
+    // 2. Wait for scale transition to finish, then start typewriter
+    rings.addEventListener('animationend', function handler() {
+      rings.removeEventListener('animationend', handler);
+      rings.style.opacity = '1';
+      rings.classList.remove('rings-visible');
+      rings.classList.add('rings-pulsing');
+      setTimeout(startTypewriter, 1000);
+    });
+  })();
+
+  document.getElementById('ob-chat-send').addEventListener('click', obSendMessage);
+  document.getElementById('ob-chat-input').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); obSendMessage(); }
+  });
+</script>
+<script>window.CASE_NAV_PAGE_ID = 'onboarding';</script>
+<script src="../assets/js/case-nav.js"></script>
+</body>
+</html>

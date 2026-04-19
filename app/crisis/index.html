@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circl · Crisis</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet">
+  <link rel="stylesheet" href="../../assets/css/styles.css">
+  <style>
+    @keyframes heroBgDrift {
+      0%, 100% {
+        background:
+          radial-gradient(ellipse at 15% 15%, rgba(61,199,166,0.03) 0%, transparent 55%),
+          radial-gradient(ellipse at 85% 10%, rgba(80,220,175,0.07) 0%, transparent 50%),
+          radial-gradient(ellipse at 88% 82%, rgba(224,121,49,0.08) 0%, transparent 52%),
+          radial-gradient(ellipse at 12% 88%, rgba(158,160,81,0.08) 0%, transparent 50%),
+          radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 65%),
+          #f0f4f8;
+      }
+      25% {
+        background:
+          radial-gradient(ellipse at 22% 10%, rgba(61,199,166,0.03) 0%, transparent 55%),
+          radial-gradient(ellipse at 90% 20%, rgba(80,220,175,0.07) 0%, transparent 50%),
+          radial-gradient(ellipse at 80% 88%, rgba(224,121,49,0.08) 0%, transparent 52%),
+          radial-gradient(ellipse at 6%  78%, rgba(158,160,81,0.08) 0%, transparent 50%),
+          radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 65%),
+          #f0f4f8;
+      }
+      50% {
+        background:
+          radial-gradient(ellipse at 10% 22%, rgba(61,199,166,0.03) 0%, transparent 55%),
+          radial-gradient(ellipse at 78% 8%,  rgba(80,220,175,0.07) 0%, transparent 50%),
+          radial-gradient(ellipse at 92% 75%, rgba(224,121,49,0.08) 0%, transparent 52%),
+          radial-gradient(ellipse at 18% 92%, rgba(158,160,81,0.08) 0%, transparent 50%),
+          radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 65%),
+          #f0f4f8;
+      }
+      75% {
+        background:
+          radial-gradient(ellipse at 20% 22%, rgba(61,199,166,0.03) 0%, transparent 55%),
+          radial-gradient(ellipse at 82% 18%, rgba(80,220,175,0.07) 0%, transparent 50%),
+          radial-gradient(ellipse at 85% 90%, rgba(224,121,49,0.08) 0%, transparent 52%),
+          radial-gradient(ellipse at 14% 82%, rgba(158,160,81,0.08) 0%, transparent 50%),
+          radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 65%),
+          #f0f4f8;
+      }
+    }
+    body { animation: heroBgDrift 30s ease-in-out infinite; }
+
+    .crisis-card {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      background: var(--color-white);
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow-card);
+      padding: var(--space-lg);
+      border-left: 4px solid transparent;
+      transition: box-shadow 0.2s, transform 0.2s;
+      margin-bottom: var(--space-md);
+    }
+    .crisis-card:hover { box-shadow: var(--shadow-float); transform: translateY(-2px); }
+    .crisis-card.active-border { border-left-color: var(--color-teal); }
+    .crisis-card.resolved-border { border-left-color: var(--color-border); opacity: 0.65; }
+    .crisis-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 10px;
+    }
+    .crisis-card-arrow {
+      color: var(--color-teal);
+      font-size: 1.2rem;
+      margin-left: 12px;
+      flex-shrink: 0;
+    }
+    .crisis-days {
+      font-size: var(--text-xs);
+      color: var(--color-muted);
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img src="../../assets/img/LOGO_CIRCL_1.svg" alt="Circl">
+      <span class="sidebar-wordmark">Circl</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="sidebar-link" href="../dashboard.html">
+        <span class="material-symbols-outlined sidebar-icon">grid_view</span>
+        Inicio
+      </a>
+      <a class="sidebar-link" href="../circle/index.html">
+        <span class="material-symbols-outlined sidebar-icon">group</span>
+        Círculo
+      </a>
+      <a class="sidebar-link active" href="index.html">
+        <span class="material-symbols-outlined sidebar-icon">warning</span>
+        Crisis
+      </a>
+      <a class="sidebar-link" href="../chat.html">
+        <span class="material-symbols-outlined sidebar-icon">chat_bubble</span>
+        Chat
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <a class="sidebar-user" href="../profile.html">
+        <img src="../../assets/img/valeria.png" alt="Valeria López" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;">
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name">Valeria López</div>
+          <div class="sidebar-user-role">Cuidadora principal</div>
+        </div>
+      </a>
+    </div>
+  </aside>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <a class="bottom-nav-item" href="../dashboard.html">
+        <span class="material-symbols-outlined bottom-nav-icon">grid_view</span>
+        Panel
+      </a>
+      <a class="bottom-nav-item" href="../circle/index.html">
+        <span class="material-symbols-outlined bottom-nav-icon">group</span>
+        Círculo
+      </a>
+      <a class="bottom-nav-item active" href="index.html">
+        <span class="material-symbols-outlined bottom-nav-icon">warning</span>
+        Crisis
+      </a>
+      <a class="bottom-nav-item" href="../chat.html">
+        <span class="material-symbols-outlined bottom-nav-icon">chat_bubble</span>
+        Chat
+      </a>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main-content">
+
+    <div class="page-header">
+      <h1>Crisis</h1>
+      <p>Registros de situaciones activas y resueltas.</p>
+    </div>
+
+    <!-- Activas -->
+    <p style="font-size:var(--text-sm);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-muted);margin-bottom:var(--space-md);">Activas</p>
+
+    <a class="crisis-card" href="detail.html">
+      <div class="crisis-card-header">
+        <div>
+          <h3 style="font-size:var(--text-lg);margin-bottom:6px;">Linfoma de Martín</h3>
+          <span class="badge badge-active">Activa</span>
+        </div>
+        <span class="crisis-card-arrow">→</span>
+      </div>
+      <div class="crisis-days">Inicio: 8 de abril · 5 días activa · Oncología</div>
+      <div class="progress-bar" style="margin-top:12px;">
+        <div class="progress-fill" style="width:35%;"></div>
+      </div>
+      <p style="font-size:var(--text-xs);color:var(--color-muted);margin-top:5px;">3 de 8 tareas completadas</p>
+    </a>
+
+    <!-- Resueltas -->
+    <p style="font-size:var(--text-sm);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-muted);margin-top:var(--space-xl);margin-bottom:var(--space-md);">Resueltas</p>
+
+    <a class="crisis-card resolved-border" href="detail.html">
+      <div class="crisis-card-header">
+        <div>
+          <h3 style="font-size:var(--text-lg);margin-bottom:6px;">Internación mamá — fractura</h3>
+          <span class="badge" style="background:rgba(90,116,120,0.1);color:var(--color-muted);">Resuelta</span>
+        </div>
+        <span class="crisis-card-arrow" style="color:var(--color-muted);">→</span>
+      </div>
+      <div class="crisis-days">Enero 2025 · 18 días · Traumatología</div>
+      <div class="progress-bar" style="margin-top:12px;">
+        <div class="progress-fill" style="width:100%;background:linear-gradient(135deg,var(--color-muted),#8fa4a8);"></div>
+      </div>
+      <p style="font-size:var(--text-xs);color:var(--color-muted);margin-top:5px;">12 de 12 tareas completadas</p>
+    </a>
+
+  </main>
+</div>
+
+</div>
+
+<script src="../../assets/js/main.js"></script>
+<script>window.CASE_NAV_PAGE_ID = 'crisis-list';</script>
+<script src="../../assets/js/case-nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circl · Mi círculo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet">
+  <link rel="stylesheet" href="../../assets/css/styles.css">
+  <style>
+    @keyframes heroBgDrift {
+      0%, 100% {
+        background:
+          radial-gradient(ellipse at 15% 15%, rgba(61,199,166,0.03) 0%, transparent 55%),
+          radial-gradient(ellipse at 85% 10%, rgba(80,220,175,0.07) 0%, transparent 50%),
+          radial-gradient(ellipse at 88% 82%, rgba(224,121,49,0.08) 0%, transparent 52%),
+          radial-gradient(ellipse at 12% 88%, rgba(158,160,81,0.08) 0%, transparent 50%),
+          radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 65%),
+          #f0f4f8;
+      }
+      25% {
+        background:
+          radial-gradient(ellipse at 22% 10%, rgba(61,199,166,0.03) 0%, transparent 55%),
+          radial-gradient(ellipse at 90% 20%, rgba(80,220,175,0.07) 0%, transparent 50%),
+          radial-gradient(ellipse at 80% 88%, rgba(224,121,49,0.08) 0%, transparent 52%),
+          radial-gradient(ellipse at 6%  78%, rgba(158,160,81,0.08) 0%, transparent 50%),
+          radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 65%),
+          #f0f4f8;
+      }
+      50% {
+        background:
+          radial-gradient(ellipse at 10% 22%, rgba(61,199,166,0.03) 0%, transparent 55%),
+          radial-gradient(ellipse at 78% 8%,  rgba(80,220,175,0.07) 0%, transparent 50%),
+          radial-gradient(ellipse at 92% 75%, rgba(224,121,49,0.08) 0%, transparent 52%),
+          radial-gradient(ellipse at 18% 92%, rgba(158,160,81,0.08) 0%, transparent 50%),
+          radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 65%),
+          #f0f4f8;
+      }
+      75% {
+        background:
+          radial-gradient(ellipse at 20% 22%, rgba(61,199,166,0.03) 0%, transparent 55%),
+          radial-gradient(ellipse at 82% 18%, rgba(80,220,175,0.07) 0%, transparent 50%),
+          radial-gradient(ellipse at 85% 90%, rgba(224,121,49,0.08) 0%, transparent 52%),
+          radial-gradient(ellipse at 14% 82%, rgba(158,160,81,0.08) 0%, transparent 50%),
+          radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 65%),
+          #f0f4f8;
+      }
+    }
+    body { animation: heroBgDrift 30s ease-in-out infinite; }
+
+    /* Two-column layout */
+    .circle-page-layout {
+      display: flex;
+      gap: 32px;
+      align-items: center;
+      min-height: calc(100vh - 220px);
+    }
+    .circle-left {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .circle-right {
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* ── Orbit stage ─────────────────────────── */
+    .orbit-stage {
+      position: relative;
+      width: 580px;
+      height: 580px;
+      max-width: 100%;
+      aspect-ratio: 1;
+      overflow: hidden;
+    }
+
+    /* Static concentric rings (light gray, equal spacing) */
+    .orbit-line {
+      position: absolute;
+      top: 50%; left: 50%;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      pointer-events: none;
+    }
+    .orbit-line-1 { width: 224px; height: 224px; margin: -112px 0 0 -112px; }
+    .orbit-line-2 { width: 364px; height: 364px; margin: -182px 0 0 -182px; }
+    .orbit-line-3 { width: 504px; height: 504px; margin: -252px 0 0 -252px; }
+
+    /* Registrar componentes RGB como propiedades animables */
+    @property --gc-r { syntax: '<integer>'; inherits: false; initial-value: 61;  }
+    @property --gc-g { syntax: '<integer>'; inherits: false; initial-value: 200; }
+    @property --gc-b { syntax: '<integer>'; inherits: false; initial-value: 168; }
+
+    /* Outer glow band: rotates + cycles through 3 colors */
+    .orbit-glow {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 704px;
+      height: 704px;
+      margin: -352px 0 0 -352px;
+      border-radius: 50%;
+      background: conic-gradient(from 0deg,
+        rgba(var(--gc-r), var(--gc-g), var(--gc-b), 0.00)  0deg,
+        rgba(var(--gc-r), var(--gc-g), var(--gc-b), 0.45) 80deg,
+        rgba(var(--gc-r), var(--gc-g), var(--gc-b), 0.55) 160deg,
+        rgba(var(--gc-r), var(--gc-g), var(--gc-b), 0.30) 240deg,
+        rgba(var(--gc-r), var(--gc-g), var(--gc-b), 0.05) 320deg,
+        rgba(var(--gc-r), var(--gc-g), var(--gc-b), 0.00) 360deg
+      );
+      -webkit-mask: radial-gradient(circle, transparent 252px, #000 252px, #000 272px, transparent 272px);
+              mask: radial-gradient(circle, transparent 252px, #000 252px, #000 272px, transparent 272px);
+      filter: blur(10px);
+      animation: orbit-spin-cw 90s linear infinite, orbit-glow-hue 24s ease-in-out infinite;
+      pointer-events: none;
+    }
+    @keyframes orbit-glow-hue {
+      0%, 100% { --gc-r: 61;  --gc-g: 200; --gc-b: 168; } /* #3dc8a8 */
+      33%       { --gc-r: 159; --gc-g: 161; --gc-b: 81;  } /* #9fa151 */
+      66%       { --gc-r: 223; --gc-g: 120; --gc-b: 48;  } /* #df7830 */
+    }
+
+    /* Rotating ring containers (each rotates at its own speed/direction) */
+    .orbit-rotator { position: absolute; inset: 0; pointer-events: none; }
+    .orbit-r1 { animation: orbit-spin-cw 80s linear infinite; }
+    .orbit-r2 { animation: orbit-spin-ccw 110s linear infinite; }
+    .orbit-r3 { animation: orbit-spin-cw 140s linear infinite; }
+
+    /* Actor positioned on its ring at angle --a (no rotation, just translate) */
+    .orbit-actor {
+      --s: 68px;
+      position: absolute;
+      top: 50%; left: 50%;
+      width: var(--s);
+      height: var(--s);
+      margin-top:  calc(var(--s) / -2);
+      margin-left: calc(var(--s) / -2);
+      pointer-events: auto;
+      text-decoration: none;
+    }
+    .orbit-r1 .orbit-actor {
+      transform: translate(calc(112px * sin(var(--a))), calc(-112px * cos(var(--a))));
+    }
+    .orbit-r2 .orbit-actor {
+      transform: translate(calc(182px * sin(var(--a))), calc(-182px * cos(var(--a))));
+    }
+    .orbit-r3 .orbit-actor {
+      transform: translate(calc(252px * sin(var(--a))), calc(-252px * cos(var(--a))));
+    }
+
+    /* Actor visual (counter-rotates so content stays upright) */
+    .orbit-actor-inner {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: var(--gradient-primary);
+      border: 2px solid rgba(0, 0, 0, 0.08);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.10);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: white;
+      transition: transform 0.2s;
+    }
+    .orbit-actor-inner img { width: 100%; height: 100%; object-fit: cover; }
+    .orbit-actor-inner.is-logo { background: #1226aa; }
+    .orbit-actor-inner.is-logo img { width: 76%; height: 76%; object-fit: contain; }
+
+    .orbit-r1 .orbit-actor-inner { animation: orbit-spin-ccw 80s linear infinite; }
+    .orbit-r2 .orbit-actor-inner { animation: orbit-spin-cw 110s linear infinite; }
+    .orbit-r3 .orbit-actor-inner { animation: orbit-spin-ccw 140s linear infinite; }
+
+    /* Center: Valeria */
+    .orbit-center {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 110px; height: 110px;
+      margin: -55px 0 0 -55px;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 2px solid rgba(0, 0, 0, 0.08);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+      z-index: 5;
+    }
+    .orbit-center img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    @keyframes orbit-spin-cw  { to { transform: rotate(360deg); } }
+    @keyframes orbit-spin-ccw { to { transform: rotate(-360deg); } }
+
+    /* Contact list */
+    .contact-entry {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .contact-entry:last-child { border-bottom: none; }
+    .contact-entry.active .contact-row {
+      background: rgba(61, 199, 166, 0.07);
+      border-radius: 8px;
+    }
+    .contact-entry:has(+ .contact-entry.active) { border-bottom: none; }
+    .contact-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      padding: var(--space-md) 0;
+      transition: background 0.18s;
+    }
+    .contact-info { flex: 1; min-width: 0; }
+    .contact-name { font-weight: 700; font-size: var(--text-md); margin-bottom: 2px; }
+    .contact-relation { font-size: var(--text-xs); color: var(--color-muted); }
+    .contact-av {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      overflow: hidden;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--gradient-primary);
+      color: white; font-weight: 700; font-size: 0.9rem;
+      border: 1px solid rgba(0,0,0,0.05);
+    }
+    .contact-av img { width: 100%; height: 100%; object-fit: cover; }
+    .contact-av.is-logo { background: #1226aa; }
+    .contact-av.is-logo img { width: 78%; height: 78%; object-fit: contain; }
+
+    /* ── Sidesheet ──────────────────────────── */
+    .ss-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.22);
+      z-index: 200;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    .ss-overlay.open { opacity: 1; pointer-events: auto; }
+
+    .sidesheet {
+      position: fixed; top: 0; right: 0;
+      width: 420px; max-width: 100vw; height: 100vh;
+      background: #f0f4f8;
+      z-index: 201;
+      transform: translateX(100%);
+      transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+      overflow-y: auto;
+      box-shadow: -6px 0 32px rgba(0,0,0,0.10);
+      display: flex; flex-direction: column;
+    }
+    .sidesheet.open { transform: translateX(0); }
+
+    .ss-top-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 24px 0; flex-shrink: 0;
+    }
+    .ss-top-label {
+      font-size: var(--text-xs); font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--color-muted);
+    }
+    .ss-close {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: rgba(0,0,0,0.06); border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--color-muted); transition: background 0.15s;
+      font-size: 1rem;
+    }
+    .ss-close:hover { background: rgba(0,0,0,0.11); }
+
+    .ss-body { padding: 0 24px 40px; flex: 1; }
+
+    .ss-hero {
+      display: flex; flex-direction: column; align-items: center;
+      text-align: center; padding: 24px 0 20px;
+      border-bottom: 1px solid var(--color-border);
+      margin-bottom: 24px;
+    }
+    .ss-av {
+      width: 80px; height: 80px; border-radius: 50%;
+      background: var(--gradient-primary);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 1.5rem; color: white;
+      box-shadow: var(--shadow-float); margin-bottom: 14px; overflow: hidden;
+    }
+    .ss-av img { width: 100%; height: 100%; object-fit: cover; }
+    .ss-av.is-logo { background: #1226aa; }
+    .ss-av.is-logo img { width: 72%; height: 72%; object-fit: contain; }
+    .ss-name {
+      font-size: var(--text-xl); font-weight: 800;
+      letter-spacing: -0.02em; margin-bottom: 8px;
+    }
+    .ss-section-title {
+      font-size: var(--text-xs); font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--color-muted); margin-bottom: 12px;
+    }
+    .ss-data-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 13px 0; border-bottom: 1px solid var(--color-border); gap: 12px;
+    }
+    .ss-data-row:last-child { border-bottom: none; }
+    .ss-data-label {
+      font-size: var(--text-xs); font-weight: 700;
+      letter-spacing: 0.07em; text-transform: uppercase;
+      color: var(--color-muted); min-width: 80px;
+    }
+    .ss-data-value { font-size: var(--text-sm); font-weight: 600; color: var(--color-dark); flex: 1; }
+    .ss-edit-btn {
+      background: none; border: none; color: var(--color-teal);
+      font-size: var(--text-xs); font-weight: 700; cursor: pointer;
+      padding: 4px 8px; border-radius: var(--radius-sm); transition: background 0.15s;
+    }
+    .ss-edit-btn:hover { background: var(--color-teal-wash); }
+    .ss-form-input {
+      flex: 1; border: none; background: none; font-size: var(--text-sm);
+      font-weight: 600; outline: none; color: var(--color-dark);
+      font-family: inherit;
+    }
+    .ss-form-input::placeholder { color: var(--color-muted); font-weight: 400; }
+
+    /* Image upload */
+    .ss-photo-upload {
+      position: relative;
+      width: 96px; height: 96px;
+      border-radius: 50%;
+      background: rgba(61,199,166,0.08);
+      border: 2px dashed rgba(61,199,166,0.45);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 14px;
+      cursor: pointer;
+      overflow: hidden;
+    }
+    .ss-photo-upload:hover { background: rgba(61,199,166,0.13); }
+    .ss-photo-upload input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer;
+    }
+    .ss-photo-upload img {
+      width: 100%; height: 100%; object-fit: cover;
+      border-radius: 50%;
+    }
+    .ss-photo-upload .ss-photo-initials {
+      font-weight: 800; font-size: 1.6rem;
+      color: white;
+      width: 100%; height: 100%;
+      border-radius: 50%;
+      background: var(--gradient-primary);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ss-photo-hint {
+      font-size: var(--text-xs);
+      color: var(--color-muted);
+      text-align: center;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img src="../../assets/img/LOGO_CIRCL_1.svg" alt="Circl">
+      <span class="sidebar-wordmark">Circl</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="sidebar-link" href="../dashboard.html">
+        <span class="material-symbols-outlined sidebar-icon">grid_view</span>
+        Inicio
+      </a>
+      <a class="sidebar-link active" href="index.html">
+        <span class="material-symbols-outlined sidebar-icon">group</span>
+        Círculo
+      </a>
+      <a class="sidebar-link" href="../crisis/index.html">
+        <span class="material-symbols-outlined sidebar-icon">warning</span>
+        Crisis
+      </a>
+      <a class="sidebar-link" href="../chat.html">
+        <span class="material-symbols-outlined sidebar-icon">chat_bubble</span>
+        Chat
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <a class="sidebar-user" href="../profile.html">
+        <img src="../../assets/img/valeria.png" alt="Valeria López" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;">
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name">Valeria López</div>
+          <div class="sidebar-user-role">Cuidadora principal</div>
+        </div>
+      </a>
+    </div>
+  </aside>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <a class="bottom-nav-item" href="../dashboard.html">
+        <span class="material-symbols-outlined bottom-nav-icon">grid_view</span>
+        Panel
+      </a>
+      <a class="bottom-nav-item active" href="index.html">
+        <span class="material-symbols-outlined bottom-nav-icon">group</span>
+        Círculo
+      </a>
+      <a class="bottom-nav-item" href="../crisis/index.html">
+        <span class="material-symbols-outlined bottom-nav-icon">warning</span>
+        Crisis
+      </a>
+      <a class="bottom-nav-item" href="../chat.html">
+        <span class="material-symbols-outlined bottom-nav-icon">chat_bubble</span>
+        Chat
+      </a>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main-content">
+
+    <div class="page-header">
+      <h1>Tu círculo</h1>
+      <p>Quienes te acompañan en esta etapa.</p>
+    </div>
+
+    <div class="circle-page-layout">
+
+      <!-- Left: Orbit visualization -->
+      <div class="circle-left">
+        <div class="orbit-stage">
+
+          <!-- Outer rotating teal glow band -->
+          <div class="orbit-glow"></div>
+
+          <!-- Three concentric rings (light gray, equal spacing) -->
+          <div class="orbit-line orbit-line-1"></div>
+          <div class="orbit-line orbit-line-2"></div>
+          <div class="orbit-line orbit-line-3"></div>
+
+          <!-- Ring containers (populated by JS) -->
+          <div class="orbit-rotator orbit-r1" id="orbit-r1"></div>
+          <div class="orbit-rotator orbit-r2" id="orbit-r2"></div>
+          <div class="orbit-rotator orbit-r3" id="orbit-r3"></div>
+
+          <!-- Center: Valeria -->
+          <div class="orbit-center">
+            <img src="../../assets/img/valeria.png" alt="Valeria López">
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Right: Contact list -->
+      <div class="circle-right">
+        <div class="card" style="padding: 0 var(--space-lg);" id="contact-list">
+          <!-- Entries rendered by JS -->
+        </div>
+      </div>
+
+    </div><!-- /.circle-page-layout -->
+
+  </main>
+</div>
+
+<!-- Sidesheet overlay -->
+<div class="ss-overlay" id="ss-overlay"></div>
+
+<!-- Sidesheet panel -->
+<div class="sidesheet" id="sidesheet">
+  <div class="ss-top-bar">
+    <span class="ss-top-label" id="ss-top-label"></span>
+    <button class="ss-close" id="ss-close">✕</button>
+  </div>
+  <div class="ss-body">
+
+    <!-- VIEW MODE -->
+    <div id="ss-view">
+      <div class="ss-hero">
+        <div class="ss-av" id="ss-av-el"></div>
+        <div class="ss-name" id="ss-name-el"></div>
+        <span class="badge" id="ss-badge-el"></span>
+      </div>
+
+      <div style="margin-bottom:24px;">
+        <p class="ss-section-title">Datos personales</p>
+        <div class="card">
+          <div class="ss-data-row">
+            <span class="ss-data-label">Teléfono</span>
+            <span class="ss-data-value" id="ss-phone-el"></span>
+            <button class="ss-edit-btn">Editar</button>
+          </div>
+          <div class="ss-data-row">
+            <span class="ss-data-label">Email</span>
+            <span class="ss-data-value" id="ss-email-el"></span>
+            <button class="ss-edit-btn">Editar</button>
+          </div>
+          <div class="ss-data-row">
+            <span class="ss-data-label">Relación</span>
+            <span class="ss-data-value" id="ss-relation-el"></span>
+            <button class="ss-edit-btn">Editar</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:24px;">
+        <p class="ss-section-title">Rol y cercanía</p>
+        <div class="card">
+          <div class="ss-data-row">
+            <span class="ss-data-label">Rol</span>
+            <div style="flex:1;">
+              <select class="form-select" id="ss-role-el" style="max-width:220px;">
+                <option value="acompanamiento">Acompañamiento</option>
+                <option value="logistica">Logístico</option>
+                <option value="prestador">Prestador de servicios</option>
+              </select>
+            </div>
+          </div>
+          <div class="ss-data-row" style="border:none;padding-bottom:0;">
+            <span class="ss-data-label">Cercanía</span>
+            <div style="flex:1;">
+              <select class="form-select" id="ss-closeness-el" style="max-width:260px;">
+                <option value="nucleo">Es parte de mi núcleo</option>
+                <option value="ayuda">Es alguien que me ayuda o puede ayudar</option>
+                <option value="profesional">Es un proveedor de servicios o un profesional</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:24px;">
+        <p class="ss-section-title">Crisis en las que participa</p>
+        <div class="card">
+          <a href="../crisis/detail.html" style="text-decoration:none;color:inherit;display:flex;align-items:center;gap:12px;padding:13px 0;">
+            <div style="width:10px;height:10px;border-radius:50%;background:var(--color-mint);flex-shrink:0;"></div>
+            <span style="font-size:var(--text-sm);font-weight:600;flex:1;">Linfoma de Martín</span>
+            <span class="badge badge-active">Activa</span>
+            <span style="color:var(--color-muted);">→</span>
+          </a>
+        </div>
+      </div>
+
+      <div>
+        <p class="ss-section-title">Acciones</p>
+        <div class="card">
+          <div class="ss-data-row" style="border:none;padding:0;">
+            <span class="ss-data-value" id="ss-delete-label" style="color:var(--color-muted);font-size:var(--text-sm);"></span>
+            <button class="btn btn-sm" style="background:rgba(186,26,26,0.06);color:#ba1a1a;border:none;">Eliminar</button>
+          </div>
+        </div>
+      </div>
+    </div><!-- /#ss-view -->
+
+    <!-- ADD MODE -->
+    <div id="ss-add" style="display:none;">
+      <div style="padding:24px 0 20px;border-bottom:1px solid var(--color-border);margin-bottom:24px;text-align:center;">
+        <label class="ss-photo-upload" id="ss-add-photo">
+          <span class="ss-photo-initials" id="ss-add-initials">+</span>
+          <input type="file" accept="image/*" id="ss-add-photo-input">
+        </label>
+        <div class="ss-photo-hint">Tocá para subir una foto (opcional)</div>
+        <div style="font-size:var(--text-xl);font-weight:800;letter-spacing:-0.02em;">Nueva persona</div>
+      </div>
+
+      <form id="ss-add-form">
+        <p class="ss-section-title">Datos personales</p>
+        <div class="card" style="margin-bottom:24px;">
+          <div class="ss-data-row">
+            <span class="ss-data-label">Nombre</span>
+            <input class="ss-form-input" type="text" placeholder="Nombre completo" id="ss-add-name" required>
+          </div>
+          <div class="ss-data-row">
+            <span class="ss-data-label">Teléfono</span>
+            <input class="ss-form-input" type="tel" placeholder="+54 9 11 …">
+          </div>
+          <div class="ss-data-row">
+            <span class="ss-data-label">Email</span>
+            <input class="ss-form-input" type="email" placeholder="correo@ejemplo.com">
+          </div>
+          <div class="ss-data-row">
+            <span class="ss-data-label">Relación</span>
+            <input class="ss-form-input" type="text" placeholder="Ej: Amiga, Cuñado…">
+          </div>
+        </div>
+
+        <p class="ss-section-title">Rol en el círculo</p>
+        <div class="card" style="margin-bottom:24px;">
+          <div class="ss-data-row" style="border:none;padding-bottom:0;">
+            <span class="ss-data-label">Rol</span>
+            <div style="flex:1;">
+              <select class="form-select" id="ss-add-role" style="max-width:220px;">
+                <option value="acompanamiento">Acompañamiento</option>
+                <option value="logistica">Logístico</option>
+                <option value="prestador">Prestador de servicios</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <p class="ss-section-title">Cercanía</p>
+        <div class="card" style="margin-bottom:32px;padding:6px var(--space-lg);">
+          <label style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--color-border);cursor:pointer;">
+            <input type="radio" name="ss-add-closeness" value="nucleo" style="margin-top:3px;" checked>
+            <div>
+              <div style="font-weight:700;font-size:var(--text-sm);">Es parte de mi núcleo</div>
+              <div style="font-size:var(--text-xs);color:var(--color-muted);margin-top:2px;">Primer círculo — las personas más cercanas.</div>
+            </div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--color-border);cursor:pointer;">
+            <input type="radio" name="ss-add-closeness" value="ayuda" style="margin-top:3px;">
+            <div>
+              <div style="font-weight:700;font-size:var(--text-sm);">Es alguien que me ayuda o puede ayudar</div>
+              <div style="font-size:var(--text-xs);color:var(--color-muted);margin-top:2px;">Segundo círculo — red de apoyo cercana.</div>
+            </div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;cursor:pointer;">
+            <input type="radio" name="ss-add-closeness" value="profesional" style="margin-top:3px;">
+            <div>
+              <div style="font-weight:700;font-size:var(--text-sm);">Es un proveedor de servicios o un profesional</div>
+              <div style="font-size:var(--text-xs);color:var(--color-muted);margin-top:2px;">Tercer círculo — vínculo profesional o de servicios.</div>
+            </div>
+          </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width:100%;">Agregar al círculo</button>
+      </form>
+    </div><!-- /#ss-add -->
+
+  </div><!-- /.ss-body -->
+</div><!-- /.sidesheet -->
+
+<script src="../../assets/js/main.js"></script>
+<script>
+  /* ── Cercanía → ring mapping ─────────────── */
+  const RING_RADIUS   = { nucleo: 112, ayuda: 182, profesional: 252 };
+  const RING_ID       = { nucleo: 'orbit-r1', ayuda: 'orbit-r2', profesional: 'orbit-r3' };
+  const ROLE_LABEL    = { acompanamiento:'Acompañamiento', logistica:'Logístico', prestador:'Prestador de servicios' };
+  const ROLE_BADGE    = { acompanamiento:'badge-support', logistica:'badge-logistics', prestador:'badge-info' };
+
+  /* ── Contact data ───────────────────────── */
+  const CONTACTS = {
+    sofia:    { name:'Sofi González',    initials:'SG', phone:'+54 9 11 3421-8876', email:'sofi.gonzalez@gmail.com',   relation:'Amiga',         role:'acompanamiento', closeness:'nucleo',      img:'../../assets/img/sofia.png' },
+    carolina: { name:'Carolina Ríos',    initials:'CR', phone:'+54 9 11 2234-9981', email:'carolina.rios@gmail.com',   relation:'Madre',         role:'logistica',      closeness:'nucleo',      img:'../../assets/img/carolina.png' },
+    pablo:    { name:'Pablo Ferreira',   initials:'PF', phone:'+54 9 11 6821-5432', email:'pablo.ferreira@gmail.com',  relation:'Hermano',       role:'acompanamiento', closeness:'nucleo',      img:null },
+    lucia:    { name:'Lucía Martinez',   initials:'LM', phone:'+54 9 11 4756-2891', email:'lucia.martinez@gmail.com',  relation:'Prima',         role:'acompanamiento', closeness:'nucleo',      img:null },
+    ana:      { name:'Ana Rodríguez',    initials:'AR', phone:'+54 9 11 7654-3210', email:'ana.rodriguez@gmail.com',   relation:'Tía',           role:'acompanamiento', closeness:'nucleo',      img:null },
+    martin:   { name:'Martín González',  initials:'MG', phone:'+54 9 11 7823-4562', email:'martin.gonzalez@gmail.com', relation:'Colega',        role:'acompanamiento', closeness:'nucleo',      img:null },
+    diego:    { name:'Diego Ramírez',    initials:'DR', phone:'+54 9 11 5563-2210', email:'diego.ramirez@gmail.com',   relation:'Cuñado',        role:'logistica',      closeness:'ayuda',       img:'../../assets/img/diego.png' },
+    gabriel:  { name:'Gabriel López',    initials:'GL', phone:'+54 9 11 5234-7821', email:'gabriel.lopez@gmail.com',   relation:'Primo',         role:'logistica',      closeness:'ayuda',       img:null },
+    laura:    { name:'Laura Acosta',     initials:'LA', phone:'+54 9 11 7712-0043', email:'laura.acosta@gmail.com',    relation:'Abogada',       role:'prestador',      closeness:'ayuda',       img:'../../assets/img/laura.png' },
+    osde:     { name:'OSDE',             initials:'OS', phone:'0810-555-OSDE',      email:'atencion@osde.com.ar',     relation:'Obra social',   role:'prestador',      closeness:'profesional', img:'../../assets/img/osde.png', logo:true }
+  };
+
+  function initialsFrom(name) {
+    return name.trim().split(/\s+/).slice(0,2).map(w => w[0]).join('').toUpperCase();
+  }
+
+  /* ── Orbit rendering ────────────────────── */
+  function renderOrbit() {
+    // Group by closeness
+    const groups = { nucleo: [], ayuda: [], profesional: [] };
+    Object.entries(CONTACTS).forEach(([id, c]) => {
+      if (groups[c.closeness]) groups[c.closeness].push({ id, ...c });
+    });
+
+    ['nucleo','ayuda','profesional'].forEach(key => {
+      const ring = document.getElementById(RING_ID[key]);
+      ring.innerHTML = '';
+      const actors = groups[key];
+      const n = actors.length;
+      if (n === 0) return;
+      const r = RING_RADIUS[key];
+      // max size that keeps at least 5px gap between neighbors on the ring
+      // arc length between centers = 2πr/n → size ≤ arc - 5
+      const maxByArc = n > 1 ? (2 * Math.PI * r) / n - 5 : 68;
+      const size = Math.max(28, Math.min(68, maxByArc));
+
+      actors.forEach((c, i) => {
+        const angle = (i * 360 / n) - (key === 'nucleo' ? 90 : (key === 'ayuda' ? 30 : 45));
+        const a = document.createElement('a');
+        a.className = 'orbit-actor';
+        a.href = '#';
+        a.title = c.name;
+        a.dataset.contact = c.id;
+        a.style.setProperty('--a', angle + 'deg');
+        a.style.setProperty('--s', size + 'px');
+
+        const inner = document.createElement('div');
+        inner.className = 'orbit-actor-inner' + (c.logo ? ' is-logo' : '');
+        if (c.img) {
+          inner.innerHTML = '<img src="' + c.img + '" alt="' + c.name + '">';
+        } else {
+          inner.textContent = c.initials || initialsFrom(c.name);
+          // scale font to actor size
+          inner.style.fontSize = Math.max(0.65, size / 72) + 'rem';
+        }
+        a.appendChild(inner);
+        ring.appendChild(a);
+      });
+    });
+
+    attachActorHandlers();
+  }
+
+  /* ── Contact list rendering ─────────────── */
+  function renderList() {
+    const list = document.getElementById('contact-list');
+    list.innerHTML = '';
+    // Order: nucleo → ayuda → profesional
+    const order = ['nucleo','ayuda','profesional'];
+    const sorted = Object.entries(CONTACTS).sort((a,b) =>
+      order.indexOf(a[1].closeness) - order.indexOf(b[1].closeness)
+    );
+
+    sorted.forEach(([id, c]) => {
+      const a = document.createElement('a');
+      a.href = '#';
+      a.className = 'contact-entry';
+      a.dataset.contact = id;
+
+      const avHtml = c.img
+        ? `<div class="contact-av${c.logo ? ' is-logo' : ''}"><img src="${c.img}" alt="${c.name}"></div>`
+        : `<div class="contact-av">${c.initials || initialsFrom(c.name)}</div>`;
+
+      a.innerHTML = `
+        <div class="contact-row">
+          ${avHtml}
+          <div class="contact-info">
+            <div class="contact-name">${c.name}</div>
+            <div class="contact-relation">${c.relation}</div>
+          </div>
+          <span class="badge ${ROLE_BADGE[c.role] || 'badge-info'}">${ROLE_LABEL[c.role] || c.role}</span>
+        </div>`;
+      list.appendChild(a);
+    });
+
+    // "Add to circle" entry
+    const addA = document.createElement('a');
+    addA.href = '#';
+    addA.className = 'contact-entry contact-entry-add';
+    addA.innerHTML = `
+      <div class="contact-row">
+        <div style="width:48px;height:48px;border-radius:50%;background:rgba(61,199,166,0.08);border:1.5px dashed rgba(61,199,166,0.5);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <span class="material-symbols-outlined" style="font-size:22px;color:var(--color-teal);">person_add</span>
+        </div>
+        <div class="contact-info">
+          <div class="contact-name" style="color:var(--color-teal);">Agregar al círculo</div>
+        </div>
+      </div>`;
+    list.appendChild(addA);
+
+    attachListHandlers();
+  }
+
+  /* ── Sidesheet logic ────────────────────── */
+  const overlay  = document.getElementById('ss-overlay');
+  const sheet    = document.getElementById('sidesheet');
+  const closeBtn = document.getElementById('ss-close');
+  const ssView   = document.getElementById('ss-view');
+  const ssAdd    = document.getElementById('ss-add');
+
+  function openSheet(mode, contactId) {
+    overlay.classList.add('open');
+    sheet.classList.add('open');
+    sheet.scrollTop = 0;
+    if (mode === 'add') {
+      document.getElementById('ss-top-label').textContent = 'Nuevo contacto';
+      ssView.style.display = 'none';
+      ssAdd.style.display  = 'block';
+      resetAddForm();
+    } else {
+      document.getElementById('ss-top-label').textContent = 'Contacto';
+      ssView.style.display = 'block';
+      ssAdd.style.display  = 'none';
+      populateView(CONTACTS[contactId], contactId);
+    }
+  }
+
+  function populateView(c, id) {
+    const avEl = document.getElementById('ss-av-el');
+    avEl.className = 'ss-av' + (c.logo ? ' is-logo' : '');
+    avEl.style.background = '';
+    if (c.img) {
+      avEl.innerHTML = '<img src="' + c.img + '" alt="' + c.name + '">';
+    } else {
+      avEl.innerHTML = c.initials || initialsFrom(c.name);
+    }
+    document.getElementById('ss-name-el').textContent = c.name;
+    const b = document.getElementById('ss-badge-el');
+    b.textContent = ROLE_LABEL[c.role] || c.role;
+    b.className = 'badge ' + (ROLE_BADGE[c.role] || 'badge-info');
+    document.getElementById('ss-phone-el').textContent    = c.phone;
+    document.getElementById('ss-email-el').textContent    = c.email;
+    document.getElementById('ss-relation-el').textContent = c.relation;
+    document.getElementById('ss-role-el').value           = c.role;
+    document.getElementById('ss-closeness-el').value      = c.closeness;
+    document.getElementById('ss-delete-label').textContent = 'Eliminar a ' + c.name.split(' ')[0] + ' del círculo';
+  }
+
+  function resetAddForm() {
+    document.getElementById('ss-add-form').reset();
+    const initEl = document.getElementById('ss-add-initials');
+    initEl.textContent = '+';
+    initEl.style.display = 'flex';
+    const oldImg = document.querySelector('#ss-add-photo img');
+    if (oldImg) oldImg.remove();
+  }
+
+  function closeSheet() {
+    overlay.classList.remove('open');
+    sheet.classList.remove('open');
+  }
+
+  closeBtn.addEventListener('click', closeSheet);
+  overlay.addEventListener('click', closeSheet);
+
+  // Live initials preview in add form
+  document.getElementById('ss-add-name').addEventListener('input', e => {
+    const v = e.target.value.trim();
+    const initEl = document.getElementById('ss-add-initials');
+    const hasImg = document.querySelector('#ss-add-photo img');
+    if (!hasImg) {
+      initEl.textContent = v ? initialsFrom(v) : '+';
+    }
+  });
+
+  // Photo upload preview
+  document.getElementById('ss-add-photo-input').addEventListener('change', e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const wrap = document.getElementById('ss-add-photo');
+      const old = wrap.querySelector('img');
+      if (old) old.remove();
+      const img = document.createElement('img');
+      img.src = ev.target.result;
+      wrap.appendChild(img);
+      document.getElementById('ss-add-initials').style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+  });
+
+  document.getElementById('ss-add-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const name      = document.getElementById('ss-add-name').value.trim();
+    const closeness = document.querySelector('input[name="ss-add-closeness"]:checked').value;
+    const role      = document.getElementById('ss-add-role').value;
+    // Count check: max 10
+    if (Object.keys(CONTACTS).length >= 10) {
+      alert('Tu círculo puede tener como máximo 10 personas.');
+      return;
+    }
+    const id = 'c' + Date.now();
+    const photoImg = document.querySelector('#ss-add-photo img');
+    CONTACTS[id] = {
+      name,
+      initials: initialsFrom(name || 'NN'),
+      phone: '—', email: '—', relation: '—',
+      role, closeness,
+      img: photoImg ? photoImg.src : null
+    };
+    renderOrbit();
+    renderList();
+    closeSheet();
+  });
+
+  /* ── Handlers (re-bound after each render) ── */
+  function attachActorHandlers() {
+    document.querySelectorAll('.orbit-actor[data-contact]').forEach(actor => {
+      const id = actor.dataset.contact;
+      actor.addEventListener('mouseenter', () => {
+        document.querySelectorAll('.contact-entry[data-contact="' + id + '"]').forEach(r => r.classList.add('active'));
+      });
+      actor.addEventListener('mouseleave', () => {
+        document.querySelectorAll('.contact-entry.active').forEach(r => r.classList.remove('active'));
+      });
+      actor.addEventListener('click', e => { e.preventDefault(); openSheet('view', id); });
+    });
+  }
+
+  function attachListHandlers() {
+    document.querySelectorAll('.contact-entry[data-contact]').forEach(entry => {
+      entry.addEventListener('click', e => { e.preventDefault(); openSheet('view', entry.dataset.contact); });
+    });
+    const addEntry = document.querySelector('.contact-entry-add');
+    if (addEntry) addEntry.addEventListener('click', e => { e.preventDefault(); openSheet('add'); });
+  }
+
+  /* ── Init ── */
+  renderOrbit();
+  renderList();
+</script>
+<script>window.CASE_NAV_PAGE_ID = 'circle';</script>
+<script src="../../assets/js/case-nav.js"></script>
+</body>
+</html>

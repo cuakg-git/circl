@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circl · Mi círculo — Vacío</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet">
+  <link rel="stylesheet" href="../../../assets/css/styles.css">
+  <style>
+    .circle-page-layout { display:flex; gap:32px; align-items:center; min-height:calc(100vh - 220px); }
+    .circle-left { flex:1; display:flex; align-items:center; justify-content:center; }
+    .circle-right { flex:1; min-width:0; }
+    .orbit-stage { position:relative; width:580px; height:580px; max-width:100%; aspect-ratio:1; }
+    .orbit-line { position:absolute; top:50%; left:50%; border-radius:50%; border:1px solid rgba(0,0,0,0.08); pointer-events:none; }
+    .orbit-line-1 { width:224px; height:224px; margin:-112px 0 0 -112px; }
+    .orbit-line-2 { width:364px; height:364px; margin:-182px 0 0 -182px; }
+    .orbit-line-3 { width:504px; height:504px; margin:-252px 0 0 -252px; }
+    .orbit-center { position:absolute; top:50%; left:50%; width:110px; height:110px; margin:-55px 0 0 -55px; border-radius:50%; overflow:hidden; border:2px solid rgba(0,0,0,0.08); box-shadow:0 10px 28px rgba(0,0,0,0.18); z-index:5; }
+    .orbit-center img { width:100%; height:100%; object-fit:cover; display:block; }
+    .empty-orbit-hint { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; width:160px; margin-top:70px; pointer-events:none; }
+    .empty-ring-label { position:absolute; font-size:10px; color:rgba(0,0,0,0.2); font-weight:600; letter-spacing:0.06em; text-transform:uppercase; }
+    .empty-list { text-align:center; padding:48px 24px; }
+    .empty-list-icon { width:64px; height:64px; border-radius:50%; background:rgba(61,199,166,0.08); border:1.5px dashed rgba(61,199,166,0.35); display:flex;align-items:center;justify-content:center; margin:0 auto 20px; color:var(--color-teal); }
+    .empty-list-title { font-size:var(--text-lg); font-weight:800; letter-spacing:-0.02em; margin-bottom:8px; }
+    .empty-list-sub { font-size:var(--text-sm); color:var(--color-muted); line-height:1.6; margin-bottom:24px; }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img src="../../../assets/img/LOGO_CIRCL_1.svg" alt="Circl">
+      <span class="sidebar-wordmark">Circl</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="sidebar-link" href="../../dashboard.html"><span class="material-symbols-outlined sidebar-icon">grid_view</span>Inicio</a>
+      <a class="sidebar-link active" href="../index.html"><span class="material-symbols-outlined sidebar-icon">group</span>Círculo</a>
+      <a class="sidebar-link" href="../../crisis/index.html"><span class="material-symbols-outlined sidebar-icon">warning</span>Crisis</a>
+      <a class="sidebar-link" href="../../chat.html"><span class="material-symbols-outlined sidebar-icon">chat_bubble</span>Chat</a>
+    </nav>
+    <div class="sidebar-footer">
+      <a class="sidebar-user" href="../../profile.html">
+        <img src="../../../assets/img/valeria.png" alt="Valeria López" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;">
+        <div class="sidebar-user-info"><div class="sidebar-user-name">Valeria López</div><div class="sidebar-user-role">Cuidadora principal</div></div>
+      </a>
+    </div>
+  </aside>
+
+  <nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <a class="bottom-nav-item" href="../../dashboard.html"><span class="material-symbols-outlined bottom-nav-icon">grid_view</span>Panel</a>
+      <a class="bottom-nav-item active" href="../index.html"><span class="material-symbols-outlined bottom-nav-icon">group</span>Círculo</a>
+      <a class="bottom-nav-item" href="../../crisis/index.html"><span class="material-symbols-outlined bottom-nav-icon">warning</span>Crisis</a>
+      <a class="bottom-nav-item" href="../../chat.html"><span class="material-symbols-outlined bottom-nav-icon">chat_bubble</span>Chat</a>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <div class="page-header">
+      <h1>Tu círculo</h1>
+      <p>Quienes te acompañan en esta etapa.</p>
+    </div>
+
+    <div class="circle-page-layout">
+      <!-- Left: Orbit vacío -->
+      <div class="circle-left">
+        <div class="orbit-stage">
+          <div class="orbit-line orbit-line-1"></div>
+          <div class="orbit-line orbit-line-2"></div>
+          <div class="orbit-line orbit-line-3"></div>
+
+          <!-- Labels en los anillos -->
+          <div class="empty-ring-label" style="top:calc(50% - 118px);left:50%;transform:translateX(-50%);">Núcleo</div>
+          <div class="empty-ring-label" style="top:calc(50% - 188px);left:50%;transform:translateX(-50%);">Ayuda</div>
+          <div class="empty-ring-label" style="top:calc(50% - 258px);left:50%;transform:translateX(-50%);">Profesional</div>
+
+          <div class="orbit-center">
+            <img src="../../../assets/img/valeria.png" alt="Valeria López">
+          </div>
+          <div class="empty-orbit-hint">
+            <p style="font-size:12px;color:rgba(0,0,0,0.25);line-height:1.5;">Las personas que agregues aparecerán aquí</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: List vacía -->
+      <div class="circle-right">
+        <div class="card">
+          <div class="empty-list">
+            <div class="empty-list-icon">
+              <span class="material-symbols-outlined" style="font-size:28px;">group_add</span>
+            </div>
+            <div class="empty-list-title">Tu círculo está vacío</div>
+            <div class="empty-list-sub">Agregá las personas que te acompañan: familia, amigxs, profesionales o servicios. Podés asignarles un rol y nivel de cercanía.</div>
+            <button class="btn btn-primary" id="add-btn">
+              <span class="material-symbols-outlined" style="font-size:18px;vertical-align:-4px;">person_add</span>
+              Agregar al círculo
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="../../../assets/js/main.js"></script>
+<script>window.CASE_NAV_PAGE_ID = 'circle';</script>
+<script src="../../../assets/js/case-nav.js"></script>
+</body>
+</html>

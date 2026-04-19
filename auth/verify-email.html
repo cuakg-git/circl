@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circl · Verificá tu email</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/styles.css">
+  <style>
+    .verify-icon {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: rgba(61,199,166,0.12);
+      border: 2px solid rgba(61,199,166,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      color: var(--color-teal);
+    }
+    .email-chip {
+      display: inline-block;
+      background: rgba(10,126,140,0.07);
+      border: 1px solid rgba(10,126,140,0.15);
+      border-radius: var(--radius-pill);
+      padding: 4px 14px;
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--color-teal);
+      margin-bottom: 20px;
+    }
+    .verify-steps {
+      text-align: left;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-card);
+      padding: 16px 18px;
+      margin-bottom: 24px;
+    }
+    .verify-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 7px 0;
+      font-size: var(--text-sm);
+      color: var(--color-muted);
+    }
+    .verify-step + .verify-step {
+      border-top: 1px solid var(--color-border);
+    }
+    .step-num {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: rgba(10,126,140,0.1);
+      color: var(--color-teal);
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1px;
+    }
+  </style>
+</head>
+<body>
+<div class="auth-page">
+  <div class="auth-deco auth-deco-1"></div>
+  <div class="auth-deco auth-deco-2"></div>
+  <div style="position:absolute;width:380px;height:380px;border:1.5px solid rgba(10,126,140,0.08);border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;"></div>
+  <div style="position:absolute;width:560px;height:560px;border:1px solid rgba(10,126,140,0.05);border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;"></div>
+
+  <div class="auth-card" style="text-align:center;">
+    <div class="auth-logo-wrap" style="justify-content:center;">
+      <img src="../assets/img/LOGO_CIRCL_1.svg" alt="Circl">
+      <span class="auth-logo-word">Circl</span>
+    </div>
+
+    <div class="verify-icon">
+      <span class="material-symbols-outlined" style="font-size:34px;">forward_to_inbox</span>
+    </div>
+
+    <h1 class="auth-heading" style="font-size:var(--text-xl);">Revisá tu email</h1>
+    <p class="auth-sub">Te enviamos un link de verificación a:</p>
+    <div class="email-chip">valeria@mail.com</div>
+
+    <div class="verify-steps">
+      <div class="verify-step">
+        <div class="step-num">1</div>
+        <span>Abrí el email que te enviamos desde <strong>no-reply@circl.app</strong></span>
+      </div>
+      <div class="verify-step">
+        <div class="step-num">2</div>
+        <span>Hacé clic en <strong>"Verificar mi email"</strong></span>
+      </div>
+      <div class="verify-step">
+        <div class="step-num">3</div>
+        <span>Vas a poder completar tu perfil y activar tu círculo</span>
+      </div>
+    </div>
+
+    <p style="font-size:var(--text-xs);color:var(--color-muted);margin-bottom:20px;">
+      ¿No llegó? Revisá spam. Puede demorar hasta 5 minutos.
+    </p>
+
+    <button class="btn btn-primary btn-block" style="margin-bottom:12px;" onclick="return false;">
+      Reenviar email
+    </button>
+
+    <div class="auth-footer">
+      <a class="link-teal" href="login.html">← Volver al login</a>
+    </div>
+  </div>
+</div>
+<script src="../assets/js/main.js"></script>
+<script>window.CASE_NAV_PAGE_ID = 'verify-email';</script>
+<script src="../assets/js/case-nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circl · Crisis — Sin crisis</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet">
+  <link rel="stylesheet" href="../../../assets/css/styles.css">
+  <style>
+    body { animation: none; background: #f0f4f8; }
+    .empty-state { text-align:center; padding:64px 24px; }
+    .empty-icon { width:72px; height:72px; border-radius:50%; background:rgba(61,199,166,0.08); border:1.5px dashed rgba(61,199,166,0.3); display:flex;align-items:center;justify-content:center; margin:0 auto 24px; color:var(--color-teal); }
+    .empty-title { font-size:var(--text-xl); font-weight:800; letter-spacing:-0.02em; margin-bottom:10px; }
+    .empty-sub { font-size:var(--text-md); color:var(--color-muted); line-height:1.6; max-width:360px; margin:0 auto 28px; }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-brand"><img src="../../../assets/img/LOGO_CIRCL_1.svg" alt="Circl"><span class="sidebar-wordmark">Circl</span></div>
+    <nav class="sidebar-nav">
+      <a class="sidebar-link" href="../../dashboard.html"><span class="material-symbols-outlined sidebar-icon">grid_view</span>Inicio</a>
+      <a class="sidebar-link" href="../../circle/index.html"><span class="material-symbols-outlined sidebar-icon">group</span>Círculo</a>
+      <a class="sidebar-link active" href="../index.html"><span class="material-symbols-outlined sidebar-icon">warning</span>Crisis</a>
+      <a class="sidebar-link" href="../../chat.html"><span class="material-symbols-outlined sidebar-icon">chat_bubble</span>Chat</a>
+    </nav>
+    <div class="sidebar-footer">
+      <a class="sidebar-user" href="../../profile.html">
+        <img src="../../../assets/img/valeria.png" alt="" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;">
+        <div class="sidebar-user-info"><div class="sidebar-user-name">Valeria López</div><div class="sidebar-user-role">Cuidadora principal</div></div>
+      </a>
+    </div>
+  </aside>
+  <nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <a class="bottom-nav-item" href="../../dashboard.html"><span class="material-symbols-outlined bottom-nav-icon">grid_view</span>Panel</a>
+      <a class="bottom-nav-item" href="../../circle/index.html"><span class="material-symbols-outlined bottom-nav-icon">group</span>Círculo</a>
+      <a class="bottom-nav-item active" href="../index.html"><span class="material-symbols-outlined bottom-nav-icon">warning</span>Crisis</a>
+      <a class="bottom-nav-item" href="../../chat.html"><span class="material-symbols-outlined bottom-nav-icon">chat_bubble</span>Chat</a>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <div><h1>Crisis</h1><p>Tus situaciones activas y resueltas.</p></div>
+    </div>
+
+    <div class="card">
+      <div class="empty-state">
+        <div class="empty-icon">
+          <span class="material-symbols-outlined" style="font-size:32px;">crisis_alert</span>
+        </div>
+        <div class="empty-title">Sin crisis registradas</div>
+        <div class="empty-sub">Todavía no registraste ninguna situación. Cuando lo hagas, acá vas a poder ver el detalle, las tareas pendientes y las personas de tu círculo involucradas.</div>
+        <a href="../../chat.html" class="btn btn-primary" style="text-decoration:none;">Registrar primera crisis</a>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="../../../assets/js/main.js"></script>
+<script>window.CASE_NAV_PAGE_ID = 'crisis-list';</script>
+<script src="../../../assets/js/case-nav.js"></script>
+</body>
+</html>

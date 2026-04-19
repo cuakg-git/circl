@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circl · Panel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/styles.css">
+  <style>
+    .section-title {
+      font-size: var(--text-sm);
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: var(--space-md);
+    }
+
+    /* ── Header area ───────────────────────── */
+    .dashboard-header {
+      margin-bottom: var(--space-xl);
+    }
+    .greeting {
+      font-size: var(--text-2xl);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 4px;
+    }
+    .session-context {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 4px;
+    }
+    .session-date {
+      font-size: 13px;
+      color: var(--color-muted);
+    }
+    .session-divider {
+      width: 1px;
+      height: 12px;
+      background: var(--color-border);
+    }
+    .crisis-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .crisis-chip-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--color-teal);
+    }
+    .crisis-chip-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--color-teal);
+    }
+    .crisis-chip-meta {
+      font-size: 12px;
+      color: var(--color-muted);
+    }
+
+    /* ── Contexto panel ────────────────────── */
+    .context-panel {
+      background: var(--color-white);
+      border-radius: var(--radius-card);
+      padding: var(--space-lg);
+      color: var(--color-dark);
+      box-shadow: var(--shadow-card);
+    }
+    .context-label {
+      display: block;
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 10px;
+    }
+    .context-text {
+      font-size: var(--text-sm);
+      line-height: 1.75;
+      color: var(--color-dark);
+    }
+    .context-next {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid var(--color-border);
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .context-next-label {
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      white-space: nowrap;
+      padding-top: 1px;
+    }
+    .context-next-text {
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--color-dark);
+    }
+
+    /* ── Tareas summary ────────────────────── */
+    .tasks-summary-text {
+      font-size: var(--text-sm);
+      line-height: 1.72;
+      color: var(--color-muted);
+      margin-bottom: var(--space-lg);
+    }
+    .tasks-summary-text strong {
+      color: var(--color-dark);
+      font-weight: 700;
+    }
+
+    /* ── Upcoming timeline ─────────────────── */
+    .upcoming-item {
+      display:flex; align-items:flex-start; gap:14px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .upcoming-item:last-child { border-bottom:none; }
+    .upcoming-date {
+      min-width:48px;
+      text-align:center;
+      background: var(--color-teal-wash);
+      border-radius: var(--radius-sm);
+      padding: 6px 4px;
+      flex-shrink: 0;
+    }
+    .upcoming-date-day { font-size:1.2rem; font-weight:800; color:var(--color-teal); line-height:1; }
+    .upcoming-date-mon { font-size:0.6rem; font-weight:700; text-transform:uppercase; color:var(--color-muted); letter-spacing:0.05em; }
+    .upcoming-body-title { font-weight:700; font-size:var(--text-sm); }
+    .upcoming-body-sub   { font-size:var(--text-xs); color:var(--color-muted); margin-top:2px; }
+
+    /* ── Doc rows ──────────────────────────── */
+    .doc-row {
+      display:flex; align-items:center; gap:12px;
+      padding: 11px 0;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .doc-row:last-child { border-bottom:none; }
+    .doc-icon {
+      width:36px; height:36px; border-radius: var(--radius-sm);
+      background: var(--color-teal-wash);
+      display:flex; align-items:center; justify-content:center;
+      flex-shrink:0;
+    }
+    .doc-name  { font-size:var(--text-sm); font-weight:600; flex:1; }
+    .doc-date  { font-size:var(--text-xs); color:var(--color-muted); white-space:nowrap; }
+
+    /* ── 3-col grid ────────────────────────────── */
+    .dash-grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: var(--space-lg);
+      align-items: start;
+    }
+    @media (max-width: 768px) {
+      .dash-grid-3 { grid-template-columns: 1fr; }
+    }
+
+    /* ── Typewriter cursor ─────────────────────── */
+    .tw-cursor {
+      display: inline-block;
+      width: 2px;
+      height: 1em;
+      background: var(--color-dark);
+      margin-left: 2px;
+      vertical-align: text-bottom;
+      animation: twBlink 0.7s step-end infinite;
+    }
+    @keyframes twBlink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+
+  </style>
+</head>
+<body>
+
+<div class="app-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img src="../assets/img/LOGO_CIRCL_1.svg" alt="Circl">
+      <span class="sidebar-wordmark">Circl</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="sidebar-link active" href="dashboard.html">
+        <span class="material-symbols-outlined sidebar-icon">grid_view</span>
+        Inicio
+      </a>
+      <a class="sidebar-link" href="circle/index.html">
+        <span class="material-symbols-outlined sidebar-icon">group</span>
+        Círculo
+      </a>
+      <a class="sidebar-link" href="crisis/index.html">
+        <span class="material-symbols-outlined sidebar-icon">warning</span>
+        Crisis
+      </a>
+      <a class="sidebar-link" href="chat.html">
+        <span class="material-symbols-outlined sidebar-icon">chat_bubble</span>
+        Chat
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <a class="sidebar-user" href="profile.html">
+        <img src="../assets/img/valeria.png" alt="Valeria López" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;">
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name">Valeria López</div>
+          <div class="sidebar-user-role">Cuidadora principal</div>
+        </div>
+      </a>
+    </div>
+  </aside>
+
+  <!-- BOTTOM NAV (mobile) -->
+  <nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <a class="bottom-nav-item active" href="dashboard.html">
+        <span class="material-symbols-outlined bottom-nav-icon">grid_view</span>
+        Inicio
+      </a>
+      <a class="bottom-nav-item" href="circle/index.html">
+        <span class="material-symbols-outlined bottom-nav-icon">group</span>
+        Círculo
+      </a>
+      <a class="bottom-nav-item" href="crisis/index.html">
+        <span class="material-symbols-outlined bottom-nav-icon">warning</span>
+        Crisis
+      </a>
+      <a class="bottom-nav-item" href="chat.html">
+        <span class="material-symbols-outlined bottom-nav-icon">chat_bubble</span>
+        Chat
+      </a>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+
+    <!-- ── Header ────────────────────────────── -->
+    <div class="dashboard-header">
+      <h1 class="greeting">Hola, Valeria</h1>
+      <div class="session-context">
+        <span class="session-date" id="today-date"></span>
+        <div class="session-divider"></div>
+        <div class="crisis-chip">
+          <div class="crisis-chip-dot"></div>
+          <span class="crisis-chip-name">Linfoma de Martín</span>
+          <span class="crisis-chip-meta">· Crisis activa · 5 días</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Contexto — full width ──────────────── -->
+    <div style="margin-bottom:var(--space-xl);">
+      <p class="section-title">Contexto actual</p>
+      <div class="context-panel">
+        <span class="context-label">Lo que sé hasta ahora</span>
+        <p class="context-text" id="context-typewriter"></p>
+        <div class="context-next" id="context-next">
+          <span class="context-next-label">Próximo paso</span>
+          <span class="context-next-text">Llamar a OSDE para destrabar la autorización del PET scan.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Fila: Tareas · Próximos · Documentos ─ -->
+    <div class="dash-grid-3" style="margin-bottom:var(--space-xl);">
+
+      <!-- Tareas -->
+      <div>
+        <p class="section-title">Tareas</p>
+        <div class="card" style="height:100%;display:flex;flex-direction:column;justify-content:space-between;">
+          <p class="tasks-summary-text">
+            Tenés <strong>3 tareas pendientes</strong> esta semana.
+            La más urgente es la <strong>autorización del PET scan</strong> en OSDE, que vence el martes.
+            El turno con el oncólogo está confirmado para el martes 22 a las 10 hs.
+          </p>
+          <a href="crisis/detail.html" class="btn btn-outline btn-sm" style="align-self:flex-start;">
+            Ver tareas →
+          </a>
+        </div>
+      </div>
+
+      <!-- Próximos compromisos -->
+      <div>
+        <p class="section-title">Próximos compromisos</p>
+        <div class="card">
+          <div class="upcoming-item">
+            <div class="upcoming-date">
+              <div class="upcoming-date-day">22</div>
+              <div class="upcoming-date-mon">Abr</div>
+            </div>
+            <div>
+              <div class="upcoming-body-title">Turno oncólogo — Dr. Soria</div>
+              <div class="upcoming-body-sub">10:00 hs · Clínica Santa Rosa · Diego lleva a Martín</div>
+            </div>
+          </div>
+          <div class="upcoming-item">
+            <div class="upcoming-date">
+              <div class="upcoming-date-day">25</div>
+              <div class="upcoming-date-mon">Abr</div>
+            </div>
+            <div>
+              <div class="upcoming-body-title">PET scan — diagnóstico</div>
+              <div class="upcoming-body-sub">08:30 hs · Centro de Diagnóstico · Pendiente autorización</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Documentos recientes -->
+      <div>
+        <p class="section-title">Documentos recientes</p>
+        <div class="card">
+          <div class="doc-row">
+            <div class="doc-icon">
+              <span class="material-symbols-outlined" style="color:var(--color-teal);">description</span>
+            </div>
+            <span class="doc-name">Hemograma completo</span>
+            <span class="doc-date">12 abr</span>
+          </div>
+          <div class="doc-row">
+            <div class="doc-icon">
+              <span class="material-symbols-outlined" style="color:var(--color-teal);">description</span>
+            </div>
+            <span class="doc-name">Perfil hepático</span>
+            <span class="doc-date">12 abr</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+</div>
+
+<script src="../assets/js/main.js"></script>
+<script>
+  // ── Dynamic date ──────────────────────────────
+  const d = new Date();
+  const opts = { weekday:'long', year:'numeric', month:'long', day:'numeric' };
+  document.getElementById('today-date').textContent =
+    d.toLocaleDateString('es-AR', opts).replace(/^\w/, c => c.toUpperCase());
+
+  // ── Typewriter ────────────────────────────────
+  // Characters are pre-rendered invisible so layout is fully reserved
+  // from frame 0 — no height jump.
+  // TW_SEGMENTS: alternate plain strings and {bold} markers
+  // Each character is pre-rendered invisible to lock the layout height.
+  const TW_SEGMENTS = [
+    { text: 'Martín se opera el ', bold: false },
+    { text: 'martes 22', bold: true },
+    { text: '. Todavía no tengo la autorización de OSDE para el PET scan — eso es lo más urgente. ', bold: false },
+    { text: 'Sofi', bold: true },
+    { text: ' sabe que estás agotada. ', bold: false },
+    { text: 'Diego', bold: true },
+    { text: ' tiene auto y puede llevar a Martín al turno. El último documento que subiste es el hemograma del 12/04.', bold: false },
+  ];
+  const TW_DELAY = 300;
+  const TW_SPEED = 22;
+
+  const twEl = document.getElementById('context-typewriter');
+
+  // 1. Pre-render every character as invisible span (preserves final height)
+  TW_SEGMENTS.forEach(seg => {
+    seg.text.split('').forEach(ch => {
+      const s = document.createElement(seg.bold ? 'strong' : 'span');
+      s.textContent = ch;
+      s.style.opacity = '0';
+      if (seg.bold) s.style.fontWeight = '700';
+      twEl.appendChild(s);
+    });
+  });
+
+  // 2. Reveal one character at a time
+  const chars = twEl.children;
+  let i = 0;
+
+  setTimeout(() => {
+    const tick = setInterval(() => {
+      chars[i].style.opacity = '1';
+      i++;
+      if (i >= chars.length) clearInterval(tick);
+    }, TW_SPEED);
+  }, TW_DELAY);
+</script>
+<script>window.CASE_NAV_PAGE_ID = 'dashboard';</script>
+<script src="../assets/js/case-nav.js"></script>
+</body>
+</html>

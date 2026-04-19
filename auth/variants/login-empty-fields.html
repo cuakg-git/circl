@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circl · Login — Campos vacíos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../assets/css/styles.css">
+  <style>
+    .field-error { color:#ba1a1a; font-size:12px; margin-top:4px; font-weight:600; }
+    .input-error { border-color:#ba1a1a !important; background:rgba(186,26,26,0.03) !important; }
+  </style>
+</head>
+<body>
+<div class="auth-page">
+  <div class="auth-deco auth-deco-1"></div>
+  <div class="auth-deco auth-deco-2"></div>
+  <div style="position:absolute;width:380px;height:380px;border:1.5px solid rgba(10,126,140,0.08);border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;"></div>
+
+  <div class="auth-card">
+    <div class="auth-logo-wrap">
+      <img src="../../assets/img/LOGO_CIRCL_1.svg" alt="Circl">
+      <span class="auth-logo-word">Circl</span>
+    </div>
+    <h1 class="auth-heading">Bienvenida de nuevo</h1>
+    <p class="auth-sub">Ingresá para ver tu círculo.</p>
+
+    <form class="auth-form" onsubmit="return false;">
+      <div class="form-group">
+        <label class="form-label" for="email">Email</label>
+        <input class="form-input input-error" id="email" type="email" placeholder="valeria@mail.com" value="">
+        <div class="field-error">Ingresá tu email</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="password">Contraseña</label>
+        <input class="form-input input-error" id="password" type="password" value="">
+        <div class="field-error">Ingresá tu  contraseña</div>
+        <div style="text-align:right;margin-top:4px;"><a class="link-teal" style="font-size:var(--text-xs);" href="../forgot-password.html">¿Olvidaste tu contraseña?</a></div>
+      </div>
+      <button type="submit" class="btn btn-primary" style="margin-top:8px;">Ingresar</button>
+    </form>
+    <div class="auth-footer">¿No tenés cuenta? <a class="link-teal" href="../register.html">Registrate gratis</a></div>
+  </div>
+</div>
+<script src="../../assets/js/main.js"></script>
+<script>window.CASE_NAV_PAGE_ID = 'login';</script>
+<script src="../../assets/js/case-nav.js"></script>
+</body>
+</html>

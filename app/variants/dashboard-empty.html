@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circl · Panel — Sin configurar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet">
+  <link rel="stylesheet" href="../../assets/css/styles.css">
+  <style>
+    .empty-module { background:var(--color-white); border-radius:var(--radius-card); box-shadow:var(--shadow-card); padding:40px 24px; text-align:center; margin-bottom:var(--space-md); }
+    .empty-icon { width:52px; height:52px; border-radius:50%; background:rgba(61,199,166,0.08); border:1.5px dashed rgba(61,199,166,0.35); display:flex;align-items:center;justify-content:center; margin:0 auto 16px; color:var(--color-teal); }
+    .empty-title { font-size:var(--text-md); font-weight:700; margin-bottom:6px; }
+    .empty-sub   { font-size:var(--text-sm); color:var(--color-muted); margin-bottom:20px; line-height:1.5; }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img src="../../assets/img/LOGO_CIRCL_1.svg" alt="Circl">
+      <span class="sidebar-wordmark">Circl</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="sidebar-link active" href="../dashboard.html">
+        <span class="material-symbols-outlined sidebar-icon">grid_view</span>Inicio
+      </a>
+      <a class="sidebar-link" href="../circle/index.html">
+        <span class="material-symbols-outlined sidebar-icon">group</span>Círculo
+      </a>
+      <a class="sidebar-link" href="../crisis/index.html">
+        <span class="material-symbols-outlined sidebar-icon">warning</span>Crisis
+      </a>
+      <a class="sidebar-link" href="../chat.html">
+        <span class="material-symbols-outlined sidebar-icon">chat_bubble</span>Chat
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <a class="sidebar-user" href="../profile.html">
+        <img src="../../assets/img/valeria.png" alt="Valeria López" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;">
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name">Valeria López</div>
+          <div class="sidebar-user-role">Cuidadora principal</div>
+        </div>
+      </a>
+    </div>
+  </aside>
+
+  <nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <a class="bottom-nav-item active" href="../dashboard.html"><span class="material-symbols-outlined bottom-nav-icon">grid_view</span>Panel</a>
+      <a class="bottom-nav-item" href="../circle/index.html"><span class="material-symbols-outlined bottom-nav-icon">group</span>Círculo</a>
+      <a class="bottom-nav-item" href="../crisis/index.html"><span class="material-symbols-outlined bottom-nav-icon">warning</span>Crisis</a>
+      <a class="bottom-nav-item" href="../chat.html"><span class="material-symbols-outlined bottom-nav-icon">chat_bubble</span>Chat</a>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <div style="margin-bottom:var(--space-xl);">
+      <h1 style="font-size:var(--text-2xl);font-weight:800;letter-spacing:-0.03em;margin-bottom:4px;">Hola, Valeria 👋</h1>
+      <p style="color:var(--color-muted);font-size:var(--text-md);">Todavía no configuraste tu espacio. Te ayudamos a empezar.</p>
+    </div>
+
+    <!-- Empty: Crisis -->
+    <div class="empty-module">
+      <div class="empty-icon">
+        <span class="material-symbols-outlined" style="font-size:24px;">warning</span>
+      </div>
+      <div class="empty-title">No hay ninguna crisis registrada</div>
+      <div class="empty-sub">Contanos qué está pasando para que el agente pueda acompañarte y ayudarte a organizarte.</div>
+      <a href="../crisis/index.html" class="btn btn-primary" style="text-decoration:none;">Registrar primera crisis</a>
+    </div>
+
+    <!-- Empty: Círculo -->
+    <div class="empty-module">
+      <div class="empty-icon">
+        <span class="material-symbols-outlined" style="font-size:24px;">group</span>
+      </div>
+      <div class="empty-title">Tu círculo está vacío</div>
+      <div class="empty-sub">Agregá las personas que te acompañan para poder coordinar con ellas cuando lo necesitás.</div>
+      <a href="../circle/index.html" class="btn btn-primary" style="text-decoration:none;">Armar mi círculo</a>
+    </div>
+
+    <!-- Empty: Chat -->
+    <div class="empty-module">
+      <div class="empty-icon">
+        <span class="material-symbols-outlined" style="font-size:24px;">chat_bubble</span>
+      </div>
+      <div class="empty-title">El agente está listo cuando vos lo estés</div>
+      <div class="empty-sub">Podés contarle más sobre tu situación directamente en el chat.</div>
+      <a href="../chat.html" class="btn btn-outline" style="text-decoration:none;">Ir al chat</a>
+    </div>
+  </main>
+</div>
+<script src="../../assets/js/main.js"></script>
+<script>window.CASE_NAV_PAGE_ID = 'dashboard';</script>
+<script src="../../assets/js/case-nav.js"></script>
+</body>
+</html>

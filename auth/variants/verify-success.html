@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circl · Email verificado</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet">
+  <link rel="stylesheet" href="../../assets/css/styles.css">
+  <style>
+    .success-icon {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: rgba(61,199,166,0.14);
+      border: 2.5px solid rgba(61,199,166,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+      color: var(--color-teal);
+    }
+    .success-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(61,199,166,0.1);
+      border: 1px solid rgba(61,199,166,0.25);
+      border-radius: var(--radius-pill);
+      padding: 5px 14px;
+      font-size: var(--text-xs);
+      font-weight: 700;
+      color: var(--color-teal);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+<div class="auth-page">
+  <div class="auth-deco auth-deco-1"></div>
+  <div class="auth-deco auth-deco-2"></div>
+  <div style="position:absolute;width:380px;height:380px;border:1.5px solid rgba(10,126,140,0.08);border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;"></div>
+  <div style="position:absolute;width:560px;height:560px;border:1px solid rgba(10,126,140,0.05);border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;"></div>
+
+  <div class="auth-card" style="text-align:center;">
+    <div class="auth-logo-wrap" style="justify-content:center;">
+      <img src="../../assets/img/LOGO_CIRCL_1.svg" alt="Circl">
+      <span class="auth-logo-word">Circl</span>
+    </div>
+
+    <div class="success-icon">
+      <span class="material-symbols-outlined" style="font-size:40px;">verified</span>
+    </div>
+
+    <div class="success-badge">
+      <span class="material-symbols-outlined" style="font-size:13px;">check_circle</span>
+      Email verificado
+    </div>
+
+    <h1 class="auth-heading" style="font-size:var(--text-xl);">¡Todo listo, Valeria!</h1>
+    <p class="auth-sub" style="margin-bottom:28px;">
+      Tu cuenta está activada. Ahora configurá tu círculo de apoyo para tener ayuda cuando más la necesitás.
+    </p>
+
+    <a href="../../auth/onboarding.html" class="btn btn-primary btn-block" style="text-align:center;">
+      Empezar configuración
+    </a>
+  </div>
+</div>
+<script src="../../assets/js/main.js"></script>
+<script>window.CASE_NAV_PAGE_ID = 'verify-email';</script>
+<script src="../../assets/js/case-nav.js"></script>
+</body>
+</html>
