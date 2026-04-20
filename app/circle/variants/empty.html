@@ -5,30 +5,128 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Circl · Mi círculo — Vacío</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet">
   <link rel="stylesheet" href="../../../assets/css/styles.css">
   <style>
-    .circle-page-layout { display:flex; gap:32px; align-items:center; min-height:calc(100vh - 220px); }
-    .circle-left { flex:1; display:flex; align-items:center; justify-content:center; }
-    .circle-right { flex:1; min-width:0; }
-    .orbit-stage { position:relative; width:580px; height:580px; max-width:100%; aspect-ratio:1; }
-    .orbit-line { position:absolute; top:50%; left:50%; border-radius:50%; border:1px solid rgba(0,0,0,0.08); pointer-events:none; }
-    .orbit-line-1 { width:224px; height:224px; margin:-112px 0 0 -112px; }
-    .orbit-line-2 { width:364px; height:364px; margin:-182px 0 0 -182px; }
-    .orbit-line-3 { width:504px; height:504px; margin:-252px 0 0 -252px; }
-    .orbit-center { position:absolute; top:50%; left:50%; width:110px; height:110px; margin:-55px 0 0 -55px; border-radius:50%; overflow:hidden; border:2px solid rgba(0,0,0,0.08); box-shadow:0 10px 28px rgba(0,0,0,0.18); z-index:5; }
-    .orbit-center img { width:100%; height:100%; object-fit:cover; display:block; }
-    .empty-orbit-hint { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; width:160px; margin-top:70px; pointer-events:none; }
-    .empty-ring-label { position:absolute; font-size:10px; color:rgba(0,0,0,0.2); font-weight:600; letter-spacing:0.06em; text-transform:uppercase; }
-    .empty-list { text-align:center; padding:48px 24px; }
-    .empty-list-icon { width:64px; height:64px; border-radius:50%; background:rgba(61,199,166,0.08); border:1.5px dashed rgba(61,199,166,0.35); display:flex;align-items:center;justify-content:center; margin:0 auto 20px; color:var(--color-teal); }
-    .empty-list-title { font-size:var(--text-lg); font-weight:800; letter-spacing:-0.02em; margin-bottom:8px; }
-    .empty-list-sub { font-size:var(--text-sm); color:var(--color-muted); line-height:1.6; margin-bottom:24px; }
+    @keyframes heroBgDrift {
+      0%, 100% {
+        background:
+          radial-gradient(ellipse at 15% 15%, rgba(61,199,166,0.03) 0%, transparent 55%),
+          radial-gradient(ellipse at 85% 10%, rgba(80,220,175,0.07) 0%, transparent 50%),
+          radial-gradient(ellipse at 88% 82%, rgba(224,121,49,0.08) 0%, transparent 52%),
+          radial-gradient(ellipse at 12% 88%, rgba(158,160,81,0.08) 0%, transparent 50%),
+          radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 65%),
+          #f0f4f8;
+      }
+      50% {
+        background:
+          radial-gradient(ellipse at 10% 22%, rgba(61,199,166,0.03) 0%, transparent 55%),
+          radial-gradient(ellipse at 78% 8%,  rgba(80,220,175,0.07) 0%, transparent 50%),
+          radial-gradient(ellipse at 92% 75%, rgba(224,121,49,0.08) 0%, transparent 52%),
+          radial-gradient(ellipse at 18% 92%, rgba(158,160,81,0.08) 0%, transparent 50%),
+          radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 65%),
+          #f0f4f8;
+      }
+    }
+    body { animation: heroBgDrift 30s ease-in-out infinite; }
+
+    .circle-page-layout {
+      display: flex;
+      gap: 32px;
+      align-items: center;
+      min-height: calc(100vh - 220px);
+    }
+    .circle-left  { flex: 1; display: flex; align-items: center; justify-content: center; }
+    .circle-right { flex: 1; min-width: 0; }
+
+    /* ── Orbit stage ──────────────────────── */
+    .orbit-stage {
+      position: relative;
+      width: 580px; height: 580px;
+      max-width: 100%;
+      aspect-ratio: 1;
+      overflow: hidden;
+    }
+    .orbit-line {
+      position: absolute;
+      top: 50%; left: 50%;
+      border-radius: 50%;
+      border: 1px solid rgba(0,0,0,0.08);
+      pointer-events: none;
+    }
+    .orbit-line-1 { width: 224px; height: 224px; margin: -112px 0 0 -112px; }
+    .orbit-line-2 { width: 364px; height: 364px; margin: -182px 0 0 -182px; }
+    .orbit-line-3 { width: 504px; height: 504px; margin: -252px 0 0 -252px; }
+
+    @property --gc-r { syntax: '<integer>'; inherits: false; initial-value: 61;  }
+    @property --gc-g { syntax: '<integer>'; inherits: false; initial-value: 200; }
+    @property --gc-b { syntax: '<integer>'; inherits: false; initial-value: 168; }
+
+    .orbit-glow {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 704px; height: 704px;
+      margin: -352px 0 0 -352px;
+      border-radius: 50%;
+      background: conic-gradient(from 0deg,
+        rgba(var(--gc-r), var(--gc-g), var(--gc-b), 0.00)  0deg,
+        rgba(var(--gc-r), var(--gc-g), var(--gc-b), 0.45) 80deg,
+        rgba(var(--gc-r), var(--gc-g), var(--gc-b), 0.55) 160deg,
+        rgba(var(--gc-r), var(--gc-g), var(--gc-b), 0.30) 240deg,
+        rgba(var(--gc-r), var(--gc-g), var(--gc-b), 0.05) 320deg,
+        rgba(var(--gc-r), var(--gc-g), var(--gc-b), 0.00) 360deg
+      );
+      -webkit-mask: radial-gradient(circle, transparent 252px, #000 252px, #000 272px, transparent 272px);
+              mask: radial-gradient(circle, transparent 252px, #000 252px, #000 272px, transparent 272px);
+      filter: blur(10px);
+      animation: orbit-spin-cw 90s linear infinite, orbit-glow-hue 24s ease-in-out infinite;
+      pointer-events: none;
+    }
+    @keyframes orbit-glow-hue {
+      0%, 100% { --gc-r: 61;  --gc-g: 200; --gc-b: 168; }
+      33%       { --gc-r: 159; --gc-g: 161; --gc-b: 81;  }
+      66%       { --gc-r: 223; --gc-g: 120; --gc-b: 48;  }
+    }
+
+    .orbit-rotator { position: absolute; inset: 0; pointer-events: none; }
+    .orbit-r1 { animation: orbit-spin-cw  80s  linear infinite; }
+    .orbit-r2 { animation: orbit-spin-ccw 110s linear infinite; }
+    .orbit-r3 { animation: orbit-spin-cw  140s linear infinite; }
+
+    .orbit-center {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 110px; height: 110px;
+      margin: -55px 0 0 -55px;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 2px solid rgba(0,0,0,0.08);
+      box-shadow: 0 10px 28px rgba(0,0,0,0.18);
+      z-index: 5;
+    }
+    .orbit-center img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    @keyframes orbit-spin-cw  { to { transform: rotate( 360deg); } }
+    @keyframes orbit-spin-ccw { to { transform: rotate(-360deg); } }
+
+    /* ── Empty list ───────────────────────── */
+    .empty-list { text-align: center; padding: 48px 24px; }
+    .empty-list-icon {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: rgba(61,199,166,0.08);
+      border: 1.5px dashed rgba(61,199,166,0.35);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 20px; color: var(--color-teal);
+    }
+    .empty-list-title { font-size: var(--text-lg); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; }
+    .empty-list-sub { font-size: var(--text-sm); color: var(--color-muted); line-height: 1.6; margin-bottom: 24px; }
   </style>
 </head>
 <body>
 <div class="app-layout">
+
   <aside class="sidebar">
     <div class="sidebar-brand">
       <img src="../../../assets/img/LOGO_CIRCL_1.svg" alt="Circl">
@@ -43,7 +141,10 @@
     <div class="sidebar-footer">
       <a class="sidebar-user" href="../../profile.html">
         <img src="../../../assets/img/valeria.png" alt="Valeria López" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;">
-        <div class="sidebar-user-info"><div class="sidebar-user-name">Valeria López</div><div class="sidebar-user-role">Cuidadora principal</div></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name">Valeria López</div>
+          <div class="sidebar-user-role">Cuidadora principal</div>
+        </div>
       </a>
     </div>
   </aside>
@@ -58,36 +159,27 @@
   </nav>
 
   <main class="main-content">
-    <div class="page-header">
-      <h1>Tu círculo</h1>
-      <p>Quienes te acompañan en esta etapa.</p>
-    </div>
-
     <div class="circle-page-layout">
-      <!-- Left: Orbit vacío -->
+
+      <!-- Left: Orbit (vacío → 3 dots animados) -->
       <div class="circle-left">
         <div class="orbit-stage">
+          <div class="orbit-glow"></div>
           <div class="orbit-line orbit-line-1"></div>
           <div class="orbit-line orbit-line-2"></div>
           <div class="orbit-line orbit-line-3"></div>
-
-          <!-- Labels en los anillos -->
-          <div class="empty-ring-label" style="top:calc(50% - 118px);left:50%;transform:translateX(-50%);">Núcleo</div>
-          <div class="empty-ring-label" style="top:calc(50% - 188px);left:50%;transform:translateX(-50%);">Ayuda</div>
-          <div class="empty-ring-label" style="top:calc(50% - 258px);left:50%;transform:translateX(-50%);">Profesional</div>
-
+          <div class="orbit-rotator orbit-r1" id="orbit-r1"></div>
+          <div class="orbit-rotator orbit-r2" id="orbit-r2"></div>
+          <div class="orbit-rotator orbit-r3" id="orbit-r3"></div>
           <div class="orbit-center">
             <img src="../../../assets/img/valeria.png" alt="Valeria López">
-          </div>
-          <div class="empty-orbit-hint">
-            <p style="font-size:12px;color:rgba(0,0,0,0.25);line-height:1.5;">Las personas que agregues aparecerán aquí</p>
           </div>
         </div>
       </div>
 
-      <!-- Right: List vacía -->
+      <!-- Right: Empty state -->
       <div class="circle-right">
-        <div class="card">
+        <div class="card" style="background:transparent;border:1.5px dashed var(--color-border);box-shadow:none;">
           <div class="empty-list">
             <div class="empty-list-icon">
               <span class="material-symbols-outlined" style="font-size:28px;">group_add</span>
@@ -101,10 +193,52 @@
           </div>
         </div>
       </div>
+
     </div>
   </main>
 </div>
+
 <script src="../../../assets/js/main.js"></script>
+<script>
+  const RING_RADIUS = { nucleo: 112, ayuda: 182, profesional: 252 };
+  const RING_ID     = { nucleo: 'orbit-r1', ayuda: 'orbit-r2', profesional: 'orbit-r3' };
+  const DOT_CFG     = {
+    nucleo:      { size: 8,  speed: '13s', dir: 'orbit-spin-cw'  },
+    ayuda:       { size: 13, speed: '20s', dir: 'orbit-spin-ccw' },
+    profesional: { size: 18, speed: '29s', dir: 'orbit-spin-cw'  }
+  };
+
+  // No contacts → all three rings render their orbiting dot
+  const CONTACTS = {};
+
+  function renderOrbit() {
+    document.querySelectorAll('.orbit-dot-wrap').forEach(el => el.remove());
+
+    const groups = { nucleo: [], ayuda: [], profesional: [] };
+    Object.entries(CONTACTS).forEach(([id, c]) => {
+      if (groups[c.closeness]) groups[c.closeness].push({ id, ...c });
+    });
+
+    ['nucleo', 'ayuda', 'profesional'].forEach(key => {
+      const ring   = document.getElementById(RING_ID[key]);
+      ring.innerHTML = '';
+      const actors = groups[key];
+      if (actors.length === 0) {
+        const r   = RING_RADIUS[key];
+        const cfg = DOT_CFG[key];
+        const wrap = document.createElement('div');
+        wrap.className = 'orbit-dot-wrap';
+        wrap.style.cssText = `position:absolute;inset:0;pointer-events:none;animation:${cfg.dir} ${cfg.speed} linear infinite;`;
+        const dot = document.createElement('div');
+        dot.style.cssText = `position:absolute;top:50%;left:50%;width:${cfg.size}px;height:${cfg.size}px;border-radius:50%;background:#e8eae4;border:1.5px solid rgba(10,126,140,0.14);margin-top:${-r - cfg.size / 2}px;margin-left:${-cfg.size / 2}px;`;
+        wrap.appendChild(dot);
+        document.querySelector('.orbit-stage').appendChild(wrap);
+      }
+    });
+  }
+
+  renderOrbit();
+</script>
 <script>window.CASE_NAV_PAGE_ID = 'circle';</script>
 <script src="../../../assets/js/case-nav.js"></script>
 </body>

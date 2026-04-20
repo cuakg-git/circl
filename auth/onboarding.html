@@ -98,70 +98,83 @@
       width: 100%;
     }
 
-    /* Decorative circles above the text */
-    .welcome-rings {
+    /* ── Emotional-rings illustration (inline, adapted from home) ── */
+    @keyframes orbit-cw  { to { transform: translate(-50%, -50%) rotate( 360deg); } }
+    @keyframes orbit-ccw { to { transform: translate(-50%, -50%) rotate(-360deg); } }
+
+    .welcome-er {
       position: relative;
-      width: 80px;
-      height: 80px;
+      width: 360px; height: 360px;
+      flex-shrink: 0;
       margin-bottom: 44px;
       transform: scale(0);
       opacity: 0;
     }
-    .welcome-rings.rings-visible {
-      animation: circleGrowIn 0.82s ease-out forwards;
+    .welcome-er.rings-visible {
+      animation: erGrowIn 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     }
-    @keyframes circleGrowIn {
+    @keyframes erGrowIn {
       0%   { transform: scale(0);    opacity: 0; }
-      60%  { transform: scale(1.1);  opacity: 1; }
+      65%  { transform: scale(1.04); opacity: 1; }
       100% { transform: scale(1);    opacity: 1; }
     }
-    .welcome-rings.rings-pulsing {
-      animation: circlePulse 3s ease-in-out infinite;
+    .welcome-er.rings-pulsing {
+      opacity: 1;
+      animation: erPulse 4s ease-in-out infinite;
     }
-    @keyframes circlePulse {
+    @keyframes erPulse {
       0%, 100% { transform: scale(1);    }
-      50%      { transform: scale(1.05); }
+      50%      { transform: scale(1.02); }
     }
-    .welcome-rings-center {
-      position: absolute;
-      inset: 0;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #0a7e8c 0%, #2ecda7 50%, #065e6a 100%);
-      background-size: 300% 300%;
-      box-shadow: var(--shadow-float);
-      display: flex; align-items: center; justify-content: center;
-      animation: gradientFlow 10s ease-in-out infinite;
-    }
-    @keyframes gradientFlow {
-      0%   { background-position: 0% 0%;     }
-      50%  { background-position: 100% 100%; }
-      100% { background-position: 0% 0%;     }
-    }
-    .welcome-rings-center svg { position: relative; z-index: 1; }
-    .welcome-ring {
+
+    /* Static concentric rings */
+    .er-ring {
       position: absolute;
       top: 50%; left: 50%;
       border-radius: 50%;
-      border: 1.5px solid rgba(10,126,140,0.15);
+      border: 1.5px solid rgba(10,126,140,0.10);
       transform: translate(-50%, -50%);
     }
-    .welcome-ring-1 {
-      width: 120px; height: 120px;
-      animation: ringPulse 18s ease-in-out infinite;
+    .er-ring-1 { width: 134px; height: 134px; }
+    .er-ring-2 { width: 244px; height: 244px; border-color: rgba(10,126,140,0.07); }
+    .er-ring-3 { width: 360px; height: 360px; border-color: rgba(10,126,140,0.04); }
+
+    /* Orbiting containers — translate-centered then rotate */
+    .er-orbit {
+      position: absolute;
+      top: 50%; left: 50%;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
     }
-    .welcome-ring-2 {
-      width: 168px; height: 168px;
-      border-color: rgba(10,126,140,0.07);
-      animation: ringPulse 18s ease-in-out infinite 3s;
+    .er-orbit-1 { width: 134px; height: 134px; animation: orbit-cw   50s linear infinite; }
+    .er-orbit-2 { width: 244px; height: 244px; animation: orbit-ccw  80s linear infinite; }
+    .er-orbit-3 { width: 360px; height: 360px; animation: orbit-cw  115s linear infinite; }
+
+    /* Orbiting dots */
+    .er-dot {
+      position: absolute;
+      border-radius: 50%;
+      background: #e9eae4;
+      border: 1px solid rgba(10,126,140,0.14);
     }
-    .welcome-ring-3 {
-      width: 220px; height: 220px;
-      border-color: rgba(10,126,140,0.04);
-      animation: ringPulse 18s ease-in-out infinite 6s;
-    }
-    @keyframes ringPulse {
-      0%,  100% { transform: translate(-50%, -50%) scale(1);    opacity: 1;   }
-      50%        { transform: translate(-50%, -50%) scale(1.07); opacity: 0.6; }
+    /* Ring 1 — 1 dot (8 px) */
+    .er-orbit-1 .er-dot { width:8px; height:8px; top:-4px; left:calc(50% - 4px); }
+    /* Ring 2 — 2 dots (13 px top, 10 px side) */
+    .er-orbit-2 .er-dot          { width:13px; height:13px; top:-6.5px; left:calc(50% - 6.5px); }
+    .er-orbit-2 .er-dot-b        { width:10px; height:10px; top:calc(50% - 5px); left:auto; right:-5px; }
+    /* Ring 3 — 2 dots (16 px top, 11 px bottom) */
+    .er-orbit-3 .er-dot          { width:16px; height:16px; top:-8px;   left:calc(50% - 8px); }
+    .er-orbit-3 .er-dot-b        { width:11px; height:11px; top:auto;   bottom:-5.5px; left:calc(50% - 5.5px); }
+
+    /* Centre dot */
+    .er-center {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: var(--color-teal);
+      box-shadow: 0 3px 14px rgba(10,126,140,0.40);
     }
 
     .welcome-title {
@@ -552,16 +565,25 @@
   <!-- ══ PASO 1 — Splash (sin card) ══════════════ -->
   <div id="welcome-screen">
 
-    <div class="welcome-rings">
-      <div class="welcome-ring welcome-ring-3"></div>
-      <div class="welcome-ring welcome-ring-2"></div>
-      <div class="welcome-ring welcome-ring-1"></div>
-      <div class="welcome-rings-center">
-        <svg width="28" height="28" viewBox="0 0 40 40" fill="none">
-          <circle cx="20" cy="20" r="14" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
-          <circle cx="20" cy="20" r="5" fill="white"/>
-        </svg>
+    <div class="welcome-er">
+      <!-- Static rings -->
+      <div class="er-ring er-ring-3"></div>
+      <div class="er-ring er-ring-2"></div>
+      <div class="er-ring er-ring-1"></div>
+      <!-- Orbiting dot layers -->
+      <div class="er-orbit er-orbit-1">
+        <div class="er-dot"></div>
       </div>
+      <div class="er-orbit er-orbit-2">
+        <div class="er-dot"></div>
+        <div class="er-dot er-dot-b"></div>
+      </div>
+      <div class="er-orbit er-orbit-3">
+        <div class="er-dot"></div>
+        <div class="er-dot er-dot-b"></div>
+      </div>
+      <!-- Centre -->
+      <div class="er-center"></div>
     </div>
 
     <h1 class="welcome-title" id="welcome-title">
@@ -832,7 +854,7 @@
   // ── Welcome screen: circle → typewriter → actions ──
   (function () {
     const el    = document.getElementById('welcome-title');
-    const rings = document.querySelector('.welcome-rings');
+    const rings = document.querySelector('.welcome-er');
     if (!el || !rings) return;
 
     // Build spans upfront (invisible) to lock layout height

@@ -1,7 +1,7 @@
 /**
  * ╔══════════════════════════════════════════╗
  * ║   CIRCL DEV TOOLS — Case Navigator       ║
- * ║   Hover the left edge to open            ║
+ * ║   Click the left edge to open             ║
  * ╚══════════════════════════════════════════╝
  *
  * Detects current page, lists all casuísticas
@@ -319,10 +319,44 @@
 <div class="cn-cases">
 ${rows}
 </div>
+${pageId === 'circle' ? buildRingTester() : ''}
 <div class="cn-footer">
   <div class="cn-divider">────────────────────────────────</div>
   <div class="cn-hint">→ con variante disponible</div>
-  <div class="cn-hint">hover borde izquierdo para abrir</div>
+  <div class="cn-hint">clic en borde izquierdo para abrir</div>
+</div>`;
+  }
+
+  function buildRingTester() {
+    return `
+<div class="cn-ring-tester">
+  <div class="cn-divider">════════════════════════════════</div>
+  <div class="cn-page-id" style="font-size:11px;padding:4px 0 2px;">◉ RING TESTER</div>
+  <div class="cn-divider">────────────────────────────────</div>
+  <div class="cn-ring-row">
+    <span class="cn-ring-name">núcleo</span>
+    <div class="cn-ring-btns">
+      <button class="cn-ring-btn" data-ring="nucleo"      data-op="remove">−</button>
+      <span class="cn-ring-count" id="cn-count-nucleo">–</span>
+      <button class="cn-ring-btn" data-ring="nucleo"      data-op="add">+</button>
+    </div>
+  </div>
+  <div class="cn-ring-row">
+    <span class="cn-ring-name">ayuda</span>
+    <div class="cn-ring-btns">
+      <button class="cn-ring-btn" data-ring="ayuda"       data-op="remove">−</button>
+      <span class="cn-ring-count" id="cn-count-ayuda">–</span>
+      <button class="cn-ring-btn" data-ring="ayuda"       data-op="add">+</button>
+    </div>
+  </div>
+  <div class="cn-ring-row">
+    <span class="cn-ring-name">profesional</span>
+    <div class="cn-ring-btns">
+      <button class="cn-ring-btn" data-ring="profesional" data-op="remove">−</button>
+      <span class="cn-ring-count" id="cn-count-profesional">–</span>
+      <button class="cn-ring-btn" data-ring="profesional" data-op="add">+</button>
+    </div>
+  </div>
 </div>`;
   }
 
@@ -469,6 +503,53 @@ ${rows}
       margin-top: 3px;
     }
 
+    /* ── Ring tester ────────────────────────── */
+    .cn-ring-tester {
+      padding: 0 16px 8px;
+      flex-shrink: 0;
+    }
+    .cn-ring-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5px 0;
+    }
+    .cn-ring-name {
+      color: #666;
+      font-size: 11px;
+      flex: 1;
+      letter-spacing: 0.04em;
+    }
+    .cn-ring-btns {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .cn-ring-btn {
+      width: 22px; height: 22px;
+      background: #1a1a1a;
+      border: 1px solid #2f2f2f;
+      color: #aaa;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      font-family: inherit;
+    }
+    .cn-ring-btn:hover { background: #2a2a2a; color: #fff; }
+    .cn-ring-count {
+      color: #fff;
+      font-size: 13px;
+      font-weight: bold;
+      min-width: 18px;
+      text-align: center;
+      font-family: 'Courier New', monospace;
+    }
+
     /* Current page marker */
     .cn-current-badge {
       position: absolute;
@@ -507,23 +588,58 @@ ${rows}
     panel.querySelector('.cn-header').style.position = 'relative';
     panel.querySelector('.cn-header').appendChild(badge);
 
-    // Hover logic
-    let closeTimer = null;
+    // Placeholder — overridden below if on the circle page
+    let refreshRingCounts = () => {};
 
-    trigger.addEventListener('mouseenter', () => {
-      clearTimeout(closeTimer);
+    // Click logic
+    function openPanel() {
       panel.classList.add('open');
-    });
+      refreshRingCounts();
+    }
+    function closePanel() {
+      panel.classList.remove('open');
+    }
+    function togglePanel() {
+      panel.classList.contains('open') ? closePanel() : openPanel();
+    }
 
-    panel.addEventListener('mouseleave', () => {
-      closeTimer = setTimeout(() => panel.classList.remove('open'), 350);
+    trigger.addEventListener('click', togglePanel);
+
+    // Close when clicking outside the panel
+    document.addEventListener('click', e => {
+      if (panel.classList.contains('open') &&
+          !panel.contains(e.target) &&
+          e.target !== trigger) {
+        closePanel();
+      }
     });
-    panel.addEventListener('mouseenter', () => clearTimeout(closeTimer));
 
     // Close on Escape
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') panel.classList.remove('open');
+      if (e.key === 'Escape') closePanel();
     });
+
+    // ── Circle ring tester ──────────────────
+    if (pageId === 'circle') {
+      panel.querySelectorAll('.cn-ring-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const ring = btn.dataset.ring;
+          const op   = btn.dataset.op;
+          if (op === 'add'    && window.__circleDevAdd)    window.__circleDevAdd(ring);
+          if (op === 'remove' && window.__circleDevRemove) window.__circleDevRemove(ring);
+        });
+      });
+      // Override the stub — called from openPanel each time the panel opens
+      refreshRingCounts = function () {
+        if (!window.__circleDevCounts) return;
+        const c = window.__circleDevCounts();
+        ['nucleo','ayuda','profesional'].forEach(r => {
+          const el = document.getElementById('cn-count-' + r);
+          if (el) el.textContent = c[r];
+        });
+      };
+      setTimeout(refreshRingCounts, 200);
+    }
   }
 
   // Run after DOM is ready
