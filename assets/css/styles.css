@@ -470,9 +470,11 @@ h4 { font-size: var(--text-lg); }
     width: 100%;
   }
 
-  /* Reorder: Hablar (chat.html) to center position */
+  /* Reorder mobile: Inicio · Crisis · Hablar · Círculo · Perfil */
+  .bottom-nav-item[href$="dashboard.html"]    { order: 1; }
+  .bottom-nav-item[href*="crisis"]            { order: 2; }
   .bottom-nav-item[href$="chat.html"]         { order: 3; }
-  .bottom-nav-item[href*="crisis"]            { order: 4; }
+  .bottom-nav-item[href*="circle"]            { order: 4; }
   .bottom-nav-item[href$="profile.html"]      { order: 5; }
 
   /* Hablar: hide material icon, show floating SVG above the bar */
