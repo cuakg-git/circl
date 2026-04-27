@@ -8,7 +8,16 @@
       "mcp__Claude_Preview__preview_start",
       "Bash(dir \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\\\\public\")",
       "Bash(npx tsc *)",
-      "PowerShell($env:PATH += \";C:\\\\Program Files\\\\nodejs\\\\\"; cd \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\"; node node_modules\\\\typescript\\\\bin\\\\tsc --noEmit 2>&1 | Select-Object -First 60)"
+      "PowerShell($env:PATH += \";C:\\\\Program Files\\\\nodejs\\\\\"; cd \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\"; node node_modules\\\\typescript\\\\bin\\\\tsc --noEmit 2>&1 | Select-Object -First 60)",
+      "PowerShell(New-Item -ItemType Directory -Path \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\\\\app\\\\forgot-password\" -Force)",
+      "PowerShell($env:PATH += \";C:\\\\Program Files\\\\nodejs\\\\\"; cd \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\"; node node_modules\\\\typescript\\\\bin\\\\tsc --noEmit 2>&1)",
+      "PowerShell(New-Item -ItemType Directory -Path \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\\\\app\\\\reset-password\" -Force)",
+      "PowerShell(New-Item -ItemType Directory -Path \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\\\\components\" -Force)",
+      "PowerShell(New-Item -ItemType Directory -Path \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\\\\app\\\\dashboard\" -Force)",
+      "PowerShell(New-Item -ItemType Directory -Path \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\\\\app\\\\profile\" -Force)",
+      "Bash(node node_modules\\\\typescript\\\\bin\\\\tsc --noEmit)",
+      "PowerShell(Get-ChildItem \"C:\\\\Program Files\\\\nodejs\\\\node.exe\" -ErrorAction SilentlyContinue; Get-ChildItem \"C:\\\\Program Files \\(x86\\)\\\\nodejs\\\\node.exe\" -ErrorAction SilentlyContinue; Get-ChildItem \"$env:APPDATA\\\\npm\\\\node.exe\" -ErrorAction SilentlyContinue; Get-ChildItem \"$env:LOCALAPPDATA\\\\Programs\\\\nodejs\\\\node.exe\" -ErrorAction SilentlyContinue)",
+      "PowerShell(& \"C:\\\\Program Files\\\\nodejs\\\\node.exe\" \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\\\\node_modules\\\\typescript\\\\bin\\\\tsc\" --noEmit 2>&1)"
     ]
   }
 }
