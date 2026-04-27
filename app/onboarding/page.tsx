@@ -12,7 +12,7 @@ const jakarta = Plus_Jakarta_Sans({
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const LINE2_CHARS = Array.from('No estás sola.')
+const LINE2_CHARS = Array.from('Estoy para acompañarte.')
 
 const OB_QUESTIONS = [
   '¿En qué ciudad o barrio viven?',
@@ -87,7 +87,7 @@ export default function OnboardingPage() {
     }
 
     function doTypewriter() {
-      const l1 = Array.from(`Bienvenida, ${firstNameRef.current}.`)
+      const l1 = Array.from(`Hola, ${firstNameRef.current}.`)
       setLine1Chars(l1)
       setLine1Visible(0)
       setLine2Visible(0)

@@ -5,7 +5,10 @@
       "mcp__dcbad23f-9fa2-4060-9523-029a7e756740__notion-create-pages",
       "mcp__dcbad23f-9fa2-4060-9523-029a7e756740__notion-update-page",
       "mcp__dcbad23f-9fa2-4060-9523-029a7e756740__notion-search",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "Bash(dir \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\\\\public\")",
+      "Bash(npx tsc *)",
+      "PowerShell($env:PATH += \";C:\\\\Program Files\\\\nodejs\\\\\"; cd \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\"; node node_modules\\\\typescript\\\\bin\\\\tsc --noEmit 2>&1 | Select-Object -First 60)"
     ]
   }
 }

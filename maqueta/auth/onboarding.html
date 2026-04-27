@@ -862,13 +862,13 @@
     const spans1 = [];
     const spans2 = [];
 
-    Array.from('Bienvenida, Valeria.').forEach(ch => {
+    Array.from('Hola, Valeria.').forEach(ch => {
       const s = document.createElement('span');
       s.textContent = ch; s.style.opacity = '0';
       el.appendChild(s); spans1.push(s);
     });
     el.appendChild(document.createElement('br'));
-    Array.from('No estás sola.').forEach(ch => {
+    Array.from('Estoy para acompañarte.').forEach(ch => {
       const s = document.createElement('span');
       s.textContent = ch; s.style.opacity = '0';
       s.style.color = 'var(--color-teal)';
