@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
-import Sidebar from '@/components/Sidebar'
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 // Matches maqueta: width="18" height="18" stroke-width="1.8"
@@ -155,13 +154,11 @@ export default function ChangePasswordPage() {
       <style>{bgStyles}</style>
 
       <div className="change-pw-bg flex min-h-screen">
-        <Sidebar />
-
         {/*
-          Main area — sidebar pushes content right on desktop.
-          Card is centered within this area.
+          Main area — no sidebar on this page.
+          Card is centered within the full width.
         */}
-        <main className="flex-1 ml-0 md:ml-[240px] flex items-center justify-center px-4 py-10">
+        <main className="flex-1 flex items-center justify-center px-4 py-10">
 
           {/*
             .auth-card — padding: 48px 40px; max-width: 440px;

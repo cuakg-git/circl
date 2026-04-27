@@ -2,13 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus_Jakarta_Sans } from 'next/font/google'
 import { supabase } from '@/lib/supabase'
-
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700', '800'],
-})
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -323,7 +317,7 @@ export default function OnboardingPage() {
 
       {/* ── Page wrapper ──────────────────────────────────────────────────── */}
       <div
-        className={`${jakarta.className} ob-page min-h-screen flex flex-col items-center justify-center px-4 py-12 relative overflow-hidden`}
+        className="ob-page min-h-screen flex flex-col items-center justify-center px-4 py-12 relative overflow-hidden"
         style={{
           background:
             'radial-gradient(ellipse at 15% 15%, rgba(61,199,166,0.06) 0%, transparent 55%),' +

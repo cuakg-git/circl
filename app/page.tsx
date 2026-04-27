@@ -3,13 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Plus_Jakarta_Sans } from 'next/font/google'
-
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700', '800'],
-})
-
 // ── Data ──────────────────────────────────────────────────────────────────────
 
 const FAQ_ITEMS = [
@@ -152,7 +145,6 @@ export default function HomePage() {
 
   return (
     <div
-      className={jakarta.className}
       style={{
         color: '#1a2326', overflowX: 'hidden', width: '100%', maxWidth: '100vw',
         background:

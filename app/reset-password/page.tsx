@@ -4,13 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Plus_Jakarta_Sans } from 'next/font/google'
 import { supabase } from '@/lib/supabase'
-
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700', '800'],
-})
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -162,7 +156,7 @@ export default function ResetPasswordPage() {
 
   // ── Shared card shell ───────────────────────────────────────────────────────
 
-  const pageClass = `${jakarta.className} min-h-screen bg-[#FAF8F5] flex items-center justify-center relative overflow-hidden`
+  const pageClass = 'min-h-screen bg-[#FAF8F5] flex items-center justify-center relative overflow-hidden'
   const cardStyle = { maxWidth: 440, boxShadow: '0 4px 24px rgba(10,126,140,0.08)' }
 
   // ════════════════════════════════════════════════════════════════════════════

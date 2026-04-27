@@ -4,13 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Plus_Jakarta_Sans } from 'next/font/google'
 import { supabase } from '@/lib/supabase'
-
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700', '800'],
-})
 
 type FieldErrors = {
   name?: string
@@ -115,7 +109,7 @@ export default function RegisterPage() {
 
   return (
     <div
-      className={`${jakarta.className} min-h-screen bg-[#FAF8F5] flex items-center justify-center relative overflow-hidden`}
+      className="min-h-screen bg-[#FAF8F5] flex items-center justify-center relative overflow-hidden"
     >
       {/* Background deco blobs */}
       <div

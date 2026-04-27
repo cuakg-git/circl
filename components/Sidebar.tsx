@@ -112,6 +112,7 @@ export default function Sidebar() {
   const [user, setUser] = useState<UserInfo | null>(null)
 
   useEffect(() => {
+    // ── Initial load ─────────────────────────────────────────────────────────
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) return
       const meta = data.user.user_metadata ?? {}
@@ -121,6 +122,26 @@ export default function Sidebar() {
         avatarUrl: meta.avatar_url ?? null,
       })
     })
+
+    // ── Live sync ────────────────────────────────────────────────────────────
+    // USER_UPDATED fires whenever supabase.auth.updateUser() is called from
+    // any page (e.g. profile/page.tsx after a successful avatar upload).
+    // This keeps the sidebar avatar in sync without a page reload.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === 'USER_UPDATED' && session?.user) {
+          const meta = session.user.user_metadata ?? {}
+          setUser({
+            name:      meta.full_name ?? session.user.email?.split('@')[0] ?? 'Usuario',
+            email:     session.user.email ?? '',
+            avatarUrl: meta.avatar_url ?? null,
+          })
+        }
+        if (event === 'SIGNED_OUT') setUser(null)
+      },
+    )
+
+    return () => subscription.unsubscribe()
   }, [])
 
   function isActive(href: string) {
@@ -148,11 +169,22 @@ export default function Sidebar() {
     return isActive(href) ? 'text-[#0A7E8C]' : 'text-[#5a7478]'
   }
 
-  // Avatar: photo if available, else gradient initials, else skeleton
+  // Avatar: photo if available, else gradient initials, else skeleton.
+  // The image is wrapped in a fixed 48×48 container with overflow:hidden so
+  // rectangular photos are always cropped to a centered circle —
+  // same pattern as AvatarDisplay in profile/page.tsx.
   const avatar = user ? (
     user.avatarUrl ? (
-      <Image src={user.avatarUrl} alt={user.name} width={48} height={48}
-        className="rounded-full object-cover flex-shrink-0" />
+      <div className="w-12 h-12 rounded-full flex-shrink-0 overflow-hidden">
+        <Image
+          src={user.avatarUrl}
+          alt={user.name}
+          width={48}
+          height={48}
+          className="block rounded-full"
+          style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }}
+        />
+      </div>
     ) : (
       <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-sm select-none"
         style={{ background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)' }}>

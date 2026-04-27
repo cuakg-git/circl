@@ -3,13 +3,7 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Plus_Jakarta_Sans } from 'next/font/google'
 import { supabase } from '@/lib/supabase'
-
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700', '800'],
-})
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -148,7 +142,7 @@ export default function ForgotPasswordPage() {
   // ══════════════════════════════════════════════════════════════════════════
   if (sent) {
     return (
-      <div className={`${jakarta.className} min-h-screen bg-[#FAF8F5] flex items-center justify-center relative overflow-hidden`}>
+      <div className={"min-h-screen bg-[#FAF8F5] flex items-center justify-center relative overflow-hidden"}>
         {backdrop}
 
         <div className={cardClass} style={cardStyle}>
@@ -253,7 +247,7 @@ export default function ForgotPasswordPage() {
   // FORM STATE
   // ══════════════════════════════════════════════════════════════════════════
   return (
-    <div className={`${jakarta.className} min-h-screen bg-[#FAF8F5] flex items-center justify-center relative overflow-hidden`}>
+    <div className={"min-h-screen bg-[#FAF8F5] flex items-center justify-center relative overflow-hidden"}>
       {backdrop}
 
       <div className={cardClass} style={cardStyle}>
