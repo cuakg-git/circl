@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const AGENT_ENDPOINT = process.env.NEXT_PUBLIC_AGENT_ENDPOINT
+const AGENT_ENDPOINT = process.env.NEXT_PUBLIC_AGENT_ENDPOINT as string
 
 // Human-readable labels for the role select values (used when building the
 // contacts message for the agent in step 3).
