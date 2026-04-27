@@ -18,13 +18,6 @@ const ROLE_LABELS: Record<string, string> = {
 
 const LINE2_CHARS = Array.from('Estoy para acompañarte.')
 
-const OB_QUESTIONS = [
-  '¿En qué ciudad o barrio viven?',
-  '¿Hay niños o adolescentes en la familia?',
-  '¿Tienen obra social o prepaga? ¿Cuál?',
-  '¿Hay algo más que creas importante que sepa sobre la situación?',
-]
-
 const AV_GRADIENTS = [
   'linear-gradient(135deg, #3DC7A6, #0A7E8C)',
   'linear-gradient(135deg, #0A7E8C, #065e6a)',
@@ -70,7 +63,6 @@ export default function OnboardingPage() {
   const [chatInput, setChatInput] = useState('')
   const [isTyping, setIsTyping]   = useState(false)
   const chatInited                = useRef(false)
-  const chatStepRef               = useRef(0)
   const chatMsgId                 = useRef(0)
   const chatLogRef                = useRef<HTMLDivElement>(null)
 
@@ -163,28 +155,6 @@ export default function OnboardingPage() {
     if (el) el.scrollTop = el.scrollHeight
   }, [chatMsgs, isTyping])
 
-  // ── Chat init when entering step 4 ───────────────────────────────────────
-
-  const askNext = useCallback(() => {
-    const q = OB_QUESTIONS[chatStepRef.current]
-    if (!q) return
-    setIsTyping(true)
-    setTimeout(() => {
-      setIsTyping(false)
-      const id = ++chatMsgId.current
-      setChatMsgs(prev => [...prev, { id, from: 'circl', text: q }])
-    }, 900)
-  }, [])
-
-  useEffect(() => {
-    if (step === 4 && !chatInited.current) {
-      chatInited.current  = true
-      chatStepRef.current = 0
-      setChatMsgs([])
-      setTimeout(() => askNext(), 500)
-    }
-  }, [step, askNext])
-
   // ── Agent call ────────────────────────────────────────────────────────────
   // Sends { user_id, message } to the agent endpoint.
   // Returns the reply string on success, or null on error / missing userId.
@@ -204,6 +174,30 @@ export default function OnboardingPage() {
       return null
     }
   }, [userId])
+
+  // ── Chat init when entering step 4 ───────────────────────────────────────
+  // Waits for both step===4 AND userId to be ready (userId is fetched async).
+  // Guards with chatInited.current so it only fires once even if deps change.
+
+  useEffect(() => {
+    if (step !== 4 || !userId || chatInited.current) return
+    chatInited.current = true
+    setChatMsgs([])
+
+    async function initChat() {
+      setIsTyping(true)
+      const reply = await sendToAgent(
+        'El usuario completó los pasos anteriores del onboarding. Iniciá la conversación haciendo hasta 3 preguntas de contexto, de a una por vez.'
+      )
+      setIsTyping(false)
+      if (reply) {
+        const id = ++chatMsgId.current
+        setChatMsgs([{ id, from: 'circl', text: reply }])
+      }
+    }
+
+    initChat()
+  }, [step, userId, sendToAgent])
 
   // ── Step 2 continue — send crisis text, fire-and-forget ──────────────────
   function handleStep2Next() {
@@ -225,8 +219,7 @@ export default function OnboardingPage() {
   }
 
   // ── Chat send ─────────────────────────────────────────────────────────────
-  // Each message goes to the agent; the reply is shown as a Circl message.
-  // The existing scripted OB_QUESTIONS continue to run after the agent reply.
+  // Sends the user message to the agent and shows its reply as a Circl bubble.
   // Guard on isTyping to prevent sending while a response is in flight.
 
   const sendChatMessage = useCallback(async () => {
@@ -236,22 +229,16 @@ export default function OnboardingPage() {
     const id = ++chatMsgId.current
     setChatMsgs(prev => [...prev, { id, from: 'user', text }])
     setChatInput('')
-    chatStepRef.current++
 
-    // Call agent — show typing indicator while waiting for reply
     setIsTyping(true)
     const reply = await sendToAgent(text)
+    setIsTyping(false)
+
     if (reply) {
       const replyId = ++chatMsgId.current
       setChatMsgs(prev => [...prev, { id: replyId, from: 'circl', text: reply }])
     }
-    setIsTyping(false)
-
-    // Continue with the next scripted question (if any remain) after the reply
-    if (chatStepRef.current < OB_QUESTIONS.length) {
-      setTimeout(() => askNext(), 400)
-    }
-  }, [chatInput, isTyping, askNext, sendToAgent])
+  }, [chatInput, isTyping, sendToAgent])
 
   // ── Contact helpers ───────────────────────────────────────────────────────
 
