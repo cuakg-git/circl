@@ -6,6 +6,16 @@ import { supabase } from '@/lib/supabase'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
+const AGENT_ENDPOINT = process.env.NEXT_PUBLIC_AGENT_ENDPOINT
+
+// Human-readable labels for the role select values (used when building the
+// contacts message for the agent in step 3).
+const ROLE_LABELS: Record<string, string> = {
+  acompanamiento: 'acompañamiento',
+  logistica:      'logístico',
+  prestador:      'prestador de servicios',
+}
+
 const LINE2_CHARS = Array.from('Estoy para acompañarte.')
 
 const OB_QUESTIONS = [
@@ -36,6 +46,9 @@ export default function OnboardingPage() {
 
   // ── Step ──────────────────────────────────────────────────────────────────
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
+
+  // ── Agent ─────────────────────────────────────────────────────────────────
+  const [userId, setUserId] = useState('')
 
   // ── Splash animation ──────────────────────────────────────────────────────
   const [ringsPhase, setRingsPhase]     = useState<RingsPhase>('hidden')
@@ -114,13 +127,14 @@ export default function OnboardingPage() {
       }, 38)
     }
 
-    // Fetch user name
+    // Fetch user name + id (id is used by the agent calls in steps 2-4)
     supabase.auth.getUser().then(({ data }) => {
       if (cancelled) return
       const full  = data?.user?.user_metadata?.full_name ?? ''
       const first = full.trim().split(/\s+/)[0] || 'tú'
       firstNameRef.current = first
       nameReadyRef.current = true
+      if (data?.user?.id) setUserId(data.user.id)
       maybeStartTw()
     })
 
@@ -171,19 +185,73 @@ export default function OnboardingPage() {
     }
   }, [step, askNext])
 
-  // ── Chat send ─────────────────────────────────────────────────────────────
+  // ── Agent call ────────────────────────────────────────────────────────────
+  // Sends { user_id, message } to the agent endpoint.
+  // Returns the reply string on success, or null on error / missing userId.
+  // All errors are swallowed so a network failure never breaks the UX.
+  const sendToAgent = useCallback(async (message: string): Promise<string | null> => {
+    if (!userId) return null
+    try {
+      const res = await fetch(AGENT_ENDPOINT, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ user_id: userId, message }),
+      })
+      if (!res.ok) return null
+      const data = await res.json() as { reply?: string }
+      return data.reply ?? null
+    } catch {
+      return null
+    }
+  }, [userId])
 
-  const sendChatMessage = useCallback(() => {
+  // ── Step 2 continue — send crisis text, fire-and-forget ──────────────────
+  function handleStep2Next() {
+    if (crisis.trim()) sendToAgent(crisis.trim())   // intentionally not awaited
+    setStep(3)
+  }
+
+  // ── Step 3 continue — build contacts message, fire-and-forget ────────────
+  function handleStep3Next() {
+    const filled = contacts.filter(c => c.name.trim())
+    if (filled.length > 0) {
+      const parts = filled.map(c => {
+        const roleLabel = c.role ? ` (${ROLE_LABELS[c.role] ?? c.role})` : ''
+        return `${c.name.trim()}${roleLabel}`
+      })
+      sendToAgent(`Mi círculo incluye: ${parts.join(', ')}`)  // intentionally not awaited
+    }
+    setStep(4)
+  }
+
+  // ── Chat send ─────────────────────────────────────────────────────────────
+  // Each message goes to the agent; the reply is shown as a Circl message.
+  // The existing scripted OB_QUESTIONS continue to run after the agent reply.
+  // Guard on isTyping to prevent sending while a response is in flight.
+
+  const sendChatMessage = useCallback(async () => {
     const text = chatInput.trim()
-    if (!text) return
+    if (!text || isTyping) return
+
     const id = ++chatMsgId.current
     setChatMsgs(prev => [...prev, { id, from: 'user', text }])
     setChatInput('')
     chatStepRef.current++
+
+    // Call agent — show typing indicator while waiting for reply
+    setIsTyping(true)
+    const reply = await sendToAgent(text)
+    if (reply) {
+      const replyId = ++chatMsgId.current
+      setChatMsgs(prev => [...prev, { id: replyId, from: 'circl', text: reply }])
+    }
+    setIsTyping(false)
+
+    // Continue with the next scripted question (if any remain) after the reply
     if (chatStepRef.current < OB_QUESTIONS.length) {
       setTimeout(() => askNext(), 400)
     }
-  }, [chatInput, askNext])
+  }, [chatInput, isTyping, askNext, sendToAgent])
 
   // ── Contact helpers ───────────────────────────────────────────────────────
 
@@ -512,7 +580,7 @@ export default function OnboardingPage() {
                 <StepNav
                   onBack={() => setStep(1)}
                   onSkip={() => setStep(3)}
-                  onNext={() => setStep(3)}
+                  onNext={handleStep2Next}
                 />
               </div>
             )}
@@ -618,7 +686,7 @@ export default function OnboardingPage() {
                 <StepNav
                   onBack={() => setStep(2)}
                   onSkip={() => setStep(4)}
-                  onNext={() => setStep(4)}
+                  onNext={handleStep3Next}
                 />
               </div>
             )}
@@ -698,10 +766,11 @@ export default function OnboardingPage() {
                     />
                     <button
                       type="button"
-                      onClick={sendChatMessage}
-                      className="flex-shrink-0 flex items-center justify-center rounded-full cursor-pointer transition-colors"
-                      style={{ width: 34, height: 34, background: '#0A7E8C', border: 'none' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#065e6a')}
+                      onClick={() => { sendChatMessage() }}
+                      disabled={isTyping}
+                      className="flex-shrink-0 flex items-center justify-center rounded-full transition-colors"
+                      style={{ width: 34, height: 34, background: '#0A7E8C', border: 'none', cursor: isTyping ? 'not-allowed' : 'pointer', opacity: isTyping ? 0.55 : 1 }}
+                      onMouseEnter={e => { if (!isTyping) e.currentTarget.style.background = '#065e6a' }}
                       onMouseLeave={e => (e.currentTarget.style.background = '#0A7E8C')}
                       aria-label="Enviar"
                     >
