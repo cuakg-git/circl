@@ -8,12 +8,18 @@ import { supabase } from '@/lib/supabase'
 
 const AGENT_ENDPOINT = process.env.NEXT_PUBLIC_AGENT_ENDPOINT as string
 
-// Human-readable labels for the role select values (used when building the
-// contacts message for the agent in step 3).
+// Human-readable labels for the role and proximity select values
+// (used when building the contacts message for the agent in step 3).
 const ROLE_LABELS: Record<string, string> = {
   acompanamiento: 'acompañamiento',
   logistica:      'logístico',
   prestador:      'prestador de servicios',
+}
+
+const PROXIMITY_LABELS: Record<string, string> = {
+  nucleo:       'núcleo',
+  ayuda:        'ayuda o puede ayudar',
+  profesional:  'proveedor o profesional',
 }
 
 const LINE2_CHARS = Array.from('Estoy para acompañarte.')
@@ -186,9 +192,7 @@ export default function OnboardingPage() {
 
     async function initChat() {
       setIsTyping(true)
-      const reply = await sendToAgent(
-        'El usuario completó los pasos anteriores del onboarding. Iniciá la conversación haciendo hasta 3 preguntas de contexto, de a una por vez.'
-      )
+      const reply = await sendToAgent('Hola, entiendo.')
       setIsTyping(false)
       if (reply) {
         const id = ++chatMsgId.current
@@ -201,7 +205,10 @@ export default function OnboardingPage() {
 
   // ── Step 2 continue — send crisis text, fire-and-forget ──────────────────
   function handleStep2Next() {
-    if (crisis.trim()) sendToAgent(crisis.trim())   // intentionally not awaited
+    if (crisis.trim()) {
+      const mensaje = `El usuario acaba de describir su situación durante el onboarding. Registrá esto como una nueva crisis activa usando la tool crear_crisis. La descripción es: "${crisis.trim()}"`
+      sendToAgent(mensaje)   // intentionally not awaited
+    }
     setStep(3)
   }
 
@@ -209,11 +216,14 @@ export default function OnboardingPage() {
   function handleStep3Next() {
     const filled = contacts.filter(c => c.name.trim())
     if (filled.length > 0) {
-      const parts = filled.map(c => {
-        const roleLabel = c.role ? ` (${ROLE_LABELS[c.role] ?? c.role})` : ''
-        return `${c.name.trim()}${roleLabel}`
-      })
-      sendToAgent(`Mi círculo incluye: ${parts.join(', ')}`)  // intentionally not awaited
+      const contactosTexto = filled.map(c => {
+        const rol       = c.role      ? (ROLE_LABELS[c.role]           ?? c.role)      : 'sin rol'
+        const cercania  = c.proximity ? (PROXIMITY_LABELS[c.proximity] ?? c.proximity) : 'sin especificar'
+        const telefono  = c.phone.trim() || 'no especificado'
+        return `${c.name.trim()} (rol: ${rol}, cercanía: ${cercania}, teléfono: ${telefono})`
+      }).join(', ')
+      const mensaje = `El usuario completó el paso de círculo en el onboarding. Registrá cada persona como contacto usando crear_contacto y vincinalos a la crisis activa. Las personas son: ${contactosTexto}`
+      sendToAgent(mensaje)   // intentionally not awaited
     }
     setStep(4)
   }

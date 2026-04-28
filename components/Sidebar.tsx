@@ -81,14 +81,14 @@ const SIDEBAR_NAV = [
   { label: 'Inicio',  href: '/dashboard', Icon: IconGrid    },
   { label: 'Círculo', href: '/circulo',   Icon: IconGroup   },
   { label: 'Crisis',  href: '/crisis',    Icon: IconWarning },
-  { label: 'Hablar',  href: '/hablar',    Icon: IconChat    },
+  { label: 'Hablar',  href: '/chat',      Icon: IconChat    },
 ]
 
 // Mobile order: Inicio · Crisis · Hablar (center, elevated) · Círculo · Perfil
 const BOTTOM_NAV = [
   { label: 'Inicio',  href: '/dashboard', Icon: IconGrid,    center: false },
   { label: 'Crisis',  href: '/crisis',    Icon: IconWarning, center: false },
-  { label: 'Hablar',  href: '/hablar',    Icon: IconChat,    center: true  },
+  { label: 'Hablar',  href: '/chat',      Icon: IconChat,    center: true  },
   { label: 'Círculo', href: '/circulo',   Icon: IconGroup,   center: false },
   { label: 'Perfil',  href: '/profile',   Icon: IconPerson,  center: false },
 ]
