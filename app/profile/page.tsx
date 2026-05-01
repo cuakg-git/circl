@@ -680,7 +680,7 @@ export default function ProfilePage() {
 
             {/* ── Version note ─────────────────────────────────────────── */}
             <p className="text-center text-[0.7rem] text-[#5a7478] pb-10">
-              Circl · versión 0.1 prototype
+              Mhiru · versión 0.1 prototype
             </p>
 
           </div>

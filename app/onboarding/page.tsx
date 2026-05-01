@@ -229,7 +229,7 @@ export default function OnboardingPage() {
   }
 
   // ── Chat send ─────────────────────────────────────────────────────────────
-  // Sends the user message to the agent and shows its reply as a Circl bubble.
+  // Sends the user message to the agent and shows its reply as a Mhiru bubble.
   // Guard on isTyping to prevent sending while a response is in flight.
 
   const sendChatMessage = useCallback(async () => {
@@ -842,7 +842,8 @@ function BtnBack({ onClick }: { onClick: () => void }) {
       onMouseEnter={e => { e.currentTarget.style.borderColor = '#0A7E8C'; e.currentTarget.style.color = '#0A7E8C' }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)'; e.currentTarget.style.color = '#5a7478' }}
     >
-      ← Atrás
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+      Atrás
     </button>
   )
 }

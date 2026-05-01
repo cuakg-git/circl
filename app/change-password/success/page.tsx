@@ -20,13 +20,13 @@ function Logo() {
     <div className="flex items-center justify-center gap-[10px] mb-9">
       <Image
         src="/LOGO_CIRCL_1.svg"
-        alt="Circl"
+        alt="Mhiru"
         width={38}
         height={38}
         style={{ width: 'auto', height: 38 }}
       />
       <span className="text-[1.6rem] font-extrabold text-[#1A1A2E] tracking-[-0.03em]">
-        Circl
+        Mhiru
       </span>
     </div>
   )

@@ -137,20 +137,12 @@ export default function RegisterPage() {
       <div
         className="relative z-10 bg-white rounded-3xl w-full mx-4 px-10 py-10"
         style={{ maxWidth: 440, boxShadow: '0 4px 24px rgba(10,126,140,0.08)' }}
-      >
-        {/* Logo — centered */}
-        <div className="flex items-center justify-center gap-2.5 mb-9">
-          <Image src="/LOGO_CIRCL_1.svg" alt="Circl" width={38} height={38} />
-          <span className="text-[1.6rem] font-extrabold text-[#1A1A2E] tracking-tight leading-none">
-            Circl
-          </span>
-        </div>
-
+      > 
         <h1 className="text-2xl font-extrabold text-[#1A1A2E] text-center tracking-tight mb-2">
           Creá tu cuenta
         </h1>
         <p className="text-center text-[#5a7478] text-sm mb-8">
-          Activá tu círculo de apoyo en minutos.
+          Activá tu círculo de apoyo.
         </p>
 
         {/* Google OAuth */}

@@ -38,7 +38,7 @@ function TypingIndicator() {
         className="text-[0.7rem] font-bold mb-1 px-1"
         style={{ color: '#0A7E8C' }}
       >
-        Agente Circl
+        Agente Mhiru
       </span>
       <div
         className="flex items-center gap-1 px-[17px] py-3"
@@ -351,7 +351,7 @@ export default function ChatPage() {
                     className="font-bold text-[#1A1A2E]"
                     style={{ fontSize: '1rem', letterSpacing: '-0.01em' }}
                   >
-                    Agente Circl
+                    Agente Mhiru
                   </h4>
                   <p className="text-[0.7rem] text-[#5a7478] mt-px">
                     {crisis ? `${crisis.name} · en línea` : 'en línea'}
@@ -382,7 +382,7 @@ export default function ChatPage() {
                         textAlign: msg.role === 'agent' ? 'left'    : 'right',
                       }}
                     >
-                      {msg.role === 'agent' ? 'Agente Circl' : 'Vos'}
+                      {msg.role === 'agent' ? 'Agente Mhiru' : 'Vos'}
                     </span>
 
                     {/* Bubble */}

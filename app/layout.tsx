@@ -9,7 +9,7 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Circl",
+  title: "Mhiru",
   description: "Red de apoyo y cuidado para familias",
   icons: {
     icon: "/favicon.svg",

@@ -286,8 +286,8 @@ export default function HomePage() {
       <nav className={`page-nav${scrolled ? ' scrolled' : ''}`}>
         <div className="nav-inner" style={{ maxWidth:1200, margin:'0 auto', padding:'0 28px', height:70, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
           <Link href="/" style={{ display:'flex', alignItems:'center', gap:10, textDecoration:'none' }}>
-            <Image src="/LOGO_CIRCL_1.svg" alt="Circl" width={38} height={38} />
-            <span style={{ fontSize:'1.45rem', fontWeight:800, color:'#1a2326', letterSpacing:'-0.03em' }}>Circl</span>
+            <Image src="/LOGO_CIRCL_2.svg" alt="Mhiru" width={38} height={38} />
+            <span style={{ fontSize:'1.45rem', fontWeight:800, color:'#1a2326', letterSpacing:'-0.03em' }}>Mhiru</span>
           </Link>
 
           <div className="nav-links" style={{ display:'flex', alignItems:'center', gap:10 }}>
@@ -358,10 +358,10 @@ export default function HomePage() {
         {/* Hero copy */}
         <div ref={heroRevealRef} className="hero-copy p-reveal" style={{ position:'relative', zIndex:2, maxWidth:780, width:'100%' }}>
           <h1 style={{ fontSize:'clamp(1.9rem, 8.5vw, 4.75rem)', fontWeight:800, lineHeight:1.08, letterSpacing:'-0.035em', color:'#1a2326', marginBottom:20, overflowWrap:'break-word', wordBreak:'break-word', hyphens:'auto' }}>
-            Hay personas que quieren ayudarte.
+            Alguien a tu lado quiere ayudar
           </h1>
           <p style={{ fontSize:'clamp(1rem, 2vw, 1.3rem)', color:'#5a7478', fontWeight:500, letterSpacing:'0.02em', marginBottom:44, overflowWrap:'break-word' }}>
-            Circl las activa.
+            Mhiru descomprime y gestiona la crisis con AI.
           </p>
           <Link href="/register"
             className="btn-hero"
@@ -376,7 +376,7 @@ export default function HomePage() {
       {/* ══ APP PREVIEW ═════════════════════════════════════════════════════ */}
       <section style={{ padding:'0 24px 100px', display:'flex', justifyContent:'center' }}>
         <div ref={previewCardRef} className="app-preview-card">
-          <img src="/app-screenshot.png" alt="Circl — vista de crisis" style={{ width:'100%', height:'auto', display:'block' }} />
+          <img src="/app-screenshot.png" alt="Mhiru — vista de crisis" style={{ width:'100%', height:'auto', display:'block' }} />
         </div>
       </section>
 
@@ -386,10 +386,10 @@ export default function HomePage() {
       <section ref={emotionalRef as any} id="emotional-section" style={{ background:'transparent', padding:'130px 24px', position:'relative', overflow:'hidden' }}>
         <div className="emotional-content" style={{ position:'relative', zIndex:2, maxWidth:820, margin:'0 auto', textAlign:'center' }}>
           <h2 style={{ fontSize:'clamp(1.9rem, 8.5vw, 4.75rem)', fontWeight:800, lineHeight:1.08, letterSpacing:'-0.035em', color:'#1a2326', marginBottom:20, overflowWrap:'break-word', wordBreak:'break-word', hyphens:'auto' }}>
-            No lo lleves en soledad
+            Hacelo con ayuda
           </h2>
           <p style={{ fontSize:'clamp(1rem, 2vw, 1.3rem)', color:'#5a7478', fontWeight:500, letterSpacing:'0.02em' }}>Tu gente quiere estar.</p>
-          <p style={{ fontSize:'clamp(1rem, 2vw, 1.3rem)', color:'#5a7478', fontWeight:500, letterSpacing:'0.02em' }}>Circl se encarga de decirles cómo y cuándo.</p>
+          <p style={{ fontSize:'clamp(1rem, 2vw, 1.3rem)', color:'#5a7478', fontWeight:500, letterSpacing:'0.02em' }}>Mhiru se encarga de decirles cómo y cuándo.</p>
         </div>
       </section>
 
@@ -511,8 +511,8 @@ export default function HomePage() {
       <footer style={{ background:'#FAF8F5', borderTop:'1px solid rgba(10,126,140,0.08)', padding:'32px 28px' }}>
         <div className="footer-row" style={{ maxWidth:1200, margin:'0 auto', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:16 }}>
           <Link href="/" style={{ display:'flex', alignItems:'center', gap:10, textDecoration:'none' }}>
-            <Image src="/LOGO_CIRCL_2.svg" alt="Circl" width={30} height={30} />
-            <span style={{ fontSize:'1.2rem', fontWeight:800, color:'#0A7E8C', letterSpacing:'-0.03em' }}>Circl.</span>
+            <Image src="/LOGO_CIRCL_2.svg" alt="Mhiru" width={30} height={30} />
+            <span style={{ fontSize:'1.2rem', fontWeight:800, color:'#0A7E8C', letterSpacing:'-0.03em' }}>Mhiru.</span>
           </Link>
           <div style={{ display:'flex', gap:28 }}>
             {['Privacidad', 'Contacto'].map(label => (
@@ -605,7 +605,7 @@ function ChatMockup() {
   ]
   return (
     <div style={{ maxWidth:340, margin:'0 auto', background:'#0A7E8C', borderRadius:22, padding:20, display:'flex', flexDirection:'column', gap:10 }}>
-      <div style={{ fontSize:'0.62rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:'rgba(255,255,255,0.5)', marginBottom:2 }}>Agente Circl</div>
+      <div style={{ fontSize:'0.62rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:'rgba(255,255,255,0.5)', marginBottom:2 }}>Agente Mhiru</div>
       {msgs.map((m,i) => (
         <div key={i} style={{ alignSelf:m.user?'flex-end':'flex-start', background:m.user?'rgba(255,255,255,0.14)':'white', color:m.user?'white':'#0A7E8C', fontWeight:m.user?400:500, padding:'12px 16px', borderRadius:18, borderBottomRightRadius:m.user?4:18, borderBottomLeftRadius:m.user?18:4, maxWidth:'82%', fontSize:'0.875rem', lineHeight:1.5 }}>
           {m.text}
@@ -628,7 +628,7 @@ function WhatsAppMockup() {
       </div>
       <div style={{ padding:'16px 14px', display:'flex', flexDirection:'column', gap:8 }}>
         {[
-          { out:false, text:'Me llegó el mensaje de Circl. ¿El jueves a las 14h está bien?', ts:'10:32' },
+          { out:false, text:'Me llegó el mensaje de Mhiru. ¿El jueves a las 14h está bien?', ts:'10:32' },
           { out:true,  text:'Sí, perfecto. ¡Gracias Carlos! ❤️',                              ts:'10:33' },
           { out:false, text:'Confirmo. Paso por ella.',                                       ts:'10:34' },
         ].map((m,i) => (

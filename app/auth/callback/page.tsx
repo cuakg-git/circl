@@ -117,7 +117,7 @@ export default function AuthCallbackPage() {
         <div className="flex items-center gap-[10px]">
           <Image
             src="/LOGO_CIRCL_1.svg"
-            alt="Circl"
+            alt="Mhiru"
             width={36}
             height={36}
             style={{ width: 'auto', height: 36 }}
@@ -131,7 +131,7 @@ export default function AuthCallbackPage() {
               lineHeight:    1,
             }}
           >
-            Circl
+            Mhiru
           </span>
         </div>
 

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <link rel="icon" type="image/svg+xml" href="../../assets/img/LOGO_CIRCL_2.svg">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Circl · Crisis</title>
+  <title>Mhiru · Crisis</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -59,13 +59,12 @@
       border-radius: var(--radius-card);
       box-shadow: var(--shadow-card);
       padding: var(--space-lg);
-      border-left: 4px solid transparent;
       transition: box-shadow 0.2s, transform 0.2s;
       margin-bottom: var(--space-md);
     }
     .crisis-card:hover { box-shadow: var(--shadow-float); transform: translateY(-2px); }
-    .crisis-card.active-border { border-left-color: var(--color-teal); }
-    .crisis-card.resolved-border { border-left-color: var(--color-border); opacity: 0.65; }
+    .crisis-card.active-border { opacity: 1; }
+    .crisis-card.resolved-border { opacity: 0.65; }
     .crisis-card-header {
       display: flex;
       justify-content: space-between;
@@ -74,9 +73,13 @@
     }
     .crisis-card-arrow {
       color: var(--color-teal);
-      font-size: 1.2rem;
       margin-left: 12px;
       flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .crisis-days {
       font-size: var(--text-xs);
@@ -92,8 +95,8 @@
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="sidebar-brand">
-      <img src="../../assets/img/LOGO_CIRCL_1.svg" alt="Circl">
-      <span class="sidebar-wordmark">Circl</span>
+      <img src="../../assets/img/LOGO_CIRCL_2.svg" alt="Mhiru">
+      <span class="sidebar-wordmark">Mhiru</span>
     </div>
     <nav class="sidebar-nav">
       <a class="sidebar-link" href="../dashboard.html">
@@ -167,13 +170,11 @@
           <h3 style="font-size:var(--text-lg);margin-bottom:6px;">Linfoma de Martín</h3>
           <span class="badge badge-active">Activa</span>
         </div>
-        <span class="crisis-card-arrow">→</span>
+        <svg class="crisis-card-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m9 18 6-6-6-6"></path>
+        </svg>
       </div>
       <div class="crisis-days">Inicio: 8 de abril · 5 días activa · Oncología</div>
-      <div class="progress-bar" style="margin-top:12px;">
-        <div class="progress-fill" style="width:35%;"></div>
-      </div>
-      <p style="font-size:var(--text-xs);color:var(--color-muted);margin-top:5px;">3 de 8 tareas completadas</p>
     </a>
 
     <!-- Resueltas -->
@@ -185,13 +186,11 @@
           <h3 style="font-size:var(--text-lg);margin-bottom:6px;">Internación mamá — fractura</h3>
           <span class="badge" style="background:rgba(90,116,120,0.1);color:var(--color-muted);">Resuelta</span>
         </div>
-        <span class="crisis-card-arrow" style="color:var(--color-muted);">→</span>
+        <svg class="crisis-card-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--color-muted);">
+          <path d="m9 18 6-6-6-6"></path>
+        </svg>
       </div>
       <div class="crisis-days">Enero 2025 · 18 días · Traumatología</div>
-      <div class="progress-bar" style="margin-top:12px;">
-        <div class="progress-fill" style="width:100%;background:linear-gradient(135deg,var(--color-muted),#8fa4a8);"></div>
-      </div>
-      <p style="font-size:var(--text-xs);color:var(--color-muted);margin-top:5px;">12 de 12 tareas completadas</p>
     </a>
 
   </main>

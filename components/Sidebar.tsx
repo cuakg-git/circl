@@ -212,14 +212,14 @@ export default function Sidebar() {
             SVG's natural aspect ratio is preserved, avoiding any squishing.
           */}
           <Image
-            src="/LOGO_CIRCL_1.svg"
-            alt="Circl"
+            src="/LOGO_CIRCL_2.svg"
+            alt="Mhiru"
             width={32}
             height={32}
             style={{ width: 'auto', height: 32 }}
           />
           <span className="text-[1.25rem] font-extrabold text-[#1A1A2E] tracking-[-0.03em] leading-none">
-            Circl
+            Mhiru
           </span>
         </div>
 
