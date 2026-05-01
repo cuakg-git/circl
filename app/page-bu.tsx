@@ -290,6 +290,20 @@ export default function HomePage() {
             <span style={{ fontSize:'1.45rem', fontWeight:800, color:'#1a2326', letterSpacing:'-0.03em' }}>Mhiru</span>
           </Link>
 
+          <div className="nav-links" style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <Link href="/login"
+              style={{ background:'transparent', color:'#5a7478', border:'none', padding:'9px 16px', fontSize:'0.875rem', fontWeight:600, textDecoration:'none', transition:'color 0.2s ease' }}
+              onMouseEnter={e => e.currentTarget.style.color='#1a2326'}
+              onMouseLeave={e => e.currentTarget.style.color='#5a7478'}
+            >Ingresar</Link>
+            <Link href="/register"
+              className="btn-gradient-flow"
+              style={{ color:'#fff', borderRadius:9999, padding:'9px 24px', fontSize:'0.875rem', fontWeight:700, textDecoration:'none', display:'inline-block', transition:'transform 0.2s ease, filter 0.2s ease' }}
+              onMouseEnter={e => { e.currentTarget.style.transform='scale(1.03)'; e.currentTarget.style.filter='brightness(1.07)' }}
+              onMouseLeave={e => { e.currentTarget.style.transform='scale(1)'; e.currentTarget.style.filter='none' }}
+            >Crear círculo</Link>
+          </div>
+
           <button
             className={`nav-burger${menuOpen ? ' open' : ''}`}
             onClick={toggleMenu}
@@ -310,9 +324,10 @@ export default function HomePage() {
           onMouseEnter={e => e.currentTarget.style.color='#0A7E8C'}
           onMouseLeave={e => e.currentTarget.style.color='#1a2326'}
         >Ingresar</Link>
-        <span
-          style={{ marginTop:8, background:'linear-gradient(135deg,#0A7E8C,#2ECDA7)', color:'white', borderRadius:9999, padding:'14px 40px', fontSize:'1.1rem', fontWeight:800, letterSpacing:'-0.02em', textDecoration:'none', opacity:0.5, cursor:'not-allowed', pointerEvents:'none' }}
-        >Próximo al lanzamiento</span>
+        <Link href="/register"
+          style={{ marginTop:8, background:'linear-gradient(135deg,#0A7E8C,#2ECDA7)', color:'white', borderRadius:9999, padding:'14px 40px', fontSize:'1.1rem', fontWeight:800, letterSpacing:'-0.02em', textDecoration:'none' }}
+          onClick={closeMenu}
+        >Crear círculo</Link>
       </div>
 
 
@@ -348,9 +363,12 @@ export default function HomePage() {
           <p style={{ fontSize:'clamp(1rem, 2vw, 1.3rem)', color:'#5a7478', fontWeight:500, letterSpacing:'0.02em', marginBottom:44, overflowWrap:'break-word' }}>
             Mhiru descomprime y gestiona la crisis con AI.
           </p>
-          <span
-            style={{ display:'inline-block', background:'#0A7E8C', color:'#fff', borderRadius:9999, padding:'20px 52px', fontSize:'1.1rem', fontWeight:700, boxShadow:'0 10px 36px rgba(10,126,140,0.28)', textDecoration:'none', marginBottom:64, opacity:0.5, cursor:'not-allowed', pointerEvents:'none' }}
-          >Próximo al lanzamiento</span>
+          <Link href="/register"
+            className="btn-hero"
+            style={{ display:'inline-block', background:'#0A7E8C', color:'#fff', borderRadius:9999, padding:'20px 52px', fontSize:'1.1rem', fontWeight:700, boxShadow:'0 10px 36px rgba(10,126,140,0.28)', transition:'transform 0.2s ease, filter 0.2s ease', textDecoration:'none', marginBottom:64 }}
+            onMouseEnter={e => { e.currentTarget.style.transform='scale(1.04)'; e.currentTarget.style.filter='brightness(1.1)' }}
+            onMouseLeave={e => { e.currentTarget.style.transform='scale(1)'; e.currentTarget.style.filter='none' }}
+          >Crear mi círculo</Link>
         </div>
       </section>
 
@@ -443,9 +461,15 @@ export default function HomePage() {
       <section ref={ctaSectRef as any} id="cta-final" style={{ position:'relative', padding:'130px 24px 110px', background:'transparent', overflow:'hidden' }}>
         <div ref={ctaRingRef} id="cta-ring" style={{ position:'absolute', width:580, height:580, border:'2px solid rgba(255,255,255,0.1)', borderRadius:'50%', top:'50%', left:'50%', transform:'translate(-50%,-50%)', pointerEvents:'none' }} />
         <div className="cta-content" style={{ position:'relative', zIndex:2, maxWidth:680, margin:'0 auto', textAlign:'center' }}>
-          <h2 style={{ fontSize:'clamp(1.9rem, 8.5vw, 4.8rem)', fontWeight:800, color:'#1a2326', letterSpacing:'-0.035em', marginBottom:0, overflowWrap:'break-word', wordBreak:'break-word', hyphens:'auto' }}>
+          <h2 style={{ fontSize:'clamp(1.9rem, 8.5vw, 4.8rem)', fontWeight:800, color:'#1a2326', letterSpacing:'-0.035em', marginBottom:52, overflowWrap:'break-word', wordBreak:'break-word', hyphens:'auto' }}>
             Tu círculo te espera.
           </h2>
+          <Link href="/register"
+            className="btn-hero"
+            style={{ display:'inline-block', background:'#0A7E8C', color:'#fff', borderRadius:9999, padding:'20px 52px', fontSize:'1.1rem', fontWeight:700, boxShadow:'0 10px 36px rgba(10,126,140,0.28)', transition:'transform 0.2s ease, filter 0.2s ease', textDecoration:'none' }}
+            onMouseEnter={e => { e.currentTarget.style.transform='scale(1.04)'; e.currentTarget.style.filter='brightness(1.1)' }}
+            onMouseLeave={e => { e.currentTarget.style.transform='scale(1)'; e.currentTarget.style.filter='none' }}
+          >Crear mi círculo</Link>
         </div>
       </section>
 
