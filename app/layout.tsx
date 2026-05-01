@@ -9,10 +9,32 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Mhiru",
-  description: "Red de apoyo y cuidado para familias",
+  title: "Mhiru — Tu red de apoyo en momentos de crisis",
+  description: "Mhiru  activa, gestiona y coordina las redes de personas y sus recursos con IA para que no las personas no enfrenten las crisis en soledad.",
+  keywords: ["red de apoyo", "crisis de salud", "acompañamiento emocional", "coordinación logística", "agente IA", "cuidadores", "salud familiar"],
   icons: {
-    icon: "/favicon.svg",
+    icon: "/LOGO_CIRCL_2.svg",
+    apple: "/LOGO_CIRCL_2.svg",
+  },
+  openGraph: {
+    type: "website",
+    url: "https://www.hellomhiru.com",
+    title: "Mhiru — Tu red de apoyo en momentos de crisis",
+    description: "Un agente de IA que activa, gestiona y coordina tu red de personas y recursos para que no enfrentes solo tu crisis.",
+    images: [
+      {
+        url: "https://www.hellomhiru.com/LOGO_CIRCL_2.svg",
+        alt: "Mhiru",
+      },
+    ],
+    locale: "es_AR",
+    siteName: "Mhiru",
+  },
+  twitter: {
+    card: "summary",
+    title: "Mhiru — Tu red de apoyo en momentos de crisis",
+    description: "Un agente de IA que activa, gestiona y coordina tu red de personas y recursos para que no enfrentes solo tu crisis.",
+    images: ["https://www.hellomhiru.com/LOGO_CIRCL_2.svg"],
   },
 };
 
