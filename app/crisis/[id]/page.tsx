@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
 import { supabase } from '@/lib/supabase'
+import {
+  SkeletonStyles, SkeletonText, SkeletonAvatar,
+  SkeletonCard, SkeletonBase,
+} from '@/components/Skeleton'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -38,9 +42,16 @@ type Contact = {
 }
 
 type Doc = {
-  id:         string
-  name:       string
-  created_at: string
+  id:                     string
+  name:                   string
+  type:                   string | null
+  created_at:             string
+  storage_path:           string
+  original_filename:      string | null
+  file_size_bytes:        number | null
+  file_mime_type:         string | null
+  uploaded_by_user:       boolean | null
+  uploaded_by_contact_id: string | null
 }
 
 type HistoryEvent = {
@@ -51,7 +62,7 @@ type HistoryEvent = {
 }
 
 // Sidesheet modes
-type SSMode = 'task-view' | 'task-add' | 'member-view' | 'member-add' | null
+type SSMode = 'task-view' | 'task-add' | 'member-view' | 'member-add' | 'doc-view' | 'doc-add' | null
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -131,6 +142,13 @@ const PROXIMITY_LABELS: Record<string, string> = {
   profesional:  'Es un proveedor de servicios o un profesional',
 }
 
+const DOC_TYPE_LABELS: Record<string, string> = {
+  estudio_medico: 'Estudio médico',
+  receta:         'Receta',
+  informe:        'Informe',
+  otros:          'Otros',
+}
+
 // ── Icons ──────────────────────────────────────────────────────────────────────
 
 function IconChevronLeft() {
@@ -182,6 +200,28 @@ function IconUpload() {
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
       <polyline points="17 8 12 3 7 8" />
       <line x1="12" y1="3" x2="12" y2="15" />
+    </svg>
+  )
+}
+
+
+function IconClose({ color = '#5a7478' }: { color?: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color}
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="6"  x2="6"  y2="18" />
+      <line x1="6"  y1="6"  x2="18" y2="18" />
+    </svg>
+  )
+}
+
+function IconDownload({ color = 'white' }: { color?: string }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color}
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
     </svg>
   )
 }
@@ -281,6 +321,21 @@ export default function CrisisDetailPage({
   const [availableContacts, setAvailableContacts] = useState<Contact[]>([])
   const [availableLoading,  setAvailableLoading]  = useState(false)
 
+  // Doc sidesheet state
+  const [ssDoc,          setSsDoc]          = useState<Doc | null>(null)
+  const [docName,        setDocName]        = useState('')
+  const [docType,        setDocType]        = useState('estudio_medico')
+  const [docFile,        setDocFile]        = useState<File | null>(null)
+  const [isDraggingDoc,  setIsDraggingDoc]  = useState(false)
+  const fileInputRef                        = useRef<HTMLInputElement>(null)
+  const dragCounterRef                      = useRef(0)
+
+  // Doc preview modal state
+  const [docModalOpen,    setDocModalOpen]    = useState(false)
+  const [docModalUrl,     setDocModalUrl]     = useState<string | null>(null)
+  const [docModalLoading, setDocModalLoading] = useState(false)
+  const [docThumbUrl,     setDocThumbUrl]     = useState<string | null>(null)
+
   // ── Load data ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -303,7 +358,7 @@ export default function CrisisDetailPage({
           .eq('crisis_id', id),
         supabase
           .from('documents')
-          .select('id, name, created_at')
+          .select('id, name, type, created_at, storage_path, original_filename, file_size_bytes, file_mime_type, uploaded_by_user, uploaded_by_contact_id')
           .eq('crisis_id', id).order('created_at', { ascending: false }),
         supabase
           .from('crisis_history')
@@ -375,6 +430,15 @@ export default function CrisisDetailPage({
     if (data) setHistory(data as HistoryEvent[])
   }, [id])
 
+  const reloadDocs = useCallback(async () => {
+    const { data } = await supabase
+      .from('documents')
+      .select('id, name, type, created_at, storage_path, original_filename, file_size_bytes, file_mime_type, uploaded_by_user, uploaded_by_contact_id')
+      .eq('crisis_id', id)
+      .order('created_at', { ascending: false })
+    if (data) setDocs(data as Doc[])
+  }, [id])
+
   // Best-effort write to crisis_history; never blocks the UI on failure
   const logHistory = useCallback(async (title: string, description: string | null, eventType: string) => {
     const { error } = await supabase.from('crisis_history').insert({
@@ -390,6 +454,19 @@ export default function CrisisDetailPage({
     }
     await reloadHistory()
   }, [id, reloadHistory])
+
+  // ── Close modal on Escape ─────────────────────────────────────────────────────
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape' && docModalOpen) {
+        setDocModalOpen(false)
+        setDocModalUrl(null)
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [docModalOpen])
 
   // ── Sidesheet helpers ─────────────────────────────────────────────────────────
 
@@ -445,7 +522,11 @@ export default function CrisisDetailPage({
     setSsMode(null)
     setSsTask(null)
     setSsMember(null)
+    setSsDoc(null)
     setSsError(null)
+    setDocModalOpen(false)
+    setDocModalUrl(null)
+    setDocThumbUrl(null)
   }
 
   // ── Task view actions ─────────────────────────────────────────────────────────
@@ -574,6 +655,133 @@ export default function CrisisDetailPage({
     closeSheet()
   }
 
+  // ── Doc view / add actions ────────────────────────────────────────────────────
+
+  async function openDocView(d: Doc) {
+    setSsDoc(d)
+    setSsError(null)
+    setDocThumbUrl(null)
+    setSsMode('doc-view')
+    const mime = d.file_mime_type ?? ''
+    if (mime.startsWith('image/') || mime === 'application/pdf') {
+      const { data } = await supabase.storage.from('docs').createSignedUrl(d.storage_path, 3600)
+      if (data?.signedUrl) setDocThumbUrl(data.signedUrl)
+    }
+  }
+
+  function openDocAdd() {
+    setDocName('')
+    setDocType('estudio_medico')
+    setDocFile(null)
+    setSsError(null)
+    setSsMode('doc-add')
+  }
+
+  function handleFileSelect(file: File) {
+    if (file.size > 10 * 1024 * 1024) {
+      setSsError('El archivo supera el límite de 10 MB')
+      return
+    }
+    setSsError(null)
+    setDocFile(file)
+  }
+
+  async function handleDocDownload(urlOverride?: string) {
+    if (!ssDoc) return
+    let url = urlOverride ?? null
+    if (!url) {
+      setSsLoading(true)
+      setSsError(null)
+      const { data, error } = await supabase.storage.from('docs').createSignedUrl(
+        ssDoc.storage_path, 3600,
+        { download: ssDoc.original_filename ?? ssDoc.name },
+      )
+      setSsLoading(false)
+      if (error || !data?.signedUrl) {
+        setSsError('No se pudo generar el link de descarga')
+        return
+      }
+      url = data.signedUrl
+    }
+    const a = document.createElement('a')
+    a.href = url
+    a.download = ssDoc.original_filename ?? ssDoc.name
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+
+  async function handleDocOpen() {
+    if (!ssDoc) return
+    // Reuse the thumb URL already fetched on open (avoids a second round-trip)
+    if (docThumbUrl) {
+      setDocModalUrl(docThumbUrl)
+      setDocModalOpen(true)
+      return
+    }
+    setDocModalLoading(true)
+    setSsError(null)
+    const { data, error } = await supabase.storage.from('docs').createSignedUrl(ssDoc.storage_path, 3600)
+    setDocModalLoading(false)
+    if (error || !data?.signedUrl) {
+      setSsError('No se pudo generar la vista previa')
+      return
+    }
+    setDocModalUrl(data.signedUrl)
+    setDocModalOpen(true)
+  }
+
+  async function handleDocDelete() {
+    if (!ssDoc) return
+    if (!window.confirm(`¿Eliminar el documento "${ssDoc.name}"?`)) return
+    setSsLoading(true)
+    setSsError(null)
+    const { error: storageErr } = await supabase.storage.from('docs').remove([ssDoc.storage_path])
+    if (storageErr) { setSsLoading(false); setSsError(storageErr.message); return }
+    const { error: dbErr } = await supabase.from('documents').delete().eq('id', ssDoc.id)
+    setSsLoading(false)
+    if (dbErr) { setSsError(dbErr.message); return }
+    await reloadDocs()
+    closeSheet()
+  }
+
+  async function handleAddDoc(e: React.FormEvent) {
+    e.preventDefault()
+    if (!docFile || ssLoading) return
+    setSsLoading(true)
+    setSsError(null)
+    const timestamp = Date.now()
+    const safeName  = docFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const path      = `${id}/${timestamp}_${safeName}`
+    const { error: uploadErr } = await supabase.storage.from('docs').upload(path, docFile)
+    if (uploadErr) {
+      setSsLoading(false)
+      setSsError(`Error al subir el archivo: ${uploadErr.message}`)
+      return
+    }
+    const { error: dbErr } = await supabase.from('documents').insert({
+      crisis_id:              id,
+      name:                   docName.trim(),
+      type:                   docType,
+      storage_path:           path,
+      original_filename:      docFile.name,
+      file_size_bytes:        docFile.size,
+      file_mime_type:         docFile.type,
+      uploaded_by_user:       true,
+      uploaded_by_contact_id: null,
+    })
+    if (dbErr) {
+      await supabase.storage.from('docs').remove([path])
+      setSsLoading(false)
+      setSsError(dbErr.message)
+      return
+    }
+    await logHistory('Documento cargado', docName.trim(), 'actualizacion_general')
+    await reloadDocs()
+    setSsLoading(false)
+    closeSheet()
+  }
+
   // ── Derived ───────────────────────────────────────────────────────────────────
 
   const contactById = new Map(contacts.map((c) => [c.id, c]))
@@ -675,6 +883,8 @@ export default function CrisisDetailPage({
              : ssMode === 'task-add'  ? 'Nueva tarea'
              : ssMode === 'member-view' ? 'Miembro del círculo'
              : ssMode === 'member-add'  ? 'Agregar al círculo'
+             : ssMode === 'doc-view'    ? 'Documento'
+             : ssMode === 'doc-add'     ? 'Cargar documento'
              : ''}
           </span>
           <button
@@ -756,7 +966,7 @@ export default function CrisisDetailPage({
                       onChange={(e) => handleAssigneeChange(e.target.value)}
                       style={SS_SELECT_STYLE}
                     >
-                      <option value="">— Sin asignar —</option>
+                      <option value="">Sin asignar</option>
                       <option value="yo">Yo</option>
                       {contacts.map((c) => (
                         <option key={c.id} value={`c:${c.id}`}>{c.name}</option>
@@ -1341,6 +1551,398 @@ export default function CrisisDetailPage({
             )}
           </div>
         )}
+
+        {/* ── DOC VIEW ── */}
+        {ssMode === 'doc-view' && ssDoc && (() => {
+          const uploader = ssDoc.uploaded_by_user
+            ? 'Vos'
+            : ssDoc.uploaded_by_contact_id
+              ? contactById.get(ssDoc.uploaded_by_contact_id)?.name ?? '—'
+              : '—'
+          return (
+            <div style={{ padding: '0 24px 40px', flex: 1 }}>
+              {/* Hero */}
+              <div style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                textAlign: 'center', padding: '24px 0 20px',
+                borderBottom: '1px solid rgba(10,126,140,0.12)', marginBottom: 24,
+              }}>
+                <div style={{
+                  width: 80, height: 80, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 8px 40px rgba(10,126,140,0.16)',
+                  marginBottom: 14,
+                }}>
+                  <IconDoc />
+                </div>
+                <div style={{
+                  fontSize: '1.5rem', fontWeight: 800,
+                  letterSpacing: '-0.02em', marginBottom: 8, color: '#1A1A2E',
+                }}>
+                  {ssDoc.name}
+                </div>
+                <span style={{ fontSize: '0.7rem', color: '#5a7478' }}>
+                  {DOC_TYPE_LABELS[ssDoc.type ?? ''] ?? 'Documento'} · {fmtLongDate(ssDoc.created_at)}
+                </span>
+              </div>
+
+              {/* Información */}
+              <div style={{ marginBottom: 24 }}>
+                <p style={{
+                  fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
+                  textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
+                }}>Información</p>
+                <Card style={{ padding: 0, borderRadius: '1rem' }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '13px 20px', borderBottom: '1px solid rgba(10,126,140,0.12)', gap: 12,
+                  }}>
+                    <span style={{
+                      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
+                      textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
+                    }}>Tipo</span>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1A1A2E', flex: 1 }}>
+                      {DOC_TYPE_LABELS[ssDoc.type ?? ''] ?? '—'}
+                    </span>
+                  </div>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '13px 20px', borderBottom: '1px solid rgba(10,126,140,0.12)', gap: 12,
+                  }}>
+                    <span style={{
+                      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
+                      textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
+                    }}>Fecha</span>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1A1A2E', flex: 1 }}>
+                      {fmtLongDate(ssDoc.created_at)}
+                    </span>
+                  </div>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '13px 20px', gap: 12,
+                  }}>
+                    <span style={{
+                      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
+                      textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
+                    }}>Subido por</span>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1A1A2E', flex: 1 }}>
+                      {uploader}
+                    </span>
+                  </div>
+                </Card>
+              </div>
+
+              {/* Error */}
+              {ssError && (
+                <p style={{
+                  fontSize: '0.7rem', color: '#ba1a1a', fontWeight: 600,
+                  marginBottom: 16, padding: '10px 14px',
+                  background: 'rgba(186,26,26,0.06)', borderRadius: '0.6rem',
+                }}>
+                  {ssError}
+                </p>
+              )}
+
+              {/* Descargar */}
+              <div style={{ marginBottom: 12 }}>
+                <button
+                  onClick={() => handleDocDownload()}
+                  disabled={ssLoading}
+                  style={{
+                    width: '100%', padding: '14px', borderRadius: 9999,
+                    border: 'none', cursor: ssLoading ? 'not-allowed' : 'pointer',
+                    fontWeight: 700, fontSize: '0.875rem', transition: 'filter 0.15s',
+                    background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                    color: 'white', opacity: ssLoading ? 0.6 : 1,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  }}
+                >
+                  <IconDownload />
+                  {ssLoading ? 'Procesando…' : 'Descargar'}
+                </button>
+              </div>
+
+              {/* Preview thumbnail or Ver button */}
+              {(() => {
+                const mime = ssDoc.file_mime_type ?? ''
+                const isPreviewable = mime.startsWith('image/') || mime === 'application/pdf'
+                if (!isPreviewable) {
+                  return (
+                    <div style={{ marginBottom: 24 }}>
+                      <button
+                        onClick={handleDocOpen}
+                        disabled={docModalLoading || ssLoading}
+                        style={{
+                          width: '100%', padding: '13px', borderRadius: 9999,
+                          border: '1.5px solid rgba(10,126,140,0.25)',
+                          background: 'white', cursor: (docModalLoading || ssLoading) ? 'not-allowed' : 'pointer',
+                          fontWeight: 700, fontSize: '0.875rem', color: '#0A7E8C',
+                          opacity: (docModalLoading || ssLoading) ? 0.6 : 1, transition: 'background 0.15s',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.04)' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'white' }}
+                      >
+                        {docModalLoading ? 'Cargando…' : 'Ver'}
+                      </button>
+                    </div>
+                  )
+                }
+                return (
+                  <div style={{ marginBottom: 24 }}>
+                    {/* Clickable thumbnail */}
+                    <div
+                      onClick={handleDocOpen}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleDocOpen() }}
+                      style={{
+                        position: 'relative', borderRadius: '0.875rem', overflow: 'hidden',
+                        cursor: 'pointer', border: '1.5px solid rgba(10,126,140,0.18)',
+                        height: 180, background: '#f0f4f8',
+                        transition: 'box-shadow 0.2s, border-color 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.boxShadow = '0 4px 20px rgba(10,126,140,0.18)'
+                        e.currentTarget.style.borderColor = 'rgba(10,126,140,0.38)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.boxShadow = 'none'
+                        e.currentTarget.style.borderColor = 'rgba(10,126,140,0.18)'
+                      }}
+                    >
+                      {docThumbUrl ? (
+                        mime.startsWith('image/') ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={docThumbUrl}
+                            alt={ssDoc.name}
+                            style={{
+                              width: '100%', height: '100%',
+                              objectFit: 'cover', display: 'block',
+                              pointerEvents: 'none',
+                            }}
+                          />
+                        ) : (
+                          /* PDF: render first page via iframe, block all iframe interactions */
+                          <>
+                            <iframe
+                              src={`${docThumbUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+                              title="preview"
+                              style={{
+                                width: '100%', height: '100%',
+                                border: 'none', display: 'block',
+                                pointerEvents: 'none',
+                              }}
+                            />
+                            {/* Transparent click-through overlay so the div captures the click */}
+                            <div style={{ position: 'absolute', inset: 0 }} />
+                          </>
+                        )
+                      ) : (
+                        /* Still loading thumb */
+                        <div style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          height: '100%', color: '#5a7478', fontSize: '0.8rem',
+                        }}>
+                          Cargando vista previa…
+                        </div>
+                      )}
+
+                      {/* "Ver" badge overlay */}
+                      <div style={{
+                        position: 'absolute', bottom: 10, right: 10,
+                        background: 'rgba(10,126,140,0.82)',
+                        backdropFilter: 'blur(6px)',
+                        borderRadius: 9999, padding: '4px 12px',
+                        fontSize: '0.75rem', fontWeight: 700, color: 'white',
+                        pointerEvents: 'none',
+                      }}>
+                        Ver
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Eliminar */}
+              <div>
+                <p style={{
+                  fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
+                  textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
+                }}>Acciones</p>
+                <Card style={{ padding: 0, borderRadius: '1rem' }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '13px 20px', gap: 12,
+                  }}>
+                    <span style={{ fontSize: '0.875rem', color: '#5a7478', flex: 1 }}>
+                      Eliminar este documento
+                    </span>
+                    <button
+                      onClick={handleDocDelete}
+                      disabled={ssLoading}
+                      style={{
+                        background: 'rgba(186,26,26,0.06)', color: '#ba1a1a',
+                        border: 'none', borderRadius: '0.6rem',
+                        padding: '7px 16px', fontSize: '0.875rem', fontWeight: 700,
+                        cursor: ssLoading ? 'not-allowed' : 'pointer',
+                        opacity: ssLoading ? 0.6 : 1, transition: 'filter 0.15s',
+                      }}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </Card>
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* ── DOC ADD ── */}
+        {ssMode === 'doc-add' && (
+          <div style={{ padding: '0 24px 40px', flex: 1 }}>
+            {/* Hero */}
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              textAlign: 'center', padding: '24px 0 20px',
+              borderBottom: '1px solid rgba(10,126,140,0.12)', marginBottom: 24,
+            }}>
+              <div style={{
+                width: 72, height: 72, borderRadius: '50%',
+                background: 'rgba(61,199,166,0.08)',
+                border: '2px dashed rgba(61,199,166,0.45)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                marginBottom: 14,
+              }}>
+                <IconUpload />
+              </div>
+              <div style={{
+                fontSize: '1.5rem', fontWeight: 800,
+                letterSpacing: '-0.02em', color: '#1A1A2E',
+              }}>
+                Cargar documento
+              </div>
+            </div>
+
+            <form onSubmit={handleAddDoc}>
+              <p style={{
+                fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
+                textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
+              }}>Documento</p>
+              <Card style={{ padding: 0, borderRadius: '1rem', marginBottom: 16 }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center',
+                  padding: '13px 20px', borderBottom: '1px solid rgba(10,126,140,0.12)', gap: 12,
+                }}>
+                  <span style={{
+                    fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
+                    textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
+                  }}>Nombre</span>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Nombre del documento…"
+                    value={docName}
+                    onChange={(e) => setDocName(e.target.value)}
+                    style={{ ...SS_INPUT_STYLE }}
+                  />
+                </div>
+                <div style={{
+                  display: 'flex', alignItems: 'center',
+                  padding: '13px 20px', gap: 12,
+                }}>
+                  <span style={{
+                    fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
+                    textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
+                  }}>Tipo</span>
+                  <select
+                    value={docType}
+                    onChange={(e) => setDocType(e.target.value)}
+                    style={SS_SELECT_STYLE}
+                  >
+                    {Object.entries(DOC_TYPE_LABELS).map(([val, label]) => (
+                      <option key={val} value={val}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+              </Card>
+
+              {/* Drop zone */}
+              <div
+                onDragEnter={(e) => { e.preventDefault(); dragCounterRef.current++; setIsDraggingDoc(true) }}
+                onDragLeave={() => { dragCounterRef.current--; if (dragCounterRef.current === 0) setIsDraggingDoc(false) }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  dragCounterRef.current = 0
+                  setIsDraggingDoc(false)
+                  const file = e.dataTransfer.files[0]
+                  if (file) handleFileSelect(file)
+                }}
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  border: `2px dashed ${isDraggingDoc ? 'rgba(61,199,166,0.75)' : 'rgba(61,199,166,0.35)'}`,
+                  borderRadius: '0.75rem', padding: '32px 20px',
+                  textAlign: 'center', cursor: 'pointer', marginBottom: 16,
+                  background: isDraggingDoc ? 'rgba(61,199,166,0.08)' : 'white',
+                  transform: isDraggingDoc ? 'scale(1.025)' : 'scale(1)',
+                  transition: 'transform 0.2s ease, background 0.2s ease, border-color 0.2s ease',
+                }}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  style={{ display: 'none' }}
+                  accept=".pdf,image/*,.doc,.docx"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) handleFileSelect(file)
+                  }}
+                />
+                <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center', color: '#0A7E8C' }}>
+                  <IconUpload />
+                </div>
+                {docFile ? (
+                  <p style={{ fontSize: '0.875rem', color: '#0A7E8C', fontWeight: 600, margin: 0 }}>
+                    {docFile.name}
+                  </p>
+                ) : (
+                  <p style={{ fontSize: '0.875rem', color: '#5a7478', margin: 0 }}>
+                    Hacé clic o arrastrá el archivo aquí
+                  </p>
+                )}
+              </div>
+
+              {/* Error */}
+              {ssError && (
+                <p style={{
+                  fontSize: '0.7rem', color: '#ba1a1a', fontWeight: 600,
+                  marginBottom: 16, padding: '10px 14px',
+                  background: 'rgba(186,26,26,0.06)', borderRadius: '0.6rem',
+                }}>
+                  {ssError}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={ssLoading || !docName.trim() || !docFile}
+                style={{
+                  width: '100%', padding: '14px', borderRadius: 9999,
+                  border: 'none', cursor: (ssLoading || !docName.trim() || !docFile) ? 'not-allowed' : 'pointer',
+                  fontWeight: 700, fontSize: '0.875rem',
+                  background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                  color: 'white',
+                  opacity: (ssLoading || !docName.trim() || !docFile) ? 0.6 : 1,
+                  transition: 'filter 0.15s',
+                }}
+              >
+                {ssLoading ? 'Cargando…' : 'Cargar documento'}
+              </button>
+            </form>
+          </div>
+        )}
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
@@ -1351,6 +1953,7 @@ export default function CrisisDetailPage({
         <Sidebar />
 
         <main className="flex-1 ml-0 md:ml-[240px] min-h-screen px-5 py-8 pb-28 md:px-10 md:py-10 md:pb-10">
+          <SkeletonStyles />
 
           {/* Back link */}
           <Link
@@ -1566,23 +2169,34 @@ export default function CrisisDetailPage({
               <Card>
                 {docs.length > 0 ? (
                   <div className="flex flex-col" style={{ gap: 10 }}>
-                    {docs.map((d) => (
-                      <div key={d.id} className="flex items-center"
-                        style={{ gap: 12, padding: '10px 12px', background: 'rgba(10,126,140,0.04)', borderRadius: '0.6rem' }}>
-                        <div className="rounded-lg flex items-center justify-center flex-shrink-0"
-                          style={{ width: 36, height: 36, background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)' }}>
-                          <IconDoc />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-[#1A1A2E] truncate" style={{ fontSize: '0.875rem' }}>
-                            {d.name}
+                    {docs.map((d) => {
+                      const uploaderLabel = d.uploaded_by_user
+                        ? 'Cargado por vos'
+                        : d.uploaded_by_contact_id
+                          ? `Cargado por ${contactById.get(d.uploaded_by_contact_id)?.name ?? '—'}`
+                          : ''
+                      return (
+                        <div key={d.id} className="flex items-center cursor-pointer"
+                          onClick={() => openDocView(d)}
+                          style={{ gap: 12, padding: '10px 12px', background: 'rgba(10,126,140,0.04)', borderRadius: '0.6rem', transition: 'background 0.15s' }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(61,199,166,0.07)' }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.04)' }}
+                        >
+                          <div className="rounded-lg flex items-center justify-center flex-shrink-0"
+                            style={{ width: 36, height: 36, background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)' }}>
+                            <IconDoc />
                           </div>
-                          <div style={{ fontSize: '0.7rem', color: '#5a7478', marginTop: 2 }}>
-                            {fmtShortDate(d.created_at)}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-[#1A1A2E] truncate" style={{ fontSize: '0.875rem' }}>
+                              {d.name}
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: '#5a7478', marginTop: 2 }}>
+                              {[DOC_TYPE_LABELS[d.type ?? ''], fmtShortDate(d.created_at), uploaderLabel].filter(Boolean).join(' · ')}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 ) : (
                   <p className="text-[#5a7478] text-center" style={{ fontSize: '0.875rem', padding: '24px 0' }}>
@@ -1590,9 +2204,10 @@ export default function CrisisDetailPage({
                   </p>
                 )}
                 <div style={{ borderTop: '1px solid rgba(10,126,140,0.12)', marginTop: 4 }}>
-                  <button type="button" disabled
-                    className="flex items-center gap-3 w-full bg-transparent border-0 text-left cursor-not-allowed"
-                    style={{ padding: '12px 0', opacity: 0.7 }}>
+                  <button type="button"
+                    onClick={openDocAdd}
+                    className="flex items-center gap-3 w-full bg-transparent border-0 text-left cursor-pointer"
+                    style={{ padding: '12px 0' }}>
                     <div className="rounded-full flex items-center justify-center flex-shrink-0"
                       style={{ width: 40, height: 40, background: 'rgba(61,199,166,0.08)', border: '1.5px dashed rgba(61,199,166,0.5)' }}>
                       <IconUpload />
@@ -1651,14 +2266,230 @@ export default function CrisisDetailPage({
 
           </div>
 
+          {/* ── Loading skeleton ─────────────────────────────────────── */}
           {loading && !crisis && (
-            <div className="text-center text-[#5a7478]" style={{ fontSize: '0.875rem', marginTop: 40 }}>
-              Cargando…
+            <div>
+              {/* Header skeleton */}
+              <div className="mb-10">
+                <SkeletonText width="55%" style={{ height: 32, marginBottom: 16 }} />
+                <div className="flex items-center gap-3">
+                  <SkeletonBase width={52} height={22} style={{ borderRadius: 9999 }} />
+                  <SkeletonText width={180} />
+                </div>
+              </div>
+
+              {/* Context card skeleton */}
+              <div className="mb-10">
+                <SkeletonCard>
+                  <div className="flex flex-col gap-3">
+                    <SkeletonText width="90%" />
+                    <SkeletonText width="80%" />
+                    <SkeletonText width="60%" />
+                  </div>
+                </SkeletonCard>
+              </div>
+
+              {/* 3-col grid skeleton */}
+              <div className="crisis-grid grid items-start" style={{ gap: 24, gridTemplateColumns: '1fr' }}>
+                {/* Tasks col */}
+                <SkeletonCard>
+                  <SkeletonText width="40%" style={{ marginBottom: 16 }} />
+                  {[75, 55, 85, 65].map((w, i) => (
+                    <div key={i} className="flex items-center justify-between gap-3 py-3"
+                      style={{ borderBottom: i < 3 ? '1px solid rgba(10,126,140,0.08)' : 'none' }}>
+                      <SkeletonText width={`${w}%`} />
+                      <SkeletonAvatar size={24} />
+                    </div>
+                  ))}
+                </SkeletonCard>
+
+                {/* Circle col */}
+                <SkeletonCard>
+                  <SkeletonText width="40%" style={{ marginBottom: 16 }} />
+                  {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center gap-3 py-3"
+                      style={{ borderBottom: i < 3 ? '1px solid rgba(10,126,140,0.08)' : 'none' }}>
+                      <SkeletonAvatar size={32} />
+                      <SkeletonText width="60%" />
+                    </div>
+                  ))}
+                </SkeletonCard>
+
+                {/* Docs col */}
+                <SkeletonCard>
+                  <SkeletonText width="40%" style={{ marginBottom: 16 }} />
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="flex items-center gap-3 py-2.5"
+                      style={{ borderBottom: i < 2 ? '1px solid rgba(10,126,140,0.08)' : 'none' }}>
+                      <SkeletonBase width={36} height={36} style={{ borderRadius: '0.5rem', flexShrink: 0 }} />
+                      <div className="flex-1 flex flex-col gap-1.5">
+                        <SkeletonText width="70%" />
+                        <SkeletonText width="45%" />
+                      </div>
+                    </div>
+                  ))}
+                </SkeletonCard>
+
+                {/* History row */}
+                <SkeletonCard className="crisis-grid-full">
+                  <SkeletonText width="30%" style={{ marginBottom: 16 }} />
+                  <div className="flex gap-6">
+                    {[0, 1, 2].map((i) => (
+                      <div key={i} className="flex items-start gap-2 flex-1">
+                        <SkeletonAvatar size={10} />
+                        <div className="flex-1 flex flex-col gap-1.5">
+                          <SkeletonText width="80%" />
+                          <SkeletonText width="55%" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </SkeletonCard>
+              </div>
             </div>
           )}
 
         </main>
       </div>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          DOC PREVIEW MODAL
+      ══════════════════════════════════════════════════════════════════════ */}
+      {docModalOpen && ssDoc && (
+        <>
+          {/* Backdrop */}
+          <div
+            onClick={() => { setDocModalOpen(false); setDocModalUrl(null) }}
+            style={{
+              position: 'fixed', inset: 0,
+              background: 'rgba(0,0,0,0.72)',
+              zIndex: 300,
+            }}
+          />
+
+          {/* Modal */}
+          <div
+            style={{
+              position: 'fixed',
+              top: '50%', left: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 301,
+              width: 'min(92vw, 860px)',
+              maxHeight: '90vh',
+              background: '#fff',
+              borderRadius: '1.25rem',
+              boxShadow: '0 24px 80px rgba(0,0,0,0.30)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Modal header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '16px 20px',
+              borderBottom: '1px solid rgba(10,126,140,0.12)',
+              flexShrink: 0,
+            }}>
+              <span style={{
+                fontSize: '0.875rem', fontWeight: 700,
+                color: '#1A1A2E', maxWidth: 'calc(100% - 40px)',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {ssDoc.name}
+              </span>
+              <button
+                onClick={() => { setDocModalOpen(false); setDocModalUrl(null) }}
+                style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: 'rgba(0,0,0,0.06)', border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0, transition: 'background 0.15s',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.11)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)' }}
+              >
+                <IconClose />
+              </button>
+            </div>
+
+            {/* Preview area */}
+            <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+              {docModalUrl ? (
+                (() => {
+                  const mime = ssDoc.file_mime_type ?? ''
+                  if (mime.startsWith('image/')) {
+                    return (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={docModalUrl}
+                        alt={ssDoc.name}
+                        style={{
+                          display: 'block', maxWidth: '100%', maxHeight: '70vh',
+                          margin: 'auto', objectFit: 'contain', padding: 16,
+                        }}
+                      />
+                    )
+                  }
+                  if (mime === 'application/pdf' || mime === '') {
+                    return (
+                      <iframe
+                        src={docModalUrl}
+                        title={ssDoc.name}
+                        style={{ width: '100%', height: '70vh', border: 'none', display: 'block' }}
+                      />
+                    )
+                  }
+                  // Unsupported MIME — show fallback
+                  return (
+                    <div style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center',
+                      justifyContent: 'center', height: 220, gap: 12,
+                    }}>
+                      <span style={{ fontSize: '2.5rem' }}>📄</span>
+                      <p style={{ fontSize: '0.875rem', color: '#5a7478', textAlign: 'center', padding: '0 24px' }}>
+                        No se puede previsualizar este tipo de archivo.<br />
+                        Usá el botón de descarga para abrirlo.
+                      </p>
+                    </div>
+                  )
+                })()
+              ) : (
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  height: 200, color: '#5a7478', fontSize: '0.875rem',
+                }}>
+                  Cargando…
+                </div>
+              )}
+            </div>
+
+            {/* Modal footer */}
+            <div style={{
+              display: 'flex', gap: 8, padding: '14px 20px',
+              borderTop: '1px solid rgba(10,126,140,0.12)',
+              flexShrink: 0, justifyContent: 'flex-end',
+            }}>
+              <button
+                onClick={() => handleDocDownload(docModalUrl ?? undefined)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '10px 22px', borderRadius: 9999,
+                  border: 'none', cursor: 'pointer',
+                  fontWeight: 700, fontSize: '0.875rem',
+                  background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                  color: 'white', transition: 'filter 0.15s',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.08)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.filter = 'brightness(1)' }}
+              >
+                <IconDownload />
+                Descargar
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </>
   )
 }

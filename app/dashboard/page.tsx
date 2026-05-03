@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
 import { supabase } from '@/lib/supabase'
+import {
+  SkeletonStyles, SkeletonText, SkeletonAvatar,
+  SkeletonCard, SkeletonBase,
+} from '@/components/Skeleton'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -289,14 +293,87 @@ export default function DashboardPage() {
         {/* pb-28 on mobile gives room above the fixed bottom nav */}
         <main className="flex-1 ml-0 md:ml-[240px] min-h-screen px-5 py-8 pb-28 md:px-10 md:py-10 md:pb-10">
 
+          <SkeletonStyles />
+
+          {/* ════════════════════════════ SKELETON (loading) ════════════════════ */}
+          {loading && (
+            <div className="animate-none">
+              {/* Header skeleton */}
+              <div className="flex items-center gap-4 mb-8">
+                <SkeletonAvatar size={48} />
+                <div className="flex-1 flex flex-col gap-2">
+                  <SkeletonText width="40%" />
+                  <SkeletonText width="60%" />
+                </div>
+              </div>
+
+              {/* Context card skeleton */}
+              <div className="mb-8">
+                <SkeletonCard>
+                  <div className="flex flex-col gap-3">
+                    <SkeletonText width="90%" />
+                    <SkeletonText width="75%" />
+                    <SkeletonText width="55%" />
+                  </div>
+                </SkeletonCard>
+              </div>
+
+              {/* 3-col grid skeleton */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
+                {/* Tasks */}
+                <SkeletonCard>
+                  {[80, 65, 90, 70].map((w, i) => (
+                    <div key={i} className="flex items-center justify-between gap-3 py-3"
+                      style={{ borderBottom: i < 3 ? '1px solid rgba(10,126,140,0.08)' : 'none' }}>
+                      <SkeletonText width={`${w}%`} />
+                      <SkeletonAvatar size={24} />
+                    </div>
+                  ))}
+                </SkeletonCard>
+
+                {/* Upcoming */}
+                <SkeletonCard>
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="flex items-start gap-3 py-3"
+                      style={{ borderBottom: i < 2 ? '1px solid rgba(10,126,140,0.08)' : 'none' }}>
+                      <SkeletonBase width={48} height={52} style={{ borderRadius: '0.5rem', flexShrink: 0 }} />
+                      <div className="flex-1 flex flex-col gap-2 pt-1">
+                        <SkeletonText width="80%" />
+                        <SkeletonText width="50%" />
+                      </div>
+                    </div>
+                  ))}
+                </SkeletonCard>
+
+                {/* Documents */}
+                <SkeletonCard>
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="flex items-center gap-3 py-2.5"
+                      style={{ borderBottom: i < 2 ? '1px solid rgba(10,126,140,0.08)' : 'none' }}>
+                      <SkeletonBase width={36} height={36} style={{ borderRadius: '0.5rem', flexShrink: 0 }} />
+                      <div className="flex-1 flex flex-col gap-1.5">
+                        <SkeletonText width="70%" />
+                        <SkeletonText width="40%" />
+                      </div>
+                    </div>
+                  ))}
+                </SkeletonCard>
+              </div>
+            </div>
+          )}
+
+          {/* ════════════════════════════ CONTENT (loaded) ══════════════════════ */}
+          {!loading && (
+          <>
+
           {/* ── Header ──────────────────────────────────────────────────── */}
           <div className="mb-8">
             <h1 className="text-[2rem] font-extrabold text-[#1A1A2E] tracking-[-0.03em] leading-tight">
-              {loading ? 'Hola' : `Hola, ${firstName}`}
+              {`Hola, ${firstName}`}
             </h1>
 
             {/* Sin crisis: subtítulo explicativo */}
-            {!loading && !crisis ? (
+            {!crisis ? (
               <p className="mt-1.5 text-[15px] text-[#5a7478]">
                 Todavía no me contaste de ninguna crisis. Te ayudo a empezar.
               </p>
@@ -325,7 +402,7 @@ export default function DashboardPage() {
           </div>
 
           {/* ══ Casuística 1: sin crisis activa ════════════════════════════ */}
-          {!loading && !crisis && (
+          {!crisis && (
             <div className="flex justify-center">
               <Card
                 className="w-full text-center"
@@ -545,6 +622,10 @@ export default function DashboardPage() {
               </div>
             </>
           )}
+
+          </> /* end !loading */
+          )}
+
         </main>
       </div>
     </>

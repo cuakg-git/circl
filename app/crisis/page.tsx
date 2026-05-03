@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
 import { supabase } from '@/lib/supabase'
+import { SkeletonStyles, SkeletonText, SkeletonCard, SkeletonBase } from '@/components/Skeleton'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -255,6 +256,35 @@ export default function CrisisListPage() {
               Registros de situaciones activas y resueltas.
             </p>
           </div>
+
+          <SkeletonStyles />
+
+          {/* ── Loading skeleton ────────────────────────────────────────── */}
+          {loading && (
+            <div>
+              {/* Section label */}
+              <SkeletonText width={80} className="mb-4" />
+
+              {/* Crisis card skeleton */}
+              <SkeletonCard style={{ marginBottom: 16 }}>
+                {/* Title */}
+                <SkeletonText width="55%" className="mb-3" />
+                {/* Badge */}
+                <SkeletonBase width={64} height={20} style={{ borderRadius: 9999, marginBottom: 14 }} />
+                {/* Meta line */}
+                <SkeletonText width="70%" className="mb-4" />
+                {/* Progress bar */}
+                <SkeletonBase width="100%" height={6} style={{ borderRadius: 9999 }} />
+              </SkeletonCard>
+
+              <SkeletonCard>
+                <SkeletonText width="50%" className="mb-3" />
+                <SkeletonBase width={64} height={20} style={{ borderRadius: 9999, marginBottom: 14 }} />
+                <SkeletonText width="65%" className="mb-4" />
+                <SkeletonBase width="100%" height={6} style={{ borderRadius: 9999 }} />
+              </SkeletonCard>
+            </div>
+          )}
 
           {/* ── Empty state ─────────────────────────────────────────────── */}
           {!loading && crises.length === 0 && (
