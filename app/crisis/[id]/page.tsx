@@ -376,12 +376,12 @@ export default function CrisisDetailPage({
   }, [id])
 
   // Best-effort write to crisis_history; never blocks the UI on failure
-  // event_type is omitted intentionally — the column has a DB-level DEFAULT
-  const logHistory = useCallback(async (title: string, description: string | null) => {
+  const logHistory = useCallback(async (title: string, description: string | null, eventType: string) => {
     const { error } = await supabase.from('crisis_history').insert({
       crisis_id:   id,
       title,
       description,
+      event_type:  eventType,
       occurred_at: new Date().toISOString(),
     })
     if (error) {
@@ -467,7 +467,7 @@ export default function CrisisDetailPage({
       assigneeName = c?.name ?? null
     }
     if (assigneeName) {
-      await logHistory('Tarea reasignada', `${ssTask.title} → ${assigneeName}`)
+      await logHistory('Tarea reasignada', `${ssTask.title} → ${assigneeName}`, 'actualizacion_general')
     }
   }
 
@@ -481,7 +481,7 @@ export default function CrisisDetailPage({
     if (error) { setSsError(error.message); return }
     await reloadTasks()
     if (newStatus === 'completada') {
-      await logHistory('Tarea completada', ssTask.title)
+      await logHistory('Tarea completada', ssTask.title, 'tarea_completada')
     }
     closeSheet()
   }
@@ -519,7 +519,7 @@ export default function CrisisDetailPage({
     setSsLoading(false)
     if (error) { setSsError(error.message); return }
     await reloadTasks()
-    await logHistory('Tarea agregada', title)
+    await logHistory('Tarea agregada', title, 'tarea_agregada')
     closeSheet()
   }
 
