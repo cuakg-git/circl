@@ -63,8 +63,26 @@ export default function AuthCallbackPage() {
         // Password-reset flow → let the user set a new password
         router.replace('/reset-password')
       } else {
-        // signup, magiclink, invite → new-account welcome flow
-        router.replace('/onboarding')
+        // Check if user has a profile
+        const userId = (await supabase.auth.getUser()).data.user?.id
+        if (!userId) {
+          router.replace('/login?error=no_user')
+          return
+        }
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', userId)
+          .single()
+
+        if (profile) {
+          // User already has a profile → go to dashboard
+          router.replace('/dashboard')
+        } else {
+          // User is new → go to onboarding
+          router.replace('/onboarding')
+        }
       }
     }
 
