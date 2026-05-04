@@ -326,7 +326,7 @@ export default function ChatPage() {
 
             {/* ── Main chat area ────────────────────────────────────────────── */}
             <div
-              className="flex flex-1 flex-col overflow-hidden"
+              className="flex flex-1 flex-col overflow-hidden pb-16 md:pb-0"
               style={{ background: '#FAF8F5' }}
             >
 

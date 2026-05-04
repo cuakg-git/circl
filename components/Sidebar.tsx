@@ -61,7 +61,7 @@ function IconPerson() {
 // Circl orbit mark — floating button above the mobile bottom nav
 function IconCirclOrbit() {
   return (
-    <svg viewBox="0 0 680 680" xmlns="http://www.w3.org/2000/svg" width="82" height="82">
+    <svg viewBox="0 0 680 680" xmlns="http://www.w3.org/2000/svg" width="60" height="60">
       <defs>
         <linearGradient id="circl-grad" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%"   stopColor="#0A7E8C" />
@@ -72,6 +72,39 @@ function IconCirclOrbit() {
       <circle cx="340" cy="340" r="130" fill="none" stroke="white" strokeWidth="22" />
       <circle cx="340" cy="340" r="70"  fill="white" />
     </svg>
+  )
+}
+
+// ─── HablarNavButton — dynamic SVG size based on active route ───────────────────
+
+function HablarNavButton({ pathname }: { pathname: string }) {
+  const isHablarPage = pathname === '/chat'
+  const svgSize = isHablarPage ? 30 : 60
+  const spanTop = isHablarPage ? 0 : -30
+
+  return (
+    <Link
+      href="/chat"
+      className={`relative flex flex-col items-center font-semibold text-[0.65rem] transition-colors duration-[180ms] ${
+        isHablarPage ? 'text-[#0A7E8C]' : 'text-[#5a7478]'
+      }`}
+      style={{ paddingTop: 32, paddingBottom: 4, paddingLeft: 14, paddingRight: 14 }}
+    >
+      <span className="absolute left-1/2 -translate-x-1/2" style={{ top: spanTop }} aria-hidden>
+        <svg viewBox="0 0 680 680" xmlns="http://www.w3.org/2000/svg" width={svgSize} height={svgSize}>
+          <defs>
+            <linearGradient id="circl-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%"   stopColor="#0A7E8C" />
+              <stop offset="100%" stopColor="#2ECDA7" />
+            </linearGradient>
+          </defs>
+          <circle cx="340" cy="340" r="300" fill="url(#circl-grad)" />
+          <circle cx="340" cy="340" r="130" fill="none" stroke="white" strokeWidth="22" />
+          <circle cx="340" cy="340" r="70"  fill="white" />
+        </svg>
+      </span>
+      Hablar
+    </Link>
   )
 }
 
@@ -272,18 +305,8 @@ export default function Sidebar() {
         <div className="flex justify-around items-center w-full">
           {BOTTOM_NAV.map(({ label, href, Icon, center }) =>
             center ? (
-              // Hablar: floating orbit circle above the bar
-              <Link
-                key={href}
-                href={href}
-                className={`relative flex flex-col items-center font-semibold text-[0.65rem] transition-colors duration-[180ms] ${bottomItemClass(href)}`}
-                style={{ paddingTop: 32, paddingBottom: 4, paddingLeft: 14, paddingRight: 14 }}
-              >
-                <span className="absolute left-1/2 -translate-x-1/2" style={{ top: -52 }} aria-hidden>
-                  <IconCirclOrbit />
-                </span>
-                {label}
-              </Link>
+              // Hablar: dynamic orbit circle — uses HablarNavButton with route-aware sizing
+              <HablarNavButton key={href} pathname={pathname} />
             ) : (
               // Regular item
               <Link
