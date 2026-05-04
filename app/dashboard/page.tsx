@@ -172,7 +172,6 @@ function TypewriterText({ text }: { text: string }) {
   const containerRef = useRef<HTMLSpanElement | null>(null)
   const intervalRef  = useRef<ReturnType<typeof setInterval> | null>(null)
   const timeoutRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [showCursor, setShowCursor] = useState(true)
 
   useEffect(() => {
     const container = containerRef.current
@@ -182,7 +181,6 @@ function TypewriterText({ text }: { text: string }) {
     container.innerHTML = ''
     if (intervalRef.current) clearInterval(intervalRef.current)
     if (timeoutRef.current)  clearTimeout(timeoutRef.current)
-    setShowCursor(true)
 
     // Pre-render all chars as invisible spans
     const spans = text.split('').map((ch) => {
@@ -203,7 +201,6 @@ function TypewriterText({ text }: { text: string }) {
         } else {
           clearInterval(intervalRef.current!)
           intervalRef.current = null
-          setShowCursor(false)
         }
       }, 22)
     }, 300)
@@ -217,22 +214,6 @@ function TypewriterText({ text }: { text: string }) {
   return (
     <p className="text-[0.875rem] leading-[1.75] text-[#1A1A2E]">
       <span ref={containerRef} />
-      {showCursor && (
-        <span
-          style={{
-            display:                 'inline-block',
-            width:                   '2px',
-            height:                  '1em',
-            background:              '#0A7E8C',
-            marginLeft:              '2px',
-            verticalAlign:           'middle',
-            animationName:           'twBlink',
-            animationDuration:       '1s',
-            animationIterationCount: 'infinite',
-            animationTimingFunction: 'step-end',
-          }}
-        />
-      )}
     </p>
   )
 }
