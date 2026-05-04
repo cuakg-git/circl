@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
@@ -166,6 +166,77 @@ function IconDoc() {
   )
 }
 
+// ── TypewriterText ─────────────────────────────────────────────────────────────
+
+function TypewriterText({ text }: { text: string }) {
+  const containerRef = useRef<HTMLSpanElement | null>(null)
+  const intervalRef  = useRef<ReturnType<typeof setInterval> | null>(null)
+  const timeoutRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [showCursor, setShowCursor] = useState(true)
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    // Clear previous run
+    container.innerHTML = ''
+    if (intervalRef.current) clearInterval(intervalRef.current)
+    if (timeoutRef.current)  clearTimeout(timeoutRef.current)
+    setShowCursor(true)
+
+    // Pre-render all chars as invisible spans
+    const spans = text.split('').map((ch) => {
+      const span = document.createElement('span')
+      span.textContent = ch
+      span.style.opacity = '0'
+      return span
+    })
+    spans.forEach((s) => container.appendChild(s))
+
+    let index = 0
+
+    timeoutRef.current = setTimeout(() => {
+      intervalRef.current = setInterval(() => {
+        if (index < spans.length) {
+          spans[index].style.opacity = '1'
+          index++
+        } else {
+          clearInterval(intervalRef.current!)
+          intervalRef.current = null
+          setShowCursor(false)
+        }
+      }, 22)
+    }, 300)
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+      if (timeoutRef.current)  clearTimeout(timeoutRef.current)
+    }
+  }, [text])
+
+  return (
+    <p className="text-[0.875rem] leading-[1.75] text-[#1A1A2E]">
+      <span ref={containerRef} />
+      {showCursor && (
+        <span
+          style={{
+            display:                 'inline-block',
+            width:                   '2px',
+            height:                  '1em',
+            background:              '#0A7E8C',
+            marginLeft:              '2px',
+            verticalAlign:           'middle',
+            animationName:           'twBlink',
+            animationDuration:       '1s',
+            animationIterationCount: 'infinite',
+            animationTimingFunction: 'step-end',
+          }}
+        />
+      )}
+    </p>
+  )
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -285,6 +356,10 @@ export default function DashboardPage() {
           }
         }
         .dashboard-bg { animation: heroBgDrift 30s ease-in-out infinite; }
+        @keyframes twBlink {
+          0%, 100% { opacity: 1 }
+          50%       { opacity: 0 }
+        }
       `}</style>
 
       <div className="dashboard-bg flex min-h-screen">
@@ -457,9 +532,7 @@ export default function DashboardPage() {
 
                     {/* Summary */}
                     {crisis.ai_summary && (
-                      <p className="text-[0.875rem] leading-[1.75] text-[#1A1A2E]">
-                        {crisis.ai_summary}
-                      </p>
+                      <TypewriterText text={crisis.ai_summary} />
                     )}
 
                     {/* Next step */}
