@@ -63,9 +63,24 @@ export default function AuthCallbackPage() {
         // Password-reset flow → let the user set a new password
         router.replace('/reset-password')
       } else {
-        // Check if user has a profile
-        const userId = (await supabase.auth.getUser()).data.user?.id
-        if (!userId) {
+        // Wait for Supabase to process either the code or the hash token
+        if (code) {
+          const { error: exchError } = await supabase.auth.exchangeCodeForSession(code)
+          if (exchError) {
+            router.replace('/login?error=verification_failed')
+            return
+          }
+        } else if (window.location.hash.includes('access_token')) {
+          // Implicit flow: wait for Supabase to detect and set the session
+          // getSession() triggers the detection
+          await supabase.auth.getSession()
+          // Small delay to ensure session is persisted
+          await new Promise(resolve => setTimeout(resolve, 200))
+        }
+
+        // Now safely read the user
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
           router.replace('/login?error=no_user')
           return
         }
@@ -73,14 +88,12 @@ export default function AuthCallbackPage() {
         const { data: profile } = await supabase
           .from('profiles')
           .select('id')
-          .eq('id', userId)
+          .eq('id', user.id)
           .single()
 
         if (profile) {
-          // User already has a profile → go to dashboard
           router.replace('/dashboard')
         } else {
-          // User is new → go to onboarding
           router.replace('/onboarding')
         }
       }
