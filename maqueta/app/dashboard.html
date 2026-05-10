@@ -228,6 +228,212 @@
     @media (max-width: 768px) {
       .session-date { display: none; }
     }
+
+    /* ── Context card ──────────────────────── */
+    .context-card {
+      border-radius: var(--radius-card);
+      padding: var(--space-lg);
+      background: var(--color-white);
+      box-shadow: var(--shadow-card);
+    }
+    .context-card p {
+      color: var(--color-dark);
+      font-size: var(--text-sm);
+      line-height: 1.75;
+      margin: 0;
+    }
+
+    /* ── Detail grid ────────────────────────── */
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-lg);
+      align-items: start;
+    }
+    .detail-full {
+      grid-column: 1 / -1;
+    }
+    @media (max-width: 860px) {
+      .detail-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 580px) {
+      .detail-grid { grid-template-columns: 1fr; }
+      .detail-full { grid-column: 1; }
+    }
+
+    /* ── Section block ─────────────────────── */
+    .section-block { margin-bottom: var(--space-xl); }
+    .section-block-title {
+      font-size: var(--text-sm);
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: var(--space-md);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .section-block-title a {
+      font-size: var(--text-xs);
+      color: var(--color-teal);
+      text-transform: none;
+      letter-spacing: 0;
+      font-weight: 700;
+    }
+
+    /* ── Task list ─────────────────────────── */
+    .task-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .task-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--color-border);
+      cursor: pointer;
+      transition: background 0.15s;
+      border-radius: 6px;
+      padding: 12px 6px;
+      margin: 0 -6px;
+    }
+    .task-item:last-child { border-bottom: none; }
+    .task-item:hover { background: rgba(61,199,166,0.07); }
+    .task-main {
+      flex: 1;
+      min-width: 0;
+    }
+    .task-text {
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--color-dark);
+    }
+    .task-meta {
+      font-size: var(--text-xs);
+      color: var(--color-muted);
+      margin-top: 2px;
+    }
+    .task-assignee {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.65rem;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    /* ── Document list ────────────────────── */
+    .doc-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .doc-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      background: rgba(10,126,140,0.04);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .doc-item:hover { background: rgba(61,199,166,0.07); }
+    .doc-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--gradient-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: white;
+      font-size: 1rem;
+    }
+    .doc-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .doc-name {
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--color-text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .doc-meta {
+      font-size: var(--text-xs);
+      color: var(--color-muted);
+      margin-top: 2px;
+    }
+
+    /* ── Timeline ──────────────────────────── */
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .timeline-item {
+      display: flex;
+      gap: 16px;
+      padding: 20px 0;
+      border-bottom: 1px solid var(--color-border);
+      position: relative;
+    }
+    .timeline-item:last-child { border-bottom: none; }
+    .timeline-dot {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--color-teal-wash);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 2;
+    }
+    .timeline-dot-inner {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-teal);
+    }
+    .timeline-body {
+      flex: 1;
+    }
+    .timeline-date {
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 4px;
+    }
+    .timeline-title {
+      font-size: var(--text-sm);
+      font-weight: 700;
+      color: var(--color-dark);
+      margin-bottom: 6px;
+    }
+    .timeline-desc {
+      font-size: var(--text-sm);
+      color: var(--color-muted);
+      line-height: 1.5;
+    }
   </style>
 </head>
 <body>
@@ -299,94 +505,163 @@
   <main class="main-content">
 
     <!-- ── Header ────────────────────────────── -->
-    <div class="dashboard-header">
-      <h1 class="greeting">Hola, Valeria</h1>
-      <div class="session-context">
-        <span class="session-date" id="today-date"></span>
-        <div class="session-divider"></div>
-        <div class="crisis-chip">
-          <div class="crisis-chip-dot"></div>
-          <span class="crisis-chip-name">Linfoma de Martín</span>
-          <span class="crisis-chip-meta">· Crisis activa · 5 días</span>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:var(--space-xl);">
+      <div>
+        <h1 style="font-size:var(--text-2xl);margin-bottom:8px;">Linfoma de Martín</h1>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span class="badge badge-active">Activa</span>
+          <span style="font-size:var(--text-xs);color:var(--color-muted);">Desde el 8 de abril · 5 días</span>
         </div>
       </div>
     </div>
 
     <!-- ── Contexto — full width ──────────────── -->
-    <div style="margin-bottom:var(--space-xl);">
-      <p class="section-title">Contexto actual</p>
-      <div class="context-panel">
-        <span class="context-label">Lo que sé hasta ahora</span>
-        <p class="context-text" id="context-typewriter"></p>
-        <div class="context-next" id="context-next">
-          <span class="context-next-label">Próximo paso</span>
-          <span class="context-next-text">Llamar a OSDE para destrabar la autorización del PET scan.</span>
-        </div>
+    <div class="section-block">
+      <div class="section-block-title">Contexto</div>
+      <div class="context-card">
+        <p>Martín fue diagnosticado hace 5 días con linfoma de Hodgkin. El turno con el oncólogo Dr. Soria está pautado para el martes 22 a las 10:00 hs en la Clínica Santa Rosa. Falta la autorización de OSDE para realizar el PET scan el 25 de abril. Sofi González está al tanto emocionalmente y disponible para acompañar. Diego Ramírez tiene rol logístico y puede llevar a Martín al turno del martes.</p>
       </div>
     </div>
 
-    <!-- ── Fila: Tareas · Próximos · Documentos ─ -->
-    <div class="dash-grid-3" style="margin-bottom:var(--space-xl);">
+    <!-- ── Fila: Tareas · Círculo · Documentos ─ -->
+    <div class="detail-grid" style="margin-bottom:var(--space-xl);">
 
-      <!-- Tareas -->
-      <div>
-        <p class="section-title">Tareas</p>
-        <div class="card" style="height:100%;display:flex;flex-direction:column;justify-content:space-between;">
-          <p class="tasks-summary-text">
-            Tenés <strong>3 tareas pendientes</strong> esta semana.
-            La más urgente es la <strong>autorización del PET scan</strong> en OSDE, que vence el martes.
-            El turno con el oncólogo está confirmado para el martes 22 a las 10 hs.
-          </p>
-          <a href="crisis/detail.html" class="btn btn-outline btn-sm" style="align-self:flex-start;">
-            Ver tareas →
-          </a>
+      <!-- Col 1: Tareas -->
+      <div class="section-block" style="margin-bottom:0;">
+        <div class="section-block-title">Tareas</div>
+        <div class="card">
+          <ul class="task-list">
+            <li class="task-item">
+              <div class="task-main">
+                <div class="task-text">Autorizar PET scan — OSDE</div>
+                <div class="task-meta">Vence el martes 22</div>
+              </div>
+              <div class="task-assignee" style="background:linear-gradient(135deg,#f4ab66,var(--color-orange));">DR</div>
+            </li>
+            <li class="task-item">
+              <div class="task-main">
+                <div class="task-text">Turno oncólogo Dr. Soria</div>
+                <div class="task-meta">Martes 22 · 10:00 hs</div>
+              </div>
+              <div class="task-assignee" style="background:linear-gradient(135deg,#f4ab66,var(--color-orange));">DR</div>
+            </li>
+            <li class="task-item">
+              <div class="task-main">
+                <div class="task-text">Buscar segunda opinión oncológica</div>
+                <div class="task-meta">Sin fecha</div>
+              </div>
+              <div class="task-assignee" style="background:var(--gradient-primary);">SG</div>
+            </li>
+            <li class="task-item">
+              <div class="task-main">
+                <div class="task-text">Pedir hemograma completo</div>
+                <div class="task-meta">Completado el 12 abr</div>
+              </div>
+              <div class="task-assignee" style="background:var(--gradient-primary);">VL</div>
+            </li>
+          </ul>
         </div>
       </div>
 
-      <!-- Próximos compromisos -->
-      <div>
-        <p class="section-title">Próximos compromisos</p>
-        <div class="card">
-          <div class="upcoming-item">
-            <div class="upcoming-date">
-              <div class="upcoming-date-day">22</div>
-              <div class="upcoming-date-mon">Abr</div>
+      <!-- Col 2: Círculo activo -->
+      <div class="section-block" style="margin-bottom:0;">
+        <div class="section-block-title">Círculo activo</div>
+        <div class="card" style="display:flex;flex-direction:column;padding:var(--space-xl) var(--space-lg);">
+          <div style="display:flex;flex-direction:column;gap:0;width:100%;">
+            <div style="display:flex;align-items:center;gap:10px;font-size:var(--text-xs);padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.06);">
+              <img src="../assets/img/sofia.png" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;" alt="Sofi González">
+              <span style="font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;">Sofi González</span><span class="badge badge-support">Acompañ.</span>
             </div>
-            <div>
-              <div class="upcoming-body-title">Turno oncólogo — Dr. Soria</div>
-              <div class="upcoming-body-sub">10:00 hs · Clínica Santa Rosa · Diego lleva a Martín</div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:var(--text-xs);padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.06);">
+              <img src="../assets/img/diego.png" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;" alt="Diego Ramírez">
+              <span style="font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;">Diego Ramírez</span><span class="badge badge-logistics">Logístico</span>
             </div>
-          </div>
-          <div class="upcoming-item">
-            <div class="upcoming-date">
-              <div class="upcoming-date-day">25</div>
-              <div class="upcoming-date-mon">Abr</div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:var(--text-xs);padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.06);">
+              <img src="../assets/img/laura.png" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;" alt="Laura Acosta">
+              <span style="font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;">Laura Acosta</span><span class="badge badge-info">Prestador</span>
             </div>
-            <div>
-              <div class="upcoming-body-title">PET scan — diagnóstico</div>
-              <div class="upcoming-body-sub">08:30 hs · Centro de Diagnóstico · Pendiente autorización</div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:var(--text-xs);padding:8px 0;">
+              <img src="../assets/img/carolina.png" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;" alt="Carolina Ríos">
+              <span style="font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;">Carolina Ríos</span><span class="badge badge-logistics">Logístico</span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Documentos recientes -->
-      <div>
-        <p class="section-title">Documentos recientes</p>
+      <!-- Col 3: Documentos -->
+      <div class="section-block" style="margin-bottom:0;">
+        <div class="section-block-title">Documentos</div>
         <div class="card">
-          <div class="doc-row">
-            <div class="doc-icon">
-              <span class="material-symbols-outlined" style="color:var(--color-teal);">description</span>
+          <div class="doc-list">
+            <div class="doc-item">
+              <div class="doc-icon">
+                <span class="material-symbols-outlined" style="font-size:1.1rem;">description</span>
+              </div>
+              <div class="doc-info">
+                <div class="doc-name">Hemograma completo</div>
+                <div class="doc-meta">Estudio médico · 12 abr · Cargado por vos</div>
+              </div>
             </div>
-            <span class="doc-name">Hemograma completo</span>
-            <span class="doc-date">12 abr</span>
+            <div class="doc-item">
+              <div class="doc-icon">
+                <span class="material-symbols-outlined" style="font-size:1.1rem;">description</span>
+              </div>
+              <div class="doc-info">
+                <div class="doc-name">Perfil hepático</div>
+                <div class="doc-meta">Estudio médico · 10 abr · Cargado por vos</div>
+              </div>
+            </div>
+            <div class="doc-item">
+              <div class="doc-icon" style="background:linear-gradient(135deg,#f4ab66,var(--color-orange));">
+                <span class="material-symbols-outlined" style="font-size:1.1rem;">receipt</span>
+              </div>
+              <div class="doc-info">
+                <div class="doc-name">Receta PET scan</div>
+                <div class="doc-meta">Receta · 10 abr · Cargado por Carolina</div>
+              </div>
+            </div>
+            <div class="doc-item">
+              <div class="doc-icon">
+                <span class="material-symbols-outlined" style="font-size:1.1rem;">receipt</span>
+              </div>
+              <div class="doc-info">
+                <div class="doc-name">Receta análisis de sangre</div>
+                <div class="doc-meta">Receta · 8 abr · Cargado por vos</div>
+              </div>
+            </div>
           </div>
-          <div class="doc-row">
-            <div class="doc-icon">
-              <span class="material-symbols-outlined" style="color:var(--color-teal);">description</span>
+        </div>
+      </div>
+
+      <!-- Fila 2: Historia (ancho completo) -->
+      <div class="section-block detail-full" style="margin-bottom:0;">
+        <div class="section-block-title">Historia</div>
+        <div class="card">
+          <div class="timeline">
+            <div class="timeline-item">
+              <div class="timeline-dot"><div class="timeline-dot-inner"></div></div>
+              <div class="timeline-body">
+                <div class="timeline-date">12 de abril</div>
+                <div class="timeline-title">Hemograma completo cargado</div>
+                <div class="timeline-desc">Valores dentro del rango esperado post-diagnóstico.</div>
+              </div>
             </div>
-            <span class="doc-name">Perfil hepático</span>
-            <span class="doc-date">12 abr</span>
+            <div class="timeline-item">
+              <div class="timeline-dot"><div class="timeline-dot-inner"></div></div>
+              <div class="timeline-body">
+                <div class="timeline-date">10 de abril</div>
+                <div class="timeline-title">Perfil hepático cargado</div>
+                <div class="timeline-desc">Revisión de función hepática previa a tratamiento.</div>
+              </div>
+            </div>
+            <div class="timeline-item">
+              <div class="timeline-dot"><div class="timeline-dot-inner"></div></div>
+              <div class="timeline-body">
+                <div class="timeline-date">8 de abril</div>
+                <div class="timeline-title">Crisis registrada</div>
+                <div class="timeline-desc">Diagnóstico de linfoma de Hodgkin. Inicio de seguimiento en Mhiru.</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -397,55 +672,6 @@
 </div>
 
 <script src="../assets/js/main.js"></script>
-<script>
-  // ── Dynamic date ──────────────────────────────
-  const d = new Date();
-  const opts = { weekday:'long', year:'numeric', month:'long', day:'numeric' };
-  document.getElementById('today-date').textContent =
-    d.toLocaleDateString('es-AR', opts).replace(/^\w/, c => c.toUpperCase());
-
-  // ── Typewriter ────────────────────────────────
-  // Characters are pre-rendered invisible so layout is fully reserved
-  // from frame 0 — no height jump.
-  // TW_SEGMENTS: alternate plain strings and {bold} markers
-  // Each character is pre-rendered invisible to lock the layout height.
-  const TW_SEGMENTS = [
-    { text: 'Martín se opera el ', bold: false },
-    { text: 'martes 22', bold: true },
-    { text: '. Todavía no tengo la autorización de OSDE para el PET scan — eso es lo más urgente. ', bold: false },
-    { text: 'Sofi', bold: true },
-    { text: ' sabe que estás agotada. ', bold: false },
-    { text: 'Diego', bold: true },
-    { text: ' tiene auto y puede llevar a Martín al turno. El último documento que subiste es el hemograma del 12/04.', bold: false },
-  ];
-  const TW_DELAY = 300;
-  const TW_SPEED = 22;
-
-  const twEl = document.getElementById('context-typewriter');
-
-  // 1. Pre-render every character as invisible span (preserves final height)
-  TW_SEGMENTS.forEach(seg => {
-    seg.text.split('').forEach(ch => {
-      const s = document.createElement(seg.bold ? 'strong' : 'span');
-      s.textContent = ch;
-      s.style.opacity = '0';
-      if (seg.bold) s.style.fontWeight = '700';
-      twEl.appendChild(s);
-    });
-  });
-
-  // 2. Reveal one character at a time
-  const chars = twEl.children;
-  let i = 0;
-
-  setTimeout(() => {
-    const tick = setInterval(() => {
-      chars[i].style.opacity = '1';
-      i++;
-      if (i >= chars.length) clearInterval(tick);
-    }, TW_SPEED);
-  }, TW_DELAY);
-</script>
 <script>window.CASE_NAV_PAGE_ID = 'dashboard';</script>
 <script src="../assets/js/case-nav.js"></script>
 </body>

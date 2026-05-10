@@ -8,10 +8,11 @@ import { supabase } from '@/lib/supabase'
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type Message = {
-  id:   string
-  role: 'user' | 'agent'
-  text: string
-  time: string
+  id:      string
+  role:    'user' | 'agent'
+  text:    string
+  time:    string
+  action?: { icon: string; label: string } | null
 }
 
 type Crisis = {
@@ -29,6 +30,25 @@ function uid() {
   return Math.random().toString(36).slice(2)
 }
 
+// ── detectAction ───────────────────────────────────────────────────────────────
+
+function detectAction(text: string): { icon: string; label: string } | null {
+  const t = text.toLowerCase()
+  if (/anoté|registré|quedó registrado|lo dejé registrado|quedó anotado/.test(t))
+    return { icon: 'check_circle', label: 'Registrado en el historial' }
+  if (/tarea|vence|agregué la tarea|anoté la tarea/.test(t))
+    return { icon: 'task_alt', label: 'Tarea agregada' }
+  if (/asigné|asignada a|lo pasé a/.test(t))
+    return { icon: 'assignment_ind', label: 'Tarea asignada' }
+  if (/contacto|sumé a|agregué a|lo agregué al círculo/.test(t))
+    return { icon: 'group_add', label: 'Contacto agregado al círculo' }
+  if (/documento|subiste|cargado/.test(t))
+    return { icon: 'description', label: 'Documento registrado' }
+  if (/le escribí|le mandé|le avisé|mensaje enviado/.test(t))
+    return { icon: 'send', label: 'Mensaje enviado' }
+  return null
+}
+
 // ── TypingIndicator ────────────────────────────────────────────────────────────
 
 function TypingIndicator() {
@@ -38,7 +58,7 @@ function TypingIndicator() {
         className="text-[0.7rem] font-bold mb-1 px-1"
         style={{ color: '#0A7E8C' }}
       >
-        Agente Mhiru
+        Mhiru
       </span>
       <div
         className="flex items-center gap-1 px-[17px] py-3"
@@ -107,7 +127,39 @@ export default function ChatPage() {
 
       if (crisisData) setCrisis(crisisData)
 
-      // Initial agent greeting
+      // Load last 50 messages from the most recent conversation
+      const { data: convData } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('user_id', user.id)
+        .is('crisis_id', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (convData) {
+        const { data: messagesData } = await supabase
+          .from('messages')
+          .select('id, sender, content, sent_at')
+          .eq('conversation_id', convData.id)
+          .order('sent_at', { ascending: true })
+          .limit(50)
+
+        if (messagesData && messagesData.length > 0) {
+          setMessages(
+            messagesData.map((m) => ({
+              id:     uid(),
+              role:   m.sender === 'usuario' ? 'user' : 'agent',
+              text:   m.content,
+              time:   new Date(m.sent_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+              action: m.sender === 'agente' ? detectAction(m.content) : null,
+            })) as Message[],
+          )
+          return
+        }
+      }
+
+      // No previous messages — show initial greeting
       setMessages([{
         id:   uid(),
         role: 'agent',
@@ -155,7 +207,7 @@ export default function ChatPage() {
 
       setMessages((prev) => [
         ...prev,
-        { id: uid(), role: 'agent', text: reply, time: nowTime() },
+        { id: uid(), role: 'agent', text: reply, time: nowTime(), action: detectAction(reply) },
       ])
     } catch {
       setMessages((prev) => [
@@ -196,6 +248,8 @@ export default function ChatPage() {
   return (
     <>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0');
+
         @keyframes heroBgDrift {
           0%, 100% {
             background:
@@ -265,65 +319,7 @@ export default function ChatPage() {
             style={{ height: '100%' }}
           >
 
-            {/* ── Left conversation sidebar (hidden on mobile ≤640px) ─────── */}
-            <div
-              className="hidden sm:flex flex-col flex-shrink-0 overflow-hidden bg-white"
-              style={{ width: 270, borderRight: '1px solid rgba(10,126,140,0.12)' }}
-            >
-              {/* Header */}
-              <div
-                className="flex-shrink-0"
-                style={{
-                  padding:      '20px 20px 16px',
-                  borderBottom: '1px solid rgba(10,126,140,0.12)',
-                  fontWeight:   800,
-                  fontSize:     '1.125rem',
-                  color:        '#0A7E8C',
-                }}
-              >
-                Conversaciones
-              </div>
-
-              {/* Active crisis item */}
-              {crisis ? (
-                <div
-                  style={{
-                    padding:      '14px 20px',
-                    borderBottom: '1px solid rgba(10,126,140,0.12)',
-                    background:   'rgba(10,126,140,0.07)',
-                    cursor:       'default',
-                  }}
-                >
-                  <div
-                    className="flex justify-between items-center"
-                    style={{ marginBottom: 3 }}
-                  >
-                    <span className="text-[0.875rem] font-bold text-[#1A1A2E] truncate">
-                      {crisis.name}
-                    </span>
-                    {lastMsg && (
-                      <span
-                        className="text-[0.7rem] text-[#5a7478] whitespace-nowrap flex-shrink-0"
-                        style={{ marginLeft: 8 }}
-                      >
-                        {lastMsg.time}
-                      </span>
-                    )}
-                  </div>
-                  <div
-                    className="text-[0.7rem] text-[#5a7478] overflow-hidden whitespace-nowrap"
-                    style={{ textOverflow: 'ellipsis', maxWidth: 220 }}
-                  >
-                    {lastMsg?.text ?? '…'}
-                  </div>
-                </div>
-              ) : (
-                <div className="p-5 text-center text-[0.7rem] text-[#5a7478]">
-                  Sin conversaciones activas
-                </div>
-              )}
-            </div>
-
+            
             {/* ── Main chat area ────────────────────────────────────────────── */}
             <div
               className="flex flex-1 flex-col overflow-hidden pb-16 md:pb-0"
@@ -338,23 +334,15 @@ export default function ChatPage() {
                   borderBottom: '1px solid rgba(10,126,140,0.12)',
                 }}
               >
-                {/* Agent avatar */}
-                <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-xs text-white select-none"
-                  style={{ background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)' }}
-                >
-                  AC
-                </div>
-
                 <div>
                   <h4
                     className="font-bold text-[#1A1A2E]"
                     style={{ fontSize: '1rem', letterSpacing: '-0.01em' }}
                   >
-                    Agente Mhiru
+                    Hablar con Mhiru
                   </h4>
                   <p className="text-[0.7rem] text-[#5a7478] mt-px">
-                    {crisis ? `${crisis.name} · en línea` : 'en línea'}
+                    {crisis ? `Crisis activa: ${crisis.name}` : ''}
                   </p>
                 </div>
               </div>
@@ -382,7 +370,7 @@ export default function ChatPage() {
                         textAlign: msg.role === 'agent' ? 'left'    : 'right',
                       }}
                     >
-                      {msg.role === 'agent' ? 'Agente Mhiru' : 'Vos'}
+                      {msg.role === 'agent' ? 'Mhiru' : 'Vos'}
                     </span>
 
                     {/* Bubble */}
@@ -418,6 +406,30 @@ export default function ChatPage() {
                     >
                       {msg.time}
                     </span>
+
+                    {/* Action feedback */}
+                    {msg.role === 'agent' && msg.action && (
+                      <div
+                        style={{
+                          display:    'flex',
+                          alignItems: 'center',
+                          gap:        4,
+                          fontSize:   '0.65rem',
+                          color:      '#5a7478',
+                          marginTop:  2,
+                          paddingLeft: 5,
+                          alignSelf:  'flex-start',
+                        }}
+                      >
+                        <span
+                          className="material-symbols-outlined"
+                          style={{ fontSize: 14, color: '#5a7478', lineHeight: 1 }}
+                        >
+                          {msg.action.icon}
+                        </span>
+                        {msg.action.label}
+                      </div>
+                    )}
                   </div>
                 ))}
 

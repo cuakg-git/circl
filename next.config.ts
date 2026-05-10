@@ -8,6 +8,12 @@ const nextConfig: NextConfig = {
         hostname: 'zkugknudfkxkxgcetlzs.supabase.co',
         pathname: '/storage/v1/object/public/avatars/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
 };

@@ -87,9 +87,25 @@ export default function AuthCallbackPage() {
 
         const { data: profile } = await supabase
           .from('profiles')
-          .select('id')
+          .select('id, avatar_url')
           .eq('id', user.id)
           .single()
+
+        // Sync Google avatar if available and profile doesn't have one yet
+        if (!profile?.avatar_url) {
+          const googleAvatar = user?.user_metadata?.avatar_url
+          const googleName = user?.user_metadata?.full_name ?? user?.user_metadata?.name
+
+          if (googleAvatar) {
+            await supabase
+              .from('profiles')
+              .update({
+                avatar_url: googleAvatar,
+                ...(googleName ? { display_name: googleName } : {}),
+              })
+              .eq('id', user.id)
+          }
+        }
 
         if (profile) {
           router.replace('/dashboard')

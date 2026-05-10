@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, use, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
@@ -282,8 +282,12 @@ const SS_SELECT_STYLE: React.CSSProperties = {
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
-export default function DashboardPage() {
-  const [id, setId] = useState<string | null>(null)
+export default function CrisisDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = use(params)
   const router  = useRouter()
 
   // ── Page data state ──────────────────────────────────────────────────────────
@@ -339,42 +343,27 @@ export default function DashboardPage() {
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError || !user) { router.replace('/login'); return }
 
-      const { data: activeCrisis, error: activeCrisisError } = await supabase
-        .from('crises')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('status', 'activa')
-        .maybeSingle()
-
-      if (activeCrisisError || !activeCrisis) {
-        setLoading(false)
-        return
-      }
-
-      setId(activeCrisis.id)
-      const currentId = activeCrisis.id
-
       const [crisisRes, tasksRes, contactsRes, docsRes, historyRes] = await Promise.all([
         supabase
           .from('crises')
           .select('id, name, status, category, started_at, ai_summary')
-          .eq('id', currentId).eq('user_id', user.id).maybeSingle(),
+          .eq('id', id).eq('user_id', user.id).maybeSingle(),
         supabase
           .from('tasks')
           .select('id, title, status, due_date, assigned_contact_id, assigned_to_user')
-          .eq('crisis_id', currentId).order('due_date', { ascending: true, nullsFirst: false }),
+          .eq('crisis_id', id).order('due_date', { ascending: true, nullsFirst: false }),
         supabase
           .from('crisis_contacts')
           .select('contact:contacts(id, name, role, proximity, initials, phone, email, relationship)')
-          .eq('crisis_id', currentId),
+          .eq('crisis_id', id),
         supabase
           .from('documents')
           .select('id, name, type, created_at, storage_path, original_filename, file_size_bytes, file_mime_type, uploaded_by_user, uploaded_by_contact_id')
-          .eq('crisis_id', currentId).order('created_at', { ascending: false }),
+          .eq('crisis_id', id).order('created_at', { ascending: false }),
         supabase
           .from('crisis_history')
           .select('id, title, description, occurred_at')
-          .eq('crisis_id', currentId).order('occurred_at', { ascending: false }),
+          .eq('crisis_id', id).order('occurred_at', { ascending: false }),
       ])
 
       if (crisisRes.error) console.error('Error crisis:', crisisRes.error)
@@ -1966,24 +1955,14 @@ export default function DashboardPage() {
         <main className="flex-1 ml-0 md:ml-[240px] min-h-screen px-5 py-8 pb-28 md:px-10 md:py-10 md:pb-10">
           <SkeletonStyles />
 
-          {/* Empty state — no active crisis */}
-          {!loading && !crisis && (
-            <div className="flex justify-center" style={{ marginTop: 80 }}>
-              <div style={{ textAlign: 'center', maxWidth: 400 }}>
-                <p className="font-bold text-[#1A1A2E]" style={{ fontSize: '1rem', marginBottom: 8 }}>
-                  No hay ninguna crisis activa
-                </p>
-                <p style={{ fontSize: '0.875rem', color: '#5a7478', marginBottom: 24 }}>
-                  Hablá con el agente para registrar tu situación.
-                </p>
-                <Link href="/chat"
-                  className="inline-block bg-[#0A7E8C] text-white font-bold rounded-full transition-all hover:brightness-110"
-                  style={{ padding: '12px 28px', fontSize: '0.875rem' }}>
-                  Hablar con el agente
-                </Link>
-              </div>
-            </div>
-          )}
+          {/* Back link */}
+          <Link
+            href="/crisis"
+            className="inline-flex items-center gap-1.5 font-semibold text-[#5a7478] no-underline hover:text-[#0A7E8C] transition-colors"
+            style={{ fontSize: '0.875rem', marginBottom: 24 }}
+          >
+            <IconChevronLeft /> Volver a Crisis
+          </Link>
 
           {/* Header */}
           {crisis && (

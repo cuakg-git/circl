@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/svg+xml" href="../../assets/img/LOGO_CIRCL_2.svg">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mhiru · Acompañando</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet">
+  <link rel="stylesheet" href="../../assets/css/styles.css">
+  <style>
+    @keyframes heroBgDrift {
+      0%, 100% {
+        background:
+          radial-gradient(ellipse at 15% 15%, rgba(61,199,166,0.03) 0%, transparent 55%),
+          radial-gradient(ellipse at 85% 10%, rgba(80,220,175,0.07) 0%, transparent 50%),
+          radial-gradient(ellipse at 88% 82%, rgba(224,121,49,0.08) 0%, transparent 52%),
+          radial-gradient(ellipse at 12% 88%, rgba(158,160,81,0.08) 0%, transparent 50%),
+          radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 65%),
+          #f0f4f8;
+      }
+      25% {
+        background:
+          radial-gradient(ellipse at 22% 10%, rgba(61,199,166,0.03) 0%, transparent 55%),
+          radial-gradient(ellipse at 90% 20%, rgba(80,220,175,0.07) 0%, transparent 50%),
+          radial-gradient(ellipse at 80% 88%, rgba(224,121,49,0.08) 0%, transparent 52%),
+          radial-gradient(ellipse at 6%  78%, rgba(158,160,81,0.08) 0%, transparent 50%),
+          radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 65%),
+          #f0f4f8;
+      }
+      50% {
+        background:
+          radial-gradient(ellipse at 10% 22%, rgba(61,199,166,0.03) 0%, transparent 55%),
+          radial-gradient(ellipse at 78% 8%,  rgba(80,220,175,0.07) 0%, transparent 50%),
+          radial-gradient(ellipse at 92% 75%, rgba(224,121,49,0.08) 0%, transparent 52%),
+          radial-gradient(ellipse at 18% 92%, rgba(158,160,81,0.08) 0%, transparent 50%),
+          radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 65%),
+          #f0f4f8;
+      }
+      75% {
+        background:
+          radial-gradient(ellipse at 20% 22%, rgba(61,199,166,0.03) 0%, transparent 55%),
+          radial-gradient(ellipse at 82% 18%, rgba(80,220,175,0.07) 0%, transparent 50%),
+          radial-gradient(ellipse at 85% 90%, rgba(224,121,49,0.08) 0%, transparent 52%),
+          radial-gradient(ellipse at 14% 82%, rgba(158,160,81,0.08) 0%, transparent 50%),
+          radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 65%),
+          #f0f4f8;
+      }
+    }
+    body { animation: heroBgDrift 30s ease-in-out infinite; }
+
+    /* ── Header con casuísticas ───────────────────────────────────────── */
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-md);
+      margin-bottom: var(--space-xl);
+    }
+    .page-header h1 {
+      font-size: var(--text-2xl);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+    .variants-toggle {
+      display: flex;
+      gap: 8px;
+    }
+    .variant-btn {
+      padding: 10px 18px;
+      border: 1.5px solid var(--color-border);
+      background: white;
+      border-radius: var(--radius-pill);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .variant-btn.active {
+      background: var(--color-teal);
+      border-color: var(--color-teal);
+      color: white;
+    }
+
+    /* ── Participation card ───────────────────────────────────────────── */
+    .participation-card {
+      display: flex;
+      gap: var(--space-lg);
+      padding: var(--space-lg);
+      background: white;
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow-card);
+      cursor: pointer;
+      transition: box-shadow 0.2s, transform 0.2s;
+      margin-bottom: var(--space-md);
+    }
+    .participation-card:hover {
+      box-shadow: var(--shadow-float);
+      transform: translateY(-2px);
+    }
+    .participation-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--gradient-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 0.875rem;
+      color: white;
+      flex-shrink: 0;
+    }
+    .participation-content {
+      flex: 1;
+      min-width: 0;
+    }
+    .participation-owner {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+    .participation-owner-name {
+      font-size: var(--text-sm);
+      font-weight: 700;
+      color: var(--color-dark);
+    }
+    .participation-relationship {
+      font-size: 12px;
+      color: var(--color-muted);
+    }
+    .participation-crisis {
+      font-size: var(--text-sm);
+      color: var(--color-dark);
+      margin-bottom: 6px;
+    }
+    .participation-meta {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .participation-badge {
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      background: rgba(46,205,167,0.14);
+      color: #0a6e5a;
+      font-weight: 600;
+    }
+    .participation-tasks {
+      font-size: 12px;
+      color: var(--color-muted);
+    }
+
+    /* ── Empty state ──────────────────────────────────────────────────── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: var(--space-xl) var(--space-lg);
+      max-width: 420px;
+      margin: 60px auto 0;
+    }
+    .empty-icon {
+      width: 72px;
+      height: 72px;
+      margin-bottom: var(--space-lg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .empty-icon svg {
+      color: var(--color-teal);
+      opacity: 0.4;
+    }
+    .empty-title {
+      font-size: var(--text-lg);
+      font-weight: 800;
+      color: var(--color-dark);
+      margin-bottom: 8px;
+    }
+    .empty-subtitle {
+      font-size: var(--text-sm);
+      color: var(--color-muted);
+      line-height: 1.5;
+    }
+
+    /* ── Sidesheet ──────────────────────────────────────────────────── */
+    .ss-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.22);
+      z-index: 200;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    .ss-overlay.open { opacity: 1; pointer-events: auto; }
+    .sidesheet {
+      position: fixed; top: 0; right: 0;
+      width: 420px; max-width: 100vw; height: 100vh;
+      background: #f0f4f8;
+      z-index: 201;
+      transform: translateX(100%);
+      transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+      overflow-y: auto;
+      box-shadow: -6px 0 32px rgba(0,0,0,0.10);
+      display: flex; flex-direction: column;
+    }
+    .sidesheet.open { transform: translateX(0); }
+    .ss-top-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 24px 0; flex-shrink: 0;
+    }
+    .ss-top-label {
+      font-size: var(--text-xs); font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--color-muted);
+    }
+    .ss-close {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: rgba(0,0,0,0.06); border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--color-muted); transition: background 0.15s; font-size: 1rem;
+    }
+    .ss-close:hover { background: rgba(0,0,0,0.11); }
+    .ss-body { padding: 0 24px 40px; flex: 1; }
+    .ss-hero {
+      display: flex; flex-direction: column; align-items: center;
+      text-align: center; padding: 24px 0 20px;
+      border-bottom: 1px solid var(--color-border); margin-bottom: 24px;
+    }
+    .ss-av {
+      width: 80px; height: 80px; border-radius: 50%;
+      background: var(--gradient-primary);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 1.5rem; color: white;
+      box-shadow: var(--shadow-float); margin-bottom: 14px;
+    }
+    .ss-name {
+      font-size: var(--text-xl); font-weight: 800;
+      letter-spacing: -0.02em; margin-bottom: 8px;
+    }
+    .ss-meta {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--color-muted);
+    }
+    .ss-section-title {
+      font-size: var(--text-xs); font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--color-muted); margin-bottom: 12px; margin-top: 24px;
+    }
+    .ss-task-item {
+      background: white;
+      border-radius: var(--radius-card);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-md);
+      box-shadow: var(--shadow-card);
+    }
+    .ss-task-title {
+      font-size: var(--text-sm);
+      font-weight: 700;
+      color: var(--color-dark);
+      margin-bottom: 6px;
+    }
+    .ss-task-meta {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      font-size: 12px;
+      color: var(--color-muted);
+      margin-bottom: 12px;
+    }
+    .ss-task-status {
+      font-size: 12px;
+      padding: 3px 10px;
+      border-radius: var(--radius-pill);
+      font-weight: 600;
+    }
+    .ss-task-status.pending {
+      background: rgba(46,205,167,0.14);
+      color: #0a6e5a;
+    }
+    .ss-task-status.accepted {
+      background: rgba(10,126,140,0.1);
+      color: var(--color-teal);
+    }
+    .ss-task-status.completed {
+      background: rgba(90,116,120,0.1);
+      color: var(--color-muted);
+    }
+    .ss-task-status.rejected {
+      background: rgba(186,26,26,0.1);
+      color: #ba1a1a;
+    }
+    .ss-task-buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .ss-task-btn {
+      flex: 1;
+      padding: 10px 14px;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .ss-task-btn.accept {
+      background: rgba(46,205,167,0.14);
+      color: #0a6e5a;
+    }
+    .ss-task-btn.accept:hover {
+      background: rgba(46,205,167,0.24);
+    }
+    .ss-task-btn.reject {
+      background: rgba(186,26,26,0.06);
+      color: #ba1a1a;
+    }
+    .ss-task-btn.reject:hover {
+      background: rgba(186,26,26,0.16);
+    }
+    .ss-task-btn.complete {
+      background: white;
+      border: 1.5px solid var(--color-teal);
+      color: var(--color-teal);
+    }
+    .ss-task-btn.complete:hover {
+      background: rgba(10,126,140,0.04);
+    }
+    .ss-summary {
+      background: white;
+      border-radius: var(--radius-card);
+      padding: var(--space-lg);
+      box-shadow: var(--shadow-card);
+      font-size: var(--text-sm);
+      line-height: 1.6;
+      color: var(--color-muted);
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img src="../../assets/img/LOGO_CIRCL_2.svg" alt="Mhiru">
+      <span class="sidebar-wordmark">Mhiru</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="sidebar-link" href="../dashboard.html">
+        <span class="material-symbols-outlined sidebar-icon">grid_view</span>
+        Inicio
+      </a>
+      <a class="sidebar-link" href="../circle/index.html">
+        <span class="material-symbols-outlined sidebar-icon">group</span>
+        Círculo
+      </a>
+      <a class="sidebar-link" href="../crisis/index.html">
+        <span class="material-symbols-outlined sidebar-icon">warning</span>
+        Crisis
+      </a>
+      <a class="sidebar-link" href="../chat.html">
+        <span class="material-symbols-outlined sidebar-icon">chat_bubble</span>
+        Hablar
+      </a>
+      <a class="sidebar-link active" href="index.html">
+        <span class="material-symbols-outlined sidebar-icon">favorite</span>
+        Acompañando
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <a class="sidebar-user" href="../profile.html">
+        <img src="../../assets/img/valeria.png" alt="Valeria López" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;">
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name">Valeria López</div>
+          <div class="sidebar-user-role">Cuidadora principal</div>
+        </div>
+      </a>
+    </div>
+  </aside>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <a class="bottom-nav-item" href="../dashboard.html">
+        <span class="material-symbols-outlined bottom-nav-icon">grid_view</span>
+        Inicio
+      </a>
+      <a class="bottom-nav-item" href="../circle/index.html">
+        <span class="material-symbols-outlined bottom-nav-icon">group</span>
+        Círculo
+      </a>
+      <a class="bottom-nav-item" href="../crisis/index.html">
+        <span class="material-symbols-outlined bottom-nav-icon">warning</span>
+        Crisis
+      </a>
+      <a class="bottom-nav-item" href="../chat.html">
+        <span class="material-symbols-outlined bottom-nav-icon">chat_bubble</span>
+        Chat
+      </a>
+      <a class="bottom-nav-item active" href="index.html">
+        <span class="material-symbols-outlined bottom-nav-icon">favorite</span>
+        Acompañando
+      </a>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main-content">
+
+    <div class="page-header">
+      <div>
+        <h1>Acompañando</h1>
+        <p style="color: var(--color-muted); margin-top: 4px;">Situaciones donde estás acompañando a otros.</p>
+      </div>
+      <div class="variants-toggle">
+        <button class="variant-btn active" onclick="showVariant('active')">Activas</button>
+        <button class="variant-btn" onclick="showVariant('empty')">Vacío</button>
+      </div>
+    </div>
+
+    <!-- VARIANT: Con participaciones activas -->
+    <div id="variant-active">
+      <!-- Participation card 1 -->
+      <div class="participation-card" onclick="openParticipation(1)">
+        <div class="participation-avatar">VM</div>
+        <div class="participation-content">
+          <div class="participation-owner">
+            <span class="participation-owner-name">Valeria Moreno</span>
+            <span class="participation-relationship">Tu hermana</span>
+          </div>
+          <div class="participation-crisis">Situación de Martín</div>
+          <div class="participation-meta">
+            <span class="participation-badge">Activa</span>
+            <span class="participation-tasks">2 tareas pendientes</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Participation card 2 -->
+      <div class="participation-card" onclick="openParticipation(2)">
+        <div class="participation-avatar">LG</div>
+        <div class="participation-content">
+          <div class="participation-owner">
+            <span class="participation-owner-name">Laura Gómez</span>
+            <span class="participation-relationship">Tu amiga</span>
+          </div>
+          <div class="participation-crisis">Llegada de Tomás</div>
+          <div class="participation-meta">
+            <span class="participation-badge">Activa</span>
+            <span class="participation-tasks">1 tarea pendiente</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VARIANT: Sin participaciones -->
+    <div id="variant-empty" style="display:none;">
+      <div class="empty-state">
+        <div class="empty-icon">
+          <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+        </div>
+        <h2 class="empty-title">Todavía no estás acompañando a nadie</h2>
+        <p class="empty-subtitle">Cuando alguien te agregue a su círculo, vas a ver sus crisis y tareas acá.</p>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Sidesheet overlay -->
+<div class="ss-overlay" id="ss-overlay"></div>
+
+<!-- Sidesheet panel -->
+<div class="sidesheet" id="sidesheet">
+  <div class="ss-top-bar">
+    <span class="ss-top-label">Acompañando a</span>
+    <button class="ss-close" id="ss-close">✕</button>
+  </div>
+  <div class="ss-body">
+
+    <!-- Participation detail -->
+    <div id="ss-participation-detail">
+      <!-- Hero section -->
+      <div class="ss-hero" id="ss-hero-content">
+        <div class="ss-av" id="ss-avatar"></div>
+        <div class="ss-name" id="ss-name"></div>
+        <div class="ss-meta">
+          <span class="badge badge-active" id="ss-crisis-badge"></span>
+          <span id="ss-days"></span>
+        </div>
+      </div>
+
+      <!-- My tasks section -->
+      <div id="ss-tasks-section">
+        <p class="ss-section-title">Mis tareas</p>
+        <div id="ss-tasks-list"></div>
+      </div>
+
+      <!-- About crisis section -->
+      <div>
+        <p class="ss-section-title">Sobre la crisis</p>
+        <div class="ss-summary" id="ss-crisis-summary"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const overlayEl = document.getElementById('ss-overlay');
+  const sheetEl = document.getElementById('sidesheet');
+  const closeBtn = document.getElementById('ss-close');
+
+  // Sample data
+  const participations = {
+    1: {
+      id: 1,
+      avatar: 'VM',
+      name: 'Valeria Moreno',
+      relationship: 'Tu hermana',
+      crisis: 'Situación de Martín',
+      days: '12 días',
+      summary: 'Martín fue diagnosticado con linfoma en marzo. Valeria está coordinando tratamientos y necesita apoyo logístico puntual.',
+      tasks: [
+        { id: 1, title: 'Llevar a Martín al cardiólogo', dueDate: 'Mañana', status: 'pending' },
+        { id: 2, title: 'Buscar segunda opinión médica', dueDate: '15 mayo', status: 'accepted' }
+      ]
+    },
+    2: {
+      id: 2,
+      avatar: 'LG',
+      name: 'Laura Gómez',
+      relationship: 'Tu amiga',
+      crisis: 'Llegada de Tomás',
+      days: '5 días',
+      summary: 'Laura está esperando a Tomás, su bebé prematuro, para dejarlo en casa del hospital. Se necesita ayuda con la logística del primer mes.',
+      tasks: [
+        { id: 1, title: 'Comprar pañales y fórmula', dueDate: '12 mayo', status: 'pending' }
+      ]
+    }
+  };
+
+  function showVariant(variant) {
+    const activeDiv = document.getElementById('variant-active');
+    const emptyDiv = document.getElementById('variant-empty');
+    const btns = document.querySelectorAll('.variant-btn');
+
+    btns.forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+
+    if (variant === 'active') {
+      activeDiv.style.display = 'block';
+      emptyDiv.style.display = 'none';
+    } else {
+      activeDiv.style.display = 'none';
+      emptyDiv.style.display = 'block';
+    }
+  }
+
+  function openParticipation(id) {
+    const data = participations[id];
+    if (!data) return;
+
+    // Set hero
+    document.getElementById('ss-avatar').textContent = data.avatar;
+    document.getElementById('ss-name').textContent = data.name;
+    document.getElementById('ss-crisis-badge').textContent = data.crisis;
+    document.getElementById('ss-days').textContent = data.days;
+
+    // Set tasks
+    const tasksListEl = document.getElementById('ss-tasks-list');
+    tasksListEl.innerHTML = data.tasks.map(task => `
+      <div class="ss-task-item">
+        <div class="ss-task-title">${task.title}</div>
+        <div class="ss-task-meta">
+          <span>Vence: ${task.dueDate}</span>
+          <span class="ss-task-status ${task.status}" data-status="${task.status}" data-task-id="${task.id}">
+            ${task.status === 'pending' ? 'Pendiente' : task.status === 'accepted' ? 'Aceptada' : 'Completada'}
+          </span>
+        </div>
+        <div class="ss-task-buttons" data-task-id="${task.id}">
+          ${task.status === 'pending' ? `
+            <button class="ss-task-btn accept" onclick="acceptTask(${id}, ${task.id})">Aceptar</button>
+            <button class="ss-task-btn reject" onclick="rejectTask(${id}, ${task.id})">Rechazar</button>
+          ` : task.status === 'accepted' ? `
+            <button class="ss-task-btn complete" onclick="completeTask(${id}, ${task.id})" style="width:100%;">Marcar como completada</button>
+          ` : ''}
+        </div>
+      </div>
+    `).join('');
+
+    // Set summary
+    document.getElementById('ss-crisis-summary').textContent = data.summary;
+
+    // Open sidesheet
+    overlayEl.classList.add('open');
+    sheetEl.classList.add('open');
+  }
+
+  function acceptTask(participationId, taskId) {
+    const data = participations[participationId];
+    const task = data.tasks.find(t => t.id === taskId);
+    if (task) {
+      task.status = 'accepted';
+      // Re-render task
+      const tasksListEl = document.getElementById('ss-tasks-list');
+      const buttons = tasksListEl.querySelector(`[data-task-id="${taskId}"] .ss-task-buttons`);
+      const status = tasksListEl.querySelector(`[data-task-id="${taskId}"] .ss-task-status`);
+      status.textContent = 'Aceptada';
+      status.className = 'ss-task-status accepted';
+      buttons.innerHTML = `<button class="ss-task-btn complete" onclick="completeTask(${participationId}, ${taskId})" style="width:100%;">Marcar como completada</button>`;
+    }
+  }
+
+  function rejectTask(participationId, taskId) {
+    const data = participations[participationId];
+    const task = data.tasks.find(t => t.id === taskId);
+    if (task) {
+      task.status = 'rejected';
+      const tasksListEl = document.getElementById('ss-tasks-list');
+      const buttons = tasksListEl.querySelector(`[data-task-id="${taskId}"] .ss-task-buttons`);
+      const status = tasksListEl.querySelector(`[data-task-id="${taskId}"] .ss-task-status`);
+      status.textContent = 'Rechazada';
+      status.className = 'ss-task-status rejected';
+      buttons.innerHTML = '';
+    }
+  }
+
+  function completeTask(participationId, taskId) {
+    const data = participations[participationId];
+    const task = data.tasks.find(t => t.id === taskId);
+    if (task) {
+      task.status = 'completed';
+      const tasksListEl = document.getElementById('ss-tasks-list');
+      const buttons = tasksListEl.querySelector(`[data-task-id="${taskId}"] .ss-task-buttons`);
+      const status = tasksListEl.querySelector(`[data-task-id="${taskId}"] .ss-task-status`);
+      status.textContent = 'Completada';
+      status.className = 'ss-task-status completed';
+      buttons.innerHTML = '';
+    }
+  }
+
+  function closeSheet() {
+    overlayEl.classList.remove('open');
+    sheetEl.classList.remove('open');
+  }
+
+  closeBtn.addEventListener('click', closeSheet);
+  overlayEl.addEventListener('click', closeSheet);
+</script>
+
+</body>
+</html>
