@@ -133,7 +133,7 @@ export default function ChatPage() {
         .select('id')
         .eq('user_id', user.id)
         .is('crisis_id', null)
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: true })
         .limit(1)
         .maybeSingle()
 
@@ -142,7 +142,7 @@ export default function ChatPage() {
           .from('messages')
           .select('id, sender, content, sent_at')
           .eq('conversation_id', convData.id)
-          .order('sent_at', { ascending: true })
+          .order('sent_at', { ascending: false })
           .limit(50)
 
         if (messagesData && messagesData.length > 0) {
