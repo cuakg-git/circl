@@ -147,7 +147,9 @@ export default function ChatPage() {
 
         if (messagesData && messagesData.length > 0) {
           setMessages(
-            messagesData.map((m) => ({
+            messagesData
+              .reverse()
+              .map((m) => ({
               id:     uid(),
               role:   m.sender === 'usuario' ? 'user' : 'agent',
               text:   m.content,
