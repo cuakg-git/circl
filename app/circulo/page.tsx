@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
@@ -15,16 +15,32 @@ import {
 type Proximity = 'nucleo' | 'ayuda' | 'profesional'
 
 type Contact = {
-  id:           string
-  name:         string
-  initials:     string | null
-  role:         string | null
-  proximity:    string | null
-  phone:        string | null
-  email:        string | null
-  relationship: string | null
-  avatar_url:   string | null
-  sort_order:   number | null
+  id:               string
+  name:             string
+  initials:         string | null
+  role:             string | null
+  proximity:        string | null
+  phone:            string | null
+  email:            string | null
+  relationship:     string | null
+  avatar_url:       string | null
+  sort_order:       number | null
+  context_summary:  string | null
+}
+
+type Provider = {
+  id:         string
+  name:       string
+  phone:      string | null
+  email:      string | null
+  prestacion: string | null
+  notes:      string | null
+}
+
+type Suggestion = {
+  name:       string
+  prestacion: string
+  razon:      string
 }
 
 type CrisisRow = {
@@ -37,8 +53,6 @@ type CrisisRow = {
 type CrisisJoinRow = {
   crisis: CrisisRow | CrisisRow[] | null
 }
-
-type SSMode = null | 'view' | 'add'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -83,12 +97,6 @@ const ROLE_BADGE: Record<string, { bg: string; color: string }> = {
   acompanamiento:      { bg: 'rgba(46,205,167,0.14)', color: '#0a6e5a' },
   logistico:           { bg: 'rgba(232,145,58,0.10)', color: '#b86a10' },
   prestador_servicios: { bg: 'rgba(10,126,140,0.07)', color: '#0A7E8C' },
-}
-
-const PROXIMITY_LABELS: Record<Proximity, string> = {
-  nucleo:      'Es parte de mi núcleo',
-  ayuda:       'Es alguien que me ayuda o puede ayudar',
-  profesional: 'Es un proveedor de servicios o un profesional',
 }
 
 const CARD_W = 270
@@ -157,11 +165,10 @@ function IconArrow() {
 // ── Sub-component: PersonCard ──────────────────────────────────────────────────
 
 function PersonCard({
-  contact, avatarUrl, onClick,
+  contact, avatarUrl,
 }: {
   contact:   Contact
   avatarUrl: string | null
-  onClick:   () => void
 }) {
   const initials = (contact.initials ?? initialsFrom(contact.name)).slice(0, 2)
   const roleColor = contact.role ? (ROLE_COLORS[contact.role] ?? '#5a7478') : '#5a7478'
@@ -169,8 +176,8 @@ function PersonCard({
 
   return (
     <div className="person-card-slide" style={{ flex: '0 0 270px', boxSizing: 'border-box' }}>
-      <div
-        onClick={onClick}
+      <Link
+        href={`/circulo/${contact.id}`}
         style={{
           width: 270, height: 110,
           display: 'flex', flexDirection: 'row',
@@ -179,9 +186,10 @@ function PersonCard({
           borderRadius: '1.5rem',
           boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
           transition: 'box-shadow 0.22s',
+          textDecoration: 'none',
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 8px 40px rgba(10,126,140,0.16)' }}
-        onMouseLeave={(e) => { e.currentTarget.style.boxShadow = '0 4px 24px rgba(10,126,140,0.08)' }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = '0 8px 40px rgba(10,126,140,0.16)' }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 24px rgba(10,126,140,0.08)' }}
       >
         {/* Photo (38% width) */}
         <div style={{
@@ -239,7 +247,7 @@ function PersonCard({
             marginTop: 'auto', fontWeight: 600,
           }}>{roleLabel}</div>
         </div>
-      </div>
+      </Link>
     </div>
   )
 }
@@ -247,12 +255,11 @@ function PersonCard({
 // ── Sub-component: RingCarousel ────────────────────────────────────────────────
 
 function RingCarousel({
-  ring, contacts, avatarUrls, onContactClick,
+  ring, contacts, avatarUrls,
 }: {
-  ring:           Proximity
-  contacts:       Contact[]
-  avatarUrls:     Record<string, string>
-  onContactClick: (c: Contact) => void
+  ring:       Proximity
+  contacts:   Contact[]
+  avatarUrls: Record<string, string>
 }) {
   const [idx, setIdx] = useState(0)
   const [hasOverflow, setHasOverflow] = useState(false)
@@ -366,7 +373,6 @@ function RingCarousel({
                   key={c.id}
                   contact={c}
                   avatarUrl={avatarUrls[c.id] ?? null}
-                  onClick={() => onContactClick(c)}
                 />
               ))}
             </div>
@@ -422,19 +428,17 @@ function RingCarousel({
 // translate transform via `--a`. Inner counter-rotates to keep avatars upright.
 
 function OrbitActor({
-  contact, avatarUrl, angle, onClick,
+  contact, avatarUrl, angle,
 }: {
   contact:   Contact
   avatarUrl: string | null
   angle:     number
-  onClick:   () => void
 }) {
   const initials = (contact.initials ?? initialsFrom(contact.name)).slice(0, 2)
 
   return (
-    <a
-      href="#"
-      onClick={(e) => { e.preventDefault(); onClick() }}
+    <Link
+      href={`/circulo/${contact.id}`}
       title={contact.name}
       className="orbit-actor"
       style={{ ['--a' as string]: `${angle}deg` } as React.CSSProperties}
@@ -447,7 +451,7 @@ function OrbitActor({
           <span style={{ fontSize: '0.9rem' }}>{initials}</span>
         )}
       </div>
-    </a>
+    </Link>
   )
 }
 
@@ -459,41 +463,39 @@ export default function CirculoPage() {
   const [loading,     setLoading]     = useState(true)
   const [contacts,    setContacts]    = useState<Contact[]>([])
   const [avatarUrls,  setAvatarUrls]  = useState<Record<string, string>>({})
+  const [providers,          setProviders]          = useState<Provider[]>([])
+  const [suggestions,        setSuggestions]        = useState<Suggestion[]>([])
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false)
   const [userName,    setUserName]    = useState('')
   const [userAvatar,  setUserAvatar]  = useState<string | null>(null)
-
-  // Sidesheet
-  const [ssMode,          setSsMode]          = useState<SSMode>(null)
-  const [ssContact,       setSsContact]       = useState<Contact | null>(null)
-  const [ssCrises,        setSsCrises]        = useState<CrisisRow[]>([])
-  const [ssCrisesLoading, setSsCrisesLoading] = useState(false)
-  const [ssLoading,       setSsLoading]       = useState(false)
-  const [ssError,         setSsError]         = useState<string | null>(null)
-  const [ssDeleteConfirm, setSsDeleteConfirm] = useState(false)
-
-  // Authenticated user id (needed for write operations)
-  const [userId, setUserId] = useState<string | null>(null)
-
-  // ADD form state
-  const [addName,         setAddName]         = useState('')
-  const [addPhone,        setAddPhone]        = useState('')
-  const [addEmail,        setAddEmail]        = useState('')
-  const [addRelation,     setAddRelation]     = useState('')
-  const [addRole,         setAddRole]         = useState('acompanamiento')
-  const [addProximity,    setAddProximity]    = useState<Proximity>('nucleo')
-  const [addPhotoFile,    setAddPhotoFile]    = useState<File | null>(null)
-  const [addPhotoPreview, setAddPhotoPreview] = useState<string | null>(null)
-  const [addLoading,      setAddLoading]      = useState(false)
-  const [addError,        setAddError]        = useState<string | null>(null)
-  const addFileInputRef = useRef<HTMLInputElement | null>(null)
-
-  // VIEW: photo upload state + refs
-  const [ssPhotoLoading, setSsPhotoLoading] = useState(false)
-  const viewPhotoInputRef = useRef<HTMLInputElement | null>(null)
 
   // Mobile orbit scaling
   const orbitWrapRef = useRef<HTMLDivElement | null>(null)
   const [orbitScale, setOrbitScale] = useState(1)
+
+  // ── Suggestions ──────────────────────────────────────────────────────────────
+
+  async function fetchSuggestions(user: { id: string }) {
+    const cached = sessionStorage.getItem('mhiru_suggestions')
+    if (cached) { setSuggestions(JSON.parse(cached)); return }
+
+    setSuggestionsLoading(true)
+    try {
+      const res = await fetch('/api/suggest-providers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.id }),
+      })
+      const json = await res.json()
+      if (json.suggestions?.length > 0) {
+        setSuggestions(json.suggestions)
+        sessionStorage.setItem('mhiru_suggestions', JSON.stringify(json.suggestions))
+      }
+    } catch (e) {
+      console.error('[fetchSuggestions]', e)
+    }
+    setSuggestionsLoading(false)
+  }
 
   // ── Load data ────────────────────────────────────────────────────────────────
 
@@ -502,7 +504,6 @@ export default function CirculoPage() {
       const { data: { user }, error } = await supabase.auth.getUser()
       if (error || !user) { router.replace('/login'); return }
 
-      setUserId(user.id)
       const meta = user.user_metadata ?? {}
 
       // User avatar: profiles table is the source of truth, falls back to
@@ -519,7 +520,7 @@ export default function CirculoPage() {
       // Contacts
       const { data: contactsData, error: contactsErr } = await supabase
         .from('contacts')
-        .select('id, name, initials, role, proximity, phone, email, relationship, avatar_url, sort_order')
+        .select('id, name, initials, role, proximity, phone, email, relationship, avatar_url, sort_order, context_summary')
         .eq('user_id', user.id)
         .order('sort_order', { ascending: true, nullsFirst: false })
 
@@ -543,7 +544,17 @@ export default function CirculoPage() {
       }
       setAvatarUrls(map)
 
+      // Providers
+      const { data: providersData } = await supabase
+        .from('providers')
+        .select('id, name, phone, email, prestacion, notes')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true })
+
+      setProviders((providersData ?? []) as Provider[])
+
       setLoading(false)
+      fetchSuggestions(user)
     }
     load()
   }, [router])
@@ -553,356 +564,9 @@ export default function CirculoPage() {
   const groups: Record<Proximity, Contact[]> = {
     nucleo:      contacts.filter((c) => c.proximity === 'nucleo'),
     ayuda:       contacts.filter((c) => c.proximity === 'ayuda'),
-    profesional: contacts.filter((c) => c.proximity === 'profesional'),
+    profesional: [],
   }
   const totalContacts = contacts.length
-
-  // ── Sidesheet handlers ───────────────────────────────────────────────────────
-
-  const openView = useCallback(async (c: Contact) => {
-    setSsContact(c)
-    setSsCrises([])
-    setSsMode('view')
-    setSsLoading(false)
-    setSsError(null)
-    setSsDeleteConfirm(false)
-    setSsCrisesLoading(true)
-    const { data, error } = await supabase
-      .from('crisis_contacts')
-      .select('crisis:crises(id, name, status, started_at)')
-      .eq('contact_id', c.id)
-    setSsCrisesLoading(false)
-    if (error) { console.error('Error loading crises for contact:', error); return }
-    const rows = (data ?? []) as CrisisJoinRow[]
-    const flat: CrisisRow[] = []
-    for (const r of rows) {
-      const cr = Array.isArray(r.crisis) ? r.crisis[0] : r.crisis
-      if (cr) flat.push(cr)
-    }
-    setSsCrises(flat)
-  }, [])
-
-  function openAdd() {
-    setAddName('')
-    setAddPhone('')
-    setAddEmail('')
-    setAddRelation('')
-    setAddRole('acompanamiento')
-    setAddProximity('nucleo')
-    setAddPhotoFile(null)
-    setAddPhotoPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return null })
-    setAddError(null)
-    setAddLoading(false)
-    if (addFileInputRef.current) addFileInputRef.current.value = ''
-    setSsMode('add')
-  }
-
-  const closeSheet = useCallback(() => {
-    setSsMode(null)
-    setSsContact(null)
-    setSsCrises([])
-    setSsLoading(false)
-    setSsError(null)
-    setSsDeleteConfirm(false)
-    setSsPhotoLoading(false)
-    setAddPhotoFile(null)
-    setAddPhotoPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return null })
-    setAddError(null)
-    setAddLoading(false)
-    if (addFileInputRef.current) addFileInputRef.current.value = ''
-    if (viewPhotoInputRef.current) viewPhotoInputRef.current.value = ''
-  }, [])
-
-  // ── Reload helper ─────────────────────────────────────────────────────────────
-
-  const reloadContacts = useCallback(async (uid: string) => {
-    const { data: contactsData, error: contactsErr } = await supabase
-      .from('contacts')
-      .select('id, name, initials, role, proximity, phone, email, relationship, avatar_url, sort_order')
-      .eq('user_id', uid)
-      .order('sort_order', { ascending: true, nullsFirst: false })
-
-    if (contactsErr) console.error('Error contacts reload:', contactsErr)
-    const list = (contactsData ?? []) as Contact[]
-    setContacts(list)
-
-    const withAvatars = list.filter((c) => c.avatar_url)
-    const entries = await Promise.all(
-      withAvatars.map(async (c) => {
-        const { data } = await supabase.storage
-          .from('contact-avatars')
-          .createSignedUrl(c.avatar_url!, 3600)
-        return [c.id, data?.signedUrl ?? null] as const
-      }),
-    )
-    const map: Record<string, string> = {}
-    for (const [id, url] of entries) {
-      if (url) map[id] = url
-    }
-    setAvatarUrls(map)
-    return list
-  }, [])
-
-  // ── Write handlers ────────────────────────────────────────────────────────────
-
-  const handleRoleChange = useCallback(async (val: string) => {
-    if (!ssContact || !userId) return
-    setSsLoading(true)
-    setSsError(null)
-    const { error } = await supabase
-      .from('contacts')
-      .update({ role: val || null })
-      .eq('id', ssContact.id)
-      .eq('user_id', userId)
-    if (error) {
-      setSsLoading(false)
-      setSsError('No se pudo actualizar el rol. Intentá de nuevo.')
-      return
-    }
-    const updated: Contact = { ...ssContact, role: val || null }
-    setSsContact(updated)
-    await reloadContacts(userId)
-    setSsLoading(false)
-  }, [ssContact, userId, reloadContacts])
-
-  const handleProximityChange = useCallback(async (val: string) => {
-    if (!ssContact || !userId) return
-    setSsLoading(true)
-    setSsError(null)
-    const { error } = await supabase
-      .from('contacts')
-      .update({ proximity: val || null })
-      .eq('id', ssContact.id)
-      .eq('user_id', userId)
-    if (error) {
-      setSsLoading(false)
-      setSsError('No se pudo actualizar la cercanía. Intentá de nuevo.')
-      return
-    }
-    const updated: Contact = { ...ssContact, proximity: val || null }
-    setSsContact(updated)
-    await reloadContacts(userId)
-    setSsLoading(false)
-  }, [ssContact, userId, reloadContacts])
-
-  const handleDeleteContact = useCallback(async () => {
-    if (!ssContact || !userId) return
-    setSsLoading(true)
-    setSsError(null)
-    const { error } = await supabase
-      .from('contacts')
-      .delete()
-      .eq('id', ssContact.id)
-      .eq('user_id', userId)
-    setSsLoading(false)
-    if (error) {
-      console.error('[handleDeleteContact] error.code   :', error.code)
-      console.error('[handleDeleteContact] error.message:', error.message)
-      console.error('[handleDeleteContact] error.details:', (error as unknown as Record<string, unknown>).details)
-      console.error('[handleDeleteContact] error.hint   :', (error as unknown as Record<string, unknown>).hint)
-      setSsDeleteConfirm(false)
-      if (error.code === '23503') {
-        setSsError('No se puede eliminar: este contacto está asignado a una o más crisis.')
-      } else {
-        setSsError('No se pudo eliminar el contacto. Intentá de nuevo.')
-      }
-      return
-    }
-    closeSheet()
-    await reloadContacts(userId)
-  }, [ssContact, userId, reloadContacts, closeSheet])
-
-  // ── ADD-mode handlers ─────────────────────────────────────────────────────────
-
-  function handleAddFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!file.type.startsWith('image/')) {
-      setAddError('El archivo debe ser una imagen.')
-      e.target.value = ''
-      return
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setAddError('La foto no puede superar los 5 MB.')
-      e.target.value = ''
-      return
-    }
-    setAddError(null)
-    setAddPhotoFile(file)
-    setAddPhotoPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return null })
-    setAddPhotoPreview(URL.createObjectURL(file))
-    e.target.value = ''
-  }
-
-  const handleAddSubmit = useCallback(async () => {
-    if (!userId) return
-    setAddError(null)
-
-    // ── Validation ────────────────────────────────────────────────────────────
-    const trimmedName = addName.trim()
-    if (trimmedName.length < 2) {
-      setAddError('El nombre debe tener al menos 2 caracteres.')
-      return
-    }
-    const trimmedEmail = addEmail.trim()
-    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      setAddError('El email no parece válido.')
-      return
-    }
-
-    setAddLoading(true)
-
-    // ── Upload photo (if any) ─────────────────────────────────────────────────
-    let avatarPath: string | null = null
-    if (addPhotoFile) {
-      const ts = Date.now()
-      const safeName =
-        addPhotoFile.name
-          .toLowerCase()
-          .replace(/[^a-z0-9._-]+/g, '_')
-          .replace(/_{2,}/g, '_')
-          .replace(/^_+|_+$/g, '') || 'photo'
-      const path = `${userId}/${ts}_${safeName}`
-      const { error: uploadErr } = await supabase.storage
-        .from('contact-avatars')
-        .upload(path, addPhotoFile, { contentType: addPhotoFile.type })
-      if (uploadErr) {
-        console.error('[handleAddSubmit] upload error:', uploadErr)
-        setAddLoading(false)
-        setAddError('No se pudo subir la foto. Intentá de nuevo.')
-        return
-      }
-      avatarPath = path
-    }
-
-    // ── Calculate next sort_order ────────────────────────────────────────────
-    const { data: maxRow } = await supabase
-      .from('contacts')
-      .select('sort_order')
-      .eq('user_id', userId)
-      .order('sort_order', { ascending: false })
-      .limit(1)
-      .single()
-
-    const nextSortOrder = (maxRow?.sort_order ?? -1) + 1
-
-    // ── INSERT contact ────────────────────────────────────────────────────────
-    const { error: insertErr } = await supabase
-      .from('contacts')
-      .insert({
-        user_id:        userId,
-        name:           trimmedName,
-        initials:       initialsFrom(trimmedName),
-        phone:          addPhone.trim() || null,
-        email:          trimmedEmail || null,
-        relationship:   addRelation.trim() || null,
-        role:           addRole,
-        proximity:      addProximity,
-        avatar_url:     avatarPath,
-        is_institution: false,
-        sort_order:     nextSortOrder,
-      })
-
-    if (insertErr) {
-      console.error('[handleAddSubmit] insert.code   :', insertErr.code)
-      console.error('[handleAddSubmit] insert.message:', insertErr.message)
-      console.error('[handleAddSubmit] insert.details:', (insertErr as unknown as Record<string, unknown>).details)
-      console.error('[handleAddSubmit] insert.hint   :', (insertErr as unknown as Record<string, unknown>).hint)
-      // Roll back uploaded file so we don't leave orphans in storage.
-      if (avatarPath) {
-        await supabase.storage.from('contact-avatars').remove([avatarPath])
-      }
-      setAddLoading(false)
-      setAddError('No se pudo guardar el contacto. Intentá de nuevo.')
-      return
-    }
-
-    // ── Success: reload + close ───────────────────────────────────────────────
-    await reloadContacts(userId)
-    setAddLoading(false)
-    closeSheet()
-  }, [
-    userId, addName, addPhone, addEmail, addRelation, addRole, addProximity,
-    addPhotoFile, reloadContacts, closeSheet,
-  ])
-
-  // ── VIEW-mode photo upload ────────────────────────────────────────────────────
-
-  function handleViewPhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!file.type.startsWith('image/')) {
-      setSsError('El archivo debe ser una imagen.')
-      e.target.value = ''
-      return
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setSsError('La foto no puede superar los 5 MB.')
-      e.target.value = ''
-      return
-    }
-    setSsError(null)
-    // Upload immediately
-    handleViewPhotoUpload(file)
-    e.target.value = ''
-  }
-
-  async function handleViewPhotoUpload(file: File) {
-    if (!ssContact || !userId) return
-    setSsPhotoLoading(true)
-    setSsError(null)
-
-    // ── Step 1: upload to storage ──────────────────────────────────────────────
-    const ts = Date.now()
-    const ext = file.name.split('.').pop() ?? 'jpg'
-    const path = `${userId}/contacts/${ssContact.id}/${ts}_avatar.${ext}`
-
-    const { error: uploadErr } = await supabase.storage
-      .from('contact-avatars')
-      .upload(path, file, { upsert: true })
-
-    if (uploadErr) {
-      setSsPhotoLoading(false)
-      setSsError('No se pudo subir la foto. Intentá de nuevo.')
-      return
-    }
-
-    // ── Step 2: update contact with new avatar_url ─────────────────────────────
-    const { error: updateErr } = await supabase
-      .from('contacts')
-      .update({ avatar_url: path })
-      .eq('id', ssContact.id)
-      .eq('user_id', userId)
-
-    if (updateErr) {
-      setSsPhotoLoading(false)
-      setSsError('No se pudo guardar la foto. Intentá de nuevo.')
-      return
-    }
-
-    // ── Step 3: get signed URL for preview + reload contacts ───────────────────
-    const { data: signedData } = await supabase.storage
-      .from('contact-avatars')
-      .createSignedUrl(path, 3600)
-
-    if (signedData?.signedUrl) {
-      setSsContact((prev) => prev ? { ...prev, avatar_url: path } : null)
-      setAvatarUrls((prev) => ({ ...prev, [ssContact.id]: signedData.signedUrl }))
-    }
-
-    await reloadContacts(userId)
-    setSsPhotoLoading(false)
-  }
-
-  // Close sheet on Escape
-  useEffect(() => {
-    if (ssMode === null) return
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') closeSheet()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [ssMode, closeSheet])
 
   // ── Mobile orbit scale ───────────────────────────────────────────────────────
   // Match the maqueta: scale the 460×460 orbit down to fit narrow viewports.
@@ -926,8 +590,6 @@ export default function CirculoPage() {
   }, [])
 
   // ── Render ───────────────────────────────────────────────────────────────────
-
-  const isOpen = ssMode !== null
 
   return (
     <>
@@ -1141,49 +803,13 @@ export default function CirculoPage() {
                 </div>
               </div>
 
-              {/* Right: carousel skeletons */}
-              <div style={{
-                flex: 1, minWidth: 0,
-                display: 'flex', flexDirection: 'column', gap: 24,
-                border: '1.5px dashed rgba(10,126,140,0.12)',
-                padding: '40px 0 40px 40px',
-                borderRadius: 20, width: '100%',
-              }}>
-                {[0, 1, 2].map((s) => (
-                  <div key={s}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <SkeletonText width={120} />
-                      <SkeletonBase width={22} height={18} style={{ borderRadius: 9999 }} />
-                    </div>
-                    <div className="flex gap-3 overflow-hidden">
-                      {[0, 1].map((c) => (
-                        <SkeletonCard key={c} style={{
-                          width: 270, height: 110, flexShrink: 0, padding: 0,
-                          display: 'flex', overflow: 'hidden',
-                        }}>
-                          {/* Photo col */}
-                          <SkeletonBase width="38%" height={110} style={{
-                            borderRadius: 0, flexShrink: 0,
-                          }} />
-                          {/* Body col */}
-                          <div className="flex-1 flex flex-col justify-center gap-2 p-3">
-                            <SkeletonText width="80%" />
-                            <SkeletonText width="55%" />
-                            <SkeletonText width="65%" />
-                          </div>
-                        </SkeletonCard>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
           )}
 
-          {/* Two-column layout */}
+          {/* Single-column layout */}
           {!loading && <div
-            className="flex flex-col md:flex-row items-center md:items-center"
-            style={{ gap: 28, minHeight: 'calc(100vh - 240px)', minWidth: 0 }}
+            className="flex flex-col items-center"
+            style={{ gap: 28, minWidth: 0 }}
           >
             {/* ── Left: Orbit stage ───────────────────────────────────────── */}
             <div
@@ -1209,14 +835,17 @@ export default function CirculoPage() {
 
                 {/* Per-ring rotator */}
                 {RINGS.map((ring) => {
-                  const list = groups[ring]
+                  const isProviderRing = ring === 'profesional'
+                  const list = isProviderRing ? [] : groups[ring]
+                  const providerList = isProviderRing ? providers : []
+                  const effectiveCount = isProviderRing ? providerList.length : list.length
+
                   const rotatorClass =
                     ring === 'nucleo'      ? 'orbit-rotator orbit-r1'
                     : ring === 'ayuda'     ? 'orbit-rotator orbit-r2'
                     :                        'orbit-rotator orbit-r3'
 
-                  // Empty ring → single ambient dot
-                  if (list.length === 0) {
+                  if (effectiveCount === 0) {
                     const cfg = DOT_CFG[ring]
                     const r   = RING_RADIUS[ring]
                     return (
@@ -1238,9 +867,33 @@ export default function CirculoPage() {
                     )
                   }
 
-                  // Spread actors evenly around the ring with a per-ring offset
-                  // so the three rings don't all start at the same 12-o'clock.
                   const offset = ring === 'nucleo' ? 90 : ring === 'ayuda' ? 30 : 45
+
+                  if (isProviderRing) {
+                    return (
+                      <div key={ring} className={rotatorClass}>
+                        {providerList.map((p, i) => {
+                          const angle = (i * 360 / providerList.length) - offset
+                          const initials = p.name.trim().split(/\s+/).filter(Boolean)
+                            .slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()
+                          return (
+                            <Link
+                              key={p.id}
+                              href={`/circulo/prestador/${p.id}`}
+                              title={p.name}
+                              className="orbit-actor"
+                              style={{ ['--a' as string]: `${angle}deg` } as React.CSSProperties}
+                            >
+                              <div className="orbit-actor-inner">
+                                <span style={{ fontSize: '0.9rem' }}>{initials}</span>
+                              </div>
+                            </Link>
+                          )
+                        })}
+                      </div>
+                    )
+                  }
+
                   const n = list.length
                   return (
                     <div key={ring} className={rotatorClass}>
@@ -1252,7 +905,6 @@ export default function CirculoPage() {
                             contact={c}
                             avatarUrl={avatarUrls[c.id] ?? null}
                             angle={angle}
-                            onClick={() => openView(c)}
                           />
                         )
                       })}
@@ -1269,775 +921,339 @@ export default function CirculoPage() {
                     <span>{userName ? initialsFrom(userName) : ''}</span>
                   )}
                 </div>
+
+                {/* Add buttons inside orbit */}
+                <div style={{
+                  position: 'absolute',
+                  bottom: 16,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 20,
+                  zIndex: 10,
+                }}>
+                  <Link
+                    href="/circulo/nuevo"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '8px 18px', borderRadius: 9999,
+                      background: 'white',
+                      border: '1.5px solid rgba(10,126,140,0.25)',
+                      color: '#0A7E8C',
+                      fontWeight: 700, fontSize: '0.8125rem',
+                      whiteSpace: 'nowrap',
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <IconPersonAdd />
+                    Agregar personas
+                  </Link>
+                  <Link
+                    href="/circulo/prestador/nuevo"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '8px 18px', borderRadius: 9999,
+                      background: 'white',
+                      border: '1.5px solid rgba(10,126,140,0.25)',
+                      color: '#0A7E8C',
+                      fontWeight: 700, fontSize: '0.8125rem',
+                      whiteSpace: 'nowrap',
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                      stroke="#0A7E8C" strokeWidth="1.8" strokeLinecap="round"
+                      strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <line x1="12" y1="8" x2="12" y2="16" />
+                      <line x1="8" y1="12" x2="16" y2="12" />
+                    </svg>
+                    Agregar prestador
+                  </Link>
+                </div>
               </div>
             </div>
 
-            {/* ── Right: Carousels + add button ───────────────────────────── */}
-            <div
-              style={{
-                flex: 1, minWidth: 0, overflow: 'hidden',
-                display: 'flex', flexDirection: 'column', gap: 20,
-                border: '1.5px dashed rgba(10,126,140,0.12)',
-                padding: '40px 0 40px 40px',
-                borderRadius: 20,
-                width: '100%',
-              }}
-            >
-              {!loading && totalContacts === 0 ? (
-                /* Empty state global */
-                <div style={{
-                  border: '1.5px dashed rgba(10,126,140,0.20)',
-                  borderRadius: 20, padding: '40px 24px',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center',
-                  textAlign: 'center', marginRight: 40,
+            {/* ── Sugerencias de prestadores ─────────────────────────────── */}
+            {(suggestionsLoading || suggestions.length > 0) && (
+              <div style={{ width: '100%', maxWidth: 800, marginBottom: 8 }}>
+                <p style={{
+                  fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
+                  textTransform: 'uppercase', color: '#5a7478',
+                  marginBottom: 12, marginTop: 0,
                 }}>
-                  <div style={{
-                    width: 72, height: 72, borderRadius: '50%',
-                    background: 'rgba(10,126,140,0.08)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    marginBottom: 16,
-                  }}>
-                    <IconGroupAdd />
-                  </div>
-                  <h2 style={{
-                    fontSize: '1.25rem', fontWeight: 800, color: '#1A1A2E',
-                    letterSpacing: '-0.02em', marginBottom: 8,
-                  }}>Tu círculo está vacío</h2>
-                  <p style={{
-                    fontSize: '0.875rem', color: '#5a7478', marginBottom: 20,
-                    maxWidth: 360, lineHeight: 1.5,
-                  }}>
-                    Agregá las personas que te acompañan en esta etapa para empezar a coordinar tu red.
-                  </p>
-                  <button
-                    onClick={openAdd}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 6,
-                      padding: '10px 20px', borderRadius: 9999,
-                      background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                      color: 'white', border: 'none', cursor: 'pointer',
-                      fontWeight: 700, fontSize: '0.875rem',
-                      transition: 'filter 0.15s',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.08)' }}
-                    onMouseLeave={(e) => { e.currentTarget.style.filter = 'brightness(1)' }}
-                  >
-                    Agregar al círculo
-                  </button>
-                </div>
-              ) : (
-                <>
-                  {RINGS.map((ring) => (
-                    <RingCarousel
-                      key={ring}
-                      ring={ring}
-                      contacts={groups[ring]}
-                      avatarUrls={avatarUrls}
-                      onContactClick={openView}
-                    />
-                  ))}
+                  Sugerencias para tu círculo
+                </p>
 
-                  {/* Add button */}
-                  <div>
-                    <button
-                      onClick={openAdd}
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                        padding: '8px 16px', borderRadius: 9999,
-                        background: 'white', border: '1.5px solid rgba(10,126,140,0.25)',
-                        color: '#0A7E8C', cursor: 'pointer',
-                        fontWeight: 700, fontSize: '0.8125rem',
-                        transition: 'background 0.15s',
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.04)' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'white' }}
-                    >
-                      <IconPersonAdd />
-                      Agregar al círculo
-                    </button>
+                {suggestionsLoading ? (
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    {[0, 1, 2].map((i) => (
+                      <div key={i} style={{
+                        flex: '1 1 180px', minWidth: 160,
+                        borderRadius: '1rem', height: 110,
+                        background: 'linear-gradient(90deg, #f0f4f8 25%, #e8edf0 50%, #f0f4f8 75%)',
+                        backgroundSize: '200% 100%',
+                        animation: 'shimmer 1.5s infinite',
+                      }} />
+                    ))}
                   </div>
-                </>
-              )}
-            </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    {suggestions.map((s, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          flex: '1 1 180px', minWidth: 160,
+                          background: '#FFFFFF', borderRadius: '1rem',
+                          boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
+                          padding: '16px 18px',
+                          display: 'flex', flexDirection: 'column', gap: 6,
+                        }}
+                      >
+                        <div style={{
+                          fontSize: '0.875rem', fontWeight: 700, color: '#1A1A2E',
+                          lineHeight: 1.3,
+                        }}>{s.name}</div>
+                        <div style={{
+                          fontSize: '0.7rem', fontWeight: 700,
+                          letterSpacing: '0.06em', textTransform: 'uppercase',
+                          color: '#0A7E8C',
+                        }}>{s.prestacion}</div>
+                        <div style={{
+                          fontSize: '0.75rem', color: '#5a7478',
+                          lineHeight: 1.5, flex: 1,
+                        }}>{s.razon}</div>
+                        <Link
+                          href={`/circulo/prestador/nuevo?name=${encodeURIComponent(s.name)}&prestacion=${encodeURIComponent(s.prestacion)}`}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            marginTop: 4, padding: '6px 14px', borderRadius: 9999,
+                            background: 'rgba(10,126,140,0.08)',
+                            color: '#0A7E8C', fontWeight: 700, fontSize: '0.75rem',
+                            textDecoration: 'none', transition: 'background 0.15s',
+                          }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(10,126,140,0.15)' }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(10,126,140,0.08)' }}
+                        >
+                          + Agregar
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {/* ── fin sugerencias ──────────────────────────────────────────── */}
+
+            {/* ── Tabla de contactos ───────────────────────────────────────── */}
+            {totalContacts === 0 ? (
+              /* Empty state */
+              <div style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                textAlign: 'center', padding: '40px 24px',
+                border: '1.5px dashed rgba(10,126,140,0.20)',
+                borderRadius: 20, width: '100%',
+              }}>
+                <div style={{
+                  width: 72, height: 72, borderRadius: '50%',
+                  background: 'rgba(10,126,140,0.08)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  marginBottom: 16,
+                }}>
+                  <IconGroupAdd />
+                </div>
+                <h2 style={{
+                  fontSize: '1.25rem', fontWeight: 800, color: '#1A1A2E',
+                  letterSpacing: '-0.02em', marginBottom: 8,
+                }}>Tu círculo está vacío</h2>
+                <p style={{
+                  fontSize: '0.875rem', color: '#5a7478', marginBottom: 20,
+                  maxWidth: 360, lineHeight: 1.5,
+                }}>
+                  Agregá las personas que te acompañan en esta etapa.
+                </p>
+              </div>
+            ) : (
+              <div style={{
+                width: '100%', maxWidth: 800,
+                background: '#FFFFFF',
+                borderRadius: '1.5rem',
+                boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
+                overflow: 'hidden',
+                padding: '0 8px',
+              }}>
+                <div style={{
+                  padding: '14px 8px 10px',
+                  borderBottom: '1px solid rgba(10,126,140,0.08)',
+                }}>
+                  <span style={{
+                    fontSize: '0.7rem', fontWeight: 700,
+                    letterSpacing: '0.12em', textTransform: 'uppercase',
+                    color: '#5a7478',
+                  }}>Personas</span>
+                </div>
+                {contacts.map((c) => {
+                  const avatarUrl = avatarUrls[c.id] ?? null
+                  const initials = (c.initials ?? initialsFrom(c.name)).slice(0, 2)
+                  const roleLabel = c.role ? (ROLE_LABELS[c.role] ?? c.role) : '—'
+                  const roleBadge = ROLE_BADGE[c.role ?? ''] ?? { bg: 'rgba(10,126,140,0.07)', color: '#0A7E8C' }
+                  return (
+                    <Link
+                      key={c.id}
+                      href={`/circulo/${c.id}`}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 16,
+                        padding: '14px 8px',
+                        borderBottom: '1px solid rgba(10,126,140,0.08)',
+                        textDecoration: 'none', color: 'inherit',
+                        transition: 'background 0.15s',
+                        borderRadius: 12,
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(10,126,140,0.03)' }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                    >
+                      {/* Avatar */}
+                      <div style={{
+                        width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+                        background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        overflow: 'hidden', fontWeight: 700, color: 'white', fontSize: '0.9rem',
+                      }}>
+                        {avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={avatarUrl} alt={c.name}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : initials}
+                      </div>
+
+                      {/* Nombre */}
+                      <div style={{ flex: '0 0 160px', minWidth: 0 }}>
+                        <div style={{
+                          fontSize: '0.9375rem', fontWeight: 700,
+                          color: '#1A1A2E', whiteSpace: 'nowrap',
+                          overflow: 'hidden', textOverflow: 'ellipsis',
+                        }}>{c.name}</div>
+                        {c.relationship && (
+                          <div style={{
+                            fontSize: '0.75rem', color: '#5a7478',
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                          }}>{c.relationship}</div>
+                        )}
+                      </div>
+ 
+
+                      {/* Context summary */}
+                      <div style={{
+                        flex: 1, minWidth: 0,
+                        fontSize: '0.8125rem', color: '#5a7478',
+                        lineHeight: 1.5,
+                        overflow: 'hidden',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                      }}>
+                        {c.context_summary ?? '—'}
+                      </div>
+
+                      {/* Arrow */}
+                      <div style={{ flexShrink: 0, color: '#5a7478', display: 'flex' }}>
+                        <IconArrow />
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Tabla de providers */}
+            {providers.length > 0 && (
+              <div style={{
+                width: '100%', maxWidth: 800,
+                background: '#FFFFFF',
+                borderRadius: '1.5rem',
+                boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
+                overflow: 'hidden',
+                padding: '0 8px',
+                marginTop: 16,
+              }}>
+                <div style={{
+                  padding: '14px 8px 10px',
+                  borderBottom: '1px solid rgba(10,126,140,0.08)',
+                }}>
+                  <span style={{
+                    fontSize: '0.7rem', fontWeight: 700,
+                    letterSpacing: '0.12em', textTransform: 'uppercase',
+                    color: '#5a7478',
+                  }}>Prestadores</span>
+                </div>
+                {providers.map((p) => {
+                  const initials = p.name.trim().split(/\s+/).filter(Boolean)
+                    .slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+                  return (
+                    <Link
+                      key={p.id}
+                      href={`/circulo/prestador/${p.id}`}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 16,
+                        padding: '14px 8px',
+                        borderBottom: '1px solid rgba(10,126,140,0.08)',
+                        textDecoration: 'none', color: 'inherit',
+                        transition: 'background 0.15s',
+                        borderRadius: 12,
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(10,126,140,0.03)' }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                    >
+                      {/* Avatar */}
+                      <div style={{
+                        width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+                        background: 'linear-gradient(135deg, #5a7478, #8a9fa3)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontWeight: 700, color: 'white', fontSize: '0.9rem',
+                      }}>
+                        {initials}
+                      </div>
+
+                      {/* Nombre + prestación */}
+                      <div style={{ flex: '0 0 200px', minWidth: 0 }}>
+                        <div style={{
+                          fontSize: '0.9375rem', fontWeight: 700,
+                          color: '#1A1A2E', whiteSpace: 'nowrap',
+                          overflow: 'hidden', textOverflow: 'ellipsis',
+                        }}>{p.name}</div>
+                        {p.prestacion && (
+                          <div style={{
+                            fontSize: '0.75rem', color: '#5a7478',
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                          }}>{p.prestacion}</div>
+                        )}
+                      </div>
+
+                      {/* Contacto */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontSize: '0.8125rem', color: '#5a7478',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        }}>
+                          {p.phone ?? p.email ?? '—'}
+                        </div>
+                      </div>
+
+                      {/* Arrow */}
+                      <div style={{ flexShrink: 0, color: '#5a7478', display: 'flex' }}>
+                        <IconArrow />
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+            )}
           </div>}  {/* end !loading */}
         </main>
       </div>
 
-      {/* ════════════════════════════════════════════════════════════════════
-          SIDESHEET
-      ════════════════════════════════════════════════════════════════════ */}
-
-      {/* Overlay */}
-      <div
-        onClick={closeSheet}
-        style={{
-          position: 'fixed', inset: 0,
-          background: 'rgba(0,0,0,0.22)', zIndex: 200,
-          opacity: isOpen ? 1 : 0,
-          pointerEvents: isOpen ? 'auto' : 'none',
-          transition: 'opacity 0.3s',
-        }}
-      />
-
-      {/* Panel */}
-      <div
-        style={{
-          position: 'fixed', top: 0, right: 0,
-          width: 420, maxWidth: '100vw', height: '100vh',
-          background: '#f0f4f8', zIndex: 201,
-          transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
-          transition: 'transform 0.35s cubic-bezier(0.4,0,0.2,1)',
-          overflowY: 'auto',
-          display: 'flex', flexDirection: 'column',
-          boxShadow: '-6px 0 32px rgba(0,0,0,0.10)',
-        }}
-      >
-        {/* Top bar */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '20px 24px 0', flexShrink: 0,
-        }}>
-          <span style={{
-            fontSize: '0.75rem', fontWeight: 700,
-            letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5a7478',
-          }}>
-            {ssMode === 'view' ? 'Contacto' : ssMode === 'add' ? 'Nuevo contacto' : ''}
-          </span>
-          <button
-            onClick={closeSheet}
-            style={{
-              width: 36, height: 36, borderRadius: '50%',
-              background: 'rgba(0,0,0,0.06)', border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#5a7478', fontSize: '1rem', transition: 'background 0.15s',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.11)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)' }}
-          >
-            ✕
-          </button>
-        </div>
-
-        {/* ── VIEW MODE ── */}
-        {ssMode === 'view' && ssContact && (() => {
-          const c = ssContact
-          const initials = (c.initials ?? initialsFrom(c.name)).slice(0, 2)
-          const avatarUrl = avatarUrls[c.id] ?? null
-          const roleKey = c.role ?? ''
-          const roleBadge = ROLE_BADGE[roleKey] ?? { bg: 'rgba(10,126,140,0.07)', color: '#0A7E8C' }
-          const roleLabel = ROLE_LABELS[roleKey] ?? '—'
-          const firstName = c.name.split(' ')[0] ?? c.name
-          return (
-            <div style={{ padding: '0 24px 40px', flex: 1 }}>
-              {/* Hero */}
-              <div style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center',
-                textAlign: 'center', padding: '24px 0 20px',
-                borderBottom: '1px solid rgba(10,126,140,0.12)', marginBottom: 24,
-              }}>
-                <div
-                  onClick={() => viewPhotoInputRef.current?.click()}
-                  style={{
-                    position: 'relative',
-                    width: 80, height: 80, borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontWeight: 800, fontSize: '1.5rem', color: 'white',
-                    boxShadow: '0 8px 40px rgba(10,126,140,0.16)',
-                    marginBottom: 14, overflow: 'hidden',
-                    cursor: 'pointer', transition: 'filter 0.15s',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(0.92)' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.filter = 'brightness(1)' }}
-                >
-                  {avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={avatarUrl} alt={c.name}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} />
-                  ) : initials}
-
-                  {/* Hover overlay with camera icon */}
-                  <div
-                    style={{
-                      position: 'absolute', inset: 0, borderRadius: '50%',
-                      background: 'rgba(0,0,0,0.40)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      opacity: 0, transition: 'opacity 0.15s', pointerEvents: 'none',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.opacity = '1' }}
-                    onMouseLeave={(e) => { e.currentTarget.style.opacity = '0' }}
-                  >
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                      <circle cx="12" cy="13" r="4" />
-                    </svg>
-                  </div>
-
-                  {ssPhotoLoading && (
-                    <div
-                      style={{
-                        position: 'absolute', inset: 0, borderRadius: '50%',
-                        background: 'rgba(0,0,0,0.50)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      <span style={{ fontSize: '0.7rem', color: 'white', fontWeight: 700 }}>…</span>
-                    </div>
-                  )}
-
-                  <input
-                    ref={viewPhotoInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleViewPhotoSelect}
-                    disabled={ssPhotoLoading}
-                    style={{ display: 'none' }}
-                  />
-                </div>
-                <div style={{
-                  fontSize: '1.5rem', fontWeight: 800,
-                  letterSpacing: '-0.02em', marginBottom: 8, color: '#1A1A2E',
-                }}>{c.name}</div>
-                <span style={{
-                  display: 'inline-flex', alignItems: 'center', borderRadius: 9999,
-                  padding: '3px 11px', fontSize: '0.7rem', fontWeight: 700,
-                  letterSpacing: '0.05em', textTransform: 'uppercase',
-                  background: roleBadge.bg, color: roleBadge.color,
-                }}>{roleLabel}</span>
-              </div>
-
-              {/* Datos personales */}
-              <div style={{ marginBottom: 24 }}>
-                <p style={{
-                  fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
-                  textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
-                }}>Datos personales</p>
-                <div style={{
-                  background: '#FFFFFF', borderRadius: '1rem',
-                  boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
-                }}>
-                  <SSDataRow label="Teléfono" value={c.phone ?? '—'} />
-                  <SSDataRow label="Email" value={c.email ?? '—'} />
-                  <SSDataRow label="Relación" value={c.relationship ?? '—'} last />
-                </div>
-              </div>
-
-              {/* Inline error banner */}
-              {ssError && (
-                <div style={{
-                  marginBottom: 16, padding: '10px 16px',
-                  borderRadius: '0.75rem',
-                  background: 'rgba(186,26,26,0.07)',
-                  border: '1px solid rgba(186,26,26,0.18)',
-                  fontSize: '0.8125rem', color: '#ba1a1a', fontWeight: 600,
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                }}>
-                  <span>{ssError}</span>
-                  <button
-                    onClick={() => setSsError(null)}
-                    style={{
-                      background: 'none', border: 'none', cursor: 'pointer',
-                      color: '#ba1a1a', fontSize: '1rem', lineHeight: 1, flexShrink: 0,
-                    }}
-                  >✕</button>
-                </div>
-              )}
-
-              {/* Rol y cercanía */}
-              <div style={{ marginBottom: 24 }}>
-                <p style={{
-                  fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
-                  textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
-                }}>Rol y cercanía</p>
-                <div style={{
-                  background: '#FFFFFF', borderRadius: '1rem',
-                  boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
-                  padding: '0 20px',
-                }}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '13px 0', borderBottom: '1px solid rgba(10,126,140,0.12)', gap: 12,
-                  }}>
-                    <span style={{
-                      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                      textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-                    }}>Rol</span>
-                    <select
-                      value={roleKey}
-                      disabled={ssLoading}
-                      onChange={(e) => handleRoleChange(e.target.value)}
-                      style={ssLoading ? DISABLED_SELECT_STYLE : ENABLED_SELECT_STYLE}
-                    >
-                      <option value="acompanamiento">Acompañamiento</option>
-                      <option value="logistico">Logístico</option>
-                      <option value="prestador_servicios">Prestador de servicios</option>
-                      <option value="">—</option>
-                    </select>
-                  </div>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '13px 0', gap: 12,
-                  }}>
-                    <span style={{
-                      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                      textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-                    }}>Cercanía</span>
-                    <select
-                      value={c.proximity ?? ''}
-                      disabled={ssLoading}
-                      onChange={(e) => handleProximityChange(e.target.value)}
-                      style={ssLoading ? { ...DISABLED_SELECT_STYLE, maxWidth: 260 } : { ...ENABLED_SELECT_STYLE, maxWidth: 260 }}
-                    >
-                      <option value="nucleo">Es parte de mi núcleo</option>
-                      <option value="ayuda">Es alguien que me ayuda o puede ayudar</option>
-                      <option value="profesional">Es un proveedor de servicios o un profesional</option>
-                      <option value="">—</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Crisis en las que participa */}
-              <div style={{ marginBottom: 24 }}>
-                <p style={{
-                  fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
-                  textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
-                }}>Crisis en las que participa</p>
-                <div style={{
-                  background: '#FFFFFF', borderRadius: '1rem',
-                  boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
-                  padding: '4px 20px',
-                }}>
-                  {ssCrisesLoading ? (
-                    <div style={{ padding: '8px 0' }}>
-                      {[0, 1, 2].map((i) => (
-                        <div key={i} className="flex items-center gap-3 py-2"
-                          style={{ borderBottom: i < 2 ? '1px solid rgba(10,126,140,0.08)' : 'none' }}>
-                          <SkeletonBase width={10} height={10} style={{ borderRadius: '50%', flexShrink: 0 }} />
-                          <SkeletonText width="65%" />
-                          <SkeletonBase width={52} height={18} style={{ borderRadius: 9999, marginLeft: 'auto' }} />
-                        </div>
-                      ))}
-                    </div>
-                  ) : ssCrises.length === 0 ? (
-                    <div style={{ padding: '13px 0', fontSize: '0.875rem', color: '#5a7478', fontStyle: 'italic' }}>
-                      No participa en ninguna crisis.
-                    </div>
-                  ) : (
-                    ssCrises.map((cr, i) => {
-                      const isActive = cr.status === 'activa'
-                      return (
-                        <Link
-                          key={cr.id}
-                          href={`/crisis/${cr.id}`}
-                          onClick={closeSheet}
-                          style={{
-                            textDecoration: 'none', color: 'inherit',
-                            display: 'flex', alignItems: 'center', gap: 12,
-                            padding: '13px 0',
-                            borderBottom: i < ssCrises.length - 1 ? '1px solid rgba(10,126,140,0.12)' : 'none',
-                          }}
-                        >
-                          <div style={{
-                            width: 10, height: 10, borderRadius: '50%',
-                            background: isActive ? '#2ECDA7' : '#5a7478',
-                            flexShrink: 0,
-                          }} />
-                          <span style={{
-                            fontSize: '0.875rem', fontWeight: 600, flex: 1,
-                            color: '#1A1A2E',
-                          }}>{cr.name}</span>
-                          <span style={{
-                            display: 'inline-flex', alignItems: 'center', borderRadius: 9999,
-                            padding: '3px 11px', fontSize: '0.7rem', fontWeight: 700,
-                            letterSpacing: '0.05em', textTransform: 'uppercase',
-                            background: isActive ? 'rgba(46,205,167,0.14)' : 'rgba(90,116,120,0.10)',
-                            color:      isActive ? '#0a6e5a' : '#5a7478',
-                          }}>{isActive ? 'Activa' : 'Resuelta'}</span>
-                          <span style={{ color: '#5a7478', display: 'flex' }}>
-                            <IconArrow />
-                          </span>
-                        </Link>
-                      )
-                    })
-                  )}
-                </div>
-              </div>
-
-              {/* Acciones */}
-              <div>
-                <p style={{
-                  fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
-                  textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
-                }}>Acciones</p>
-                <div style={{
-                  background: '#FFFFFF', borderRadius: '1rem',
-                  boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
-                  padding: '13px 20px',
-                }}>
-                  {ssDeleteConfirm ? (
-                    /* Inline confirmation */
-                    <div>
-                      <p style={{
-                        fontSize: '0.875rem', color: '#1A1A2E',
-                        fontWeight: 600, marginBottom: 12,
-                      }}>
-                        ¿Eliminar a <strong>{firstName}</strong> del círculo?<br />
-                        <span style={{ fontWeight: 400, fontSize: '0.8125rem', color: '#5a7478' }}>
-                          Esta acción no se puede deshacer.
-                        </span>
-                      </p>
-                      <div style={{ display: 'flex', gap: 10 }}>
-                        <button
-                          onClick={() => { setSsDeleteConfirm(false); setSsError(null) }}
-                          disabled={ssLoading}
-                          style={{
-                            flex: 1, padding: '9px 0',
-                            background: 'rgba(10,126,140,0.07)',
-                            color: '#0A7E8C', border: 'none', borderRadius: '0.6rem',
-                            fontWeight: 700, fontSize: '0.875rem',
-                            cursor: ssLoading ? 'not-allowed' : 'pointer',
-                            opacity: ssLoading ? 0.5 : 1,
-                          }}
-                        >
-                          Cancelar
-                        </button>
-                        <button
-                          onClick={handleDeleteContact}
-                          disabled={ssLoading}
-                          style={{
-                            flex: 1, padding: '9px 0',
-                            background: ssLoading ? 'rgba(186,26,26,0.06)' : 'rgba(186,26,26,0.10)',
-                            color: '#ba1a1a', border: 'none', borderRadius: '0.6rem',
-                            fontWeight: 700, fontSize: '0.875rem',
-                            cursor: ssLoading ? 'not-allowed' : 'pointer',
-                            opacity: ssLoading ? 0.6 : 1,
-                            transition: 'background 0.15s',
-                          }}
-                        >
-                          {ssLoading ? 'Eliminando…' : 'Eliminar definitivamente'}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    /* Default row */
-                    <div style={{
-                      display: 'flex', alignItems: 'center',
-                      justifyContent: 'space-between', gap: 12,
-                    }}>
-                      <span style={{ fontSize: '0.875rem', color: '#5a7478', flex: 1 }}>
-                        Eliminar a {firstName} del círculo
-                      </span>
-                      <button
-                        onClick={() => setSsDeleteConfirm(true)}
-                        disabled={ssLoading}
-                        style={{
-                          background: 'rgba(186,26,26,0.06)', color: '#ba1a1a',
-                          border: 'none', borderRadius: '0.6rem',
-                          padding: '7px 16px', fontSize: '0.875rem', fontWeight: 700,
-                          cursor: ssLoading ? 'not-allowed' : 'pointer',
-                          opacity: ssLoading ? 0.5 : 1,
-                          transition: 'background 0.15s',
-                        }}
-                        onMouseEnter={(e) => { if (!ssLoading) e.currentTarget.style.background = 'rgba(186,26,26,0.14)' }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(186,26,26,0.06)' }}
-                      >
-                        Eliminar
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )
-        })()}
-
-        {/* ── ADD MODE ── */}
-        {ssMode === 'add' && (
-          <div style={{ padding: '0 24px 40px', flex: 1 }}>
-            {/* Hero w/ photo upload */}
-            <div style={{
-              padding: '24px 0 20px',
-              borderBottom: '1px solid rgba(10,126,140,0.12)',
-              marginBottom: 24, textAlign: 'center',
-            }}>
-              <div
-                onClick={() => addFileInputRef.current?.click()}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    addFileInputRef.current?.click()
-                  }
-                }}
-                style={{
-                  position: 'relative', width: 96, height: 96, margin: '0 auto 14px',
-                  borderRadius: '50%',
-                  background: addPhotoPreview ? 'transparent' : 'rgba(61,199,166,0.08)',
-                  border: '2px dashed rgba(61,199,166,0.45)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', overflow: 'hidden',
-                  transition: 'border-color 0.15s, background 0.15s',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(61,199,166,0.85)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(61,199,166,0.45)' }}
-              >
-                {addPhotoPreview ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={addPhotoPreview}
-                    alt="Vista previa"
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
-                  />
-                ) : (
-                  <span style={{
-                    fontWeight: 800, fontSize: '1.6rem', color: 'white',
-                    width: '100%', height: '100%', borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    pointerEvents: 'none',
-                  }}>
-                    {addName.trim() ? initialsFrom(addName) : '+'}
-                  </span>
-                )}
-                <input
-                  ref={addFileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleAddFileSelect}
-                  style={{ display: 'none' }}
-                />
-              </div>
-              <div style={{ fontSize: '0.75rem', color: '#5a7478', marginBottom: 20 }}>
-                {addPhotoFile
-                  ? <>Foto seleccionada · <button
-                      type="button"
-                      onClick={() => {
-                        setAddPhotoFile(null)
-                        setAddPhotoPreview(null)
-                        if (addFileInputRef.current) addFileInputRef.current.value = ''
-                      }}
-                      style={{
-                        background: 'none', border: 'none', padding: 0,
-                        color: '#0A7E8C', fontWeight: 700, cursor: 'pointer',
-                        textDecoration: 'underline', fontSize: 'inherit',
-                      }}
-                    >Quitar</button></>
-                  : 'Tocá para subir una foto (opcional · máx. 5 MB)'}
-              </div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#1A1A2E' }}>
-                Nueva persona
-              </div>
-            </div>
-
-            {/* Inline error banner */}
-            {addError && (
-              <div style={{
-                marginBottom: 16, padding: '10px 16px',
-                borderRadius: '0.75rem',
-                background: 'rgba(186,26,26,0.07)',
-                border: '1px solid rgba(186,26,26,0.18)',
-                fontSize: '0.8125rem', color: '#ba1a1a', fontWeight: 600,
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-              }}>
-                <span>{addError}</span>
-                <button
-                  onClick={() => setAddError(null)}
-                  style={{
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    color: '#ba1a1a', fontSize: '1rem', lineHeight: 1, flexShrink: 0,
-                  }}
-                >✕</button>
-              </div>
-            )}
-
-            {/* Datos personales */}
-            <p style={{
-              fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
-              textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
-            }}>Datos personales</p>
-            <div style={{
-              background: '#FFFFFF', borderRadius: '1rem',
-              boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
-              padding: '0 20px', marginBottom: 24,
-            }}>
-              <SSInputRow label="Nombre" value={addName} onChange={setAddName} placeholder="Nombre completo" />
-              <SSInputRow label="Teléfono" value={addPhone} onChange={setAddPhone} placeholder="+54 9 11 …" type="tel" />
-              <SSInputRow label="Email" value={addEmail} onChange={setAddEmail} placeholder="correo@ejemplo.com" type="email" />
-              <SSInputRow label="Relación" value={addRelation} onChange={setAddRelation} placeholder="Ej: Amiga, Cuñado…" last />
-            </div>
-
-            {/* Rol */}
-            <p style={{
-              fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
-              textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
-            }}>Rol en el círculo</p>
-            <div style={{
-              background: '#FFFFFF', borderRadius: '1rem',
-              boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
-              padding: '13px 20px', marginBottom: 24,
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-            }}>
-              <span style={{
-                fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-              }}>Rol</span>
-              <select
-                value={addRole}
-                onChange={(e) => setAddRole(e.target.value)}
-                style={{ ...ENABLED_SELECT_STYLE, maxWidth: 220 }}
-              >
-                <option value="acompanamiento">Acompañamiento</option>
-                <option value="logistico">Logístico</option>
-                <option value="prestador_servicios">Prestador de servicios</option>
-              </select>
-            </div>
-
-            {/* Cercanía */}
-            <p style={{
-              fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
-              textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
-            }}>Cercanía</p>
-            <div style={{
-              background: '#FFFFFF', borderRadius: '1rem',
-              boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
-              padding: '6px 24px', marginBottom: 32,
-            }}>
-              {(['nucleo', 'ayuda', 'profesional'] as Proximity[]).map((p, i, arr) => {
-                const description =
-                  p === 'nucleo'      ? 'Primer círculo — las personas más cercanas.'
-                  : p === 'ayuda'     ? 'Segundo círculo — red de apoyo cercana.'
-                  :                     'Tercer círculo — vínculo profesional o de servicios.'
-                return (
-                  <label
-                    key={p}
-                    style={{
-                      display: 'flex', alignItems: 'flex-start', gap: 12,
-                      padding: '12px 0',
-                      borderBottom: i < arr.length - 1 ? '1px solid rgba(10,126,140,0.12)' : 'none',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="add-proximity"
-                      value={p}
-                      checked={addProximity === p}
-                      onChange={() => setAddProximity(p)}
-                      style={{ marginTop: 3, accentColor: '#0A7E8C' }}
-                    />
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: '0.875rem', color: '#1A1A2E' }}>
-                        {PROXIMITY_LABELS[p]}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: '#5a7478', marginTop: 2 }}>
-                        {description}
-                      </div>
-                    </div>
-                  </label>
-                )
-              })}
-            </div>
-
-            {/* Submit */}
-            <button
-              onClick={handleAddSubmit}
-              disabled={addLoading}
-              style={{
-                width: '100%', padding: '14px', borderRadius: 9999,
-                border: 'none', cursor: addLoading ? 'not-allowed' : 'pointer',
-                fontWeight: 700, fontSize: '0.875rem',
-                background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                color: 'white', opacity: addLoading ? 0.7 : 1,
-                transition: 'filter 0.15s',
-              }}
-              onMouseEnter={(e) => { if (!addLoading) e.currentTarget.style.filter = 'brightness(1.08)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.filter = 'brightness(1)' }}
-            >
-              {addLoading ? 'Agregando…' : 'Agregar al círculo'}
-            </button>
-          </div>
-        )}
-      </div>
     </>
   )
 }
 
-// ── Sidesheet helper sub-components ───────────────────────────────────────────
-
-function SSDataRow({ label, value, last }: { label: string; value: string; last?: boolean }) {
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '13px 20px',
-      borderBottom: last ? 'none' : '1px solid rgba(10,126,140,0.12)',
-      gap: 12,
-    }}>
-      <span style={{
-        fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-        textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-      }}>{label}</span>
-      <span style={{
-        fontSize: '0.875rem', fontWeight: 600, color: '#1A1A2E', flex: 1,
-        wordBreak: 'break-word',
-      }}>{value}</span>
-    </div>
-  )
-}
-
-function SSInputRow({
-  label, value, onChange, placeholder, type, last,
-}: {
-  label:        string
-  value:        string
-  onChange:     (v: string) => void
-  placeholder?: string
-  type?:        string
-  last?:        boolean
-}) {
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center',
-      padding: '13px 0',
-      borderBottom: last ? 'none' : '1px solid rgba(10,126,140,0.12)',
-      gap: 12,
-    }}>
-      <span style={{
-        fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-        textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-      }}>{label}</span>
-      <input
-        type={type ?? 'text'}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        style={{
-          flex: 1, border: 'none', background: 'none',
-          fontSize: '0.875rem', fontWeight: 600,
-          outline: 'none', color: '#1A1A2E', fontFamily: 'inherit',
-        }}
-      />
-    </div>
-  )
-}
-
-// ── Shared select styles ──────────────────────────────────────────────────────
-
-const SELECT_BASE: React.CSSProperties = {
-  flex: 1, maxWidth: 220,
-  background: '#FAF8F5',
-  border: '1.5px solid rgba(10,126,140,0.12)',
-  borderRadius: 9999,
-  padding: '8px 36px 8px 16px',
-  fontSize: '0.875rem', color: '#1A1A2E',
-  outline: 'none', appearance: 'none',
-  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235a7478' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
-  backgroundRepeat: 'no-repeat',
-  backgroundPosition: 'right 12px center',
-  backgroundSize: 16,
-}
-
-const ENABLED_SELECT_STYLE: React.CSSProperties = { ...SELECT_BASE, cursor: 'pointer' }
-const DISABLED_SELECT_STYLE: React.CSSProperties = { ...SELECT_BASE, cursor: 'not-allowed', opacity: 0.65 }

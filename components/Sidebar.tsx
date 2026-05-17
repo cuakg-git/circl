@@ -49,6 +49,19 @@ function IconChat() {
   )
 }
 
+function IconGestion() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"
+      strokeLinejoin="round">
+      <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+      <rect x="9" y="3" width="6" height="4" rx="1" />
+      <line x1="9" y1="12" x2="15" y2="12" />
+      <line x1="9" y1="16" x2="13" y2="16" />
+    </svg>
+  )
+}
+
 function IconPerson() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -111,19 +124,21 @@ function HablarNavButton({ pathname }: { pathname: string }) {
 // ─── Nav items ────────────────────────────────────────────────────────────────
 
 const SIDEBAR_NAV = [
-  { label: 'Inicio',  href: '/dashboard', Icon: IconGrid    },
-  { label: 'Círculo', href: '/circulo',   Icon: IconGroup   },
-  { label: 'Crisis',  href: '/crisis',    Icon: IconWarning },
-  { label: 'Hablar',  href: '/chat',      Icon: IconChat    },
+  { label: 'Inicio',   href: '/dashboard', Icon: IconGrid    },
+  { label: 'Círculo',  href: '/circulo',   Icon: IconGroup   },
+  { label: 'Gestión',  href: '/gestion',   Icon: IconGestion },
+  // { label: 'Crisis',  href: '/crisis',    Icon: IconWarning },
+  { label: 'Hablar',   href: '/chat',      Icon: IconChat    },
 ]
 
-// Mobile order: Inicio · Crisis · Hablar (center, elevated) · Círculo · Perfil
+// Mobile order: Inicio · Gestión · Hablar (center, elevated) · Círculo · Perfil
 const BOTTOM_NAV = [
-  { label: 'Inicio',  href: '/dashboard', Icon: IconGrid,    center: false },
-  { label: 'Crisis',  href: '/crisis',    Icon: IconWarning, center: false },
-  { label: 'Hablar',  href: '/chat',      Icon: IconChat,    center: true  },
-  { label: 'Círculo', href: '/circulo',   Icon: IconGroup,   center: false },
-  { label: 'Perfil',  href: '/profile',   Icon: IconPerson,  center: false },
+  { label: 'Inicio',   href: '/dashboard', Icon: IconGrid,    center: false },
+  { label: 'Gestión',  href: '/gestion',   Icon: IconGestion, center: false },
+  // { label: 'Crisis',  href: '/crisis',    Icon: IconWarning, center: false },
+  { label: 'Hablar',   href: '/chat',      Icon: IconChat,    center: true  },
+  { label: 'Círculo',  href: '/circulo',   Icon: IconGroup,   center: false },
+  { label: 'Perfil',   href: '/profile',   Icon: IconPerson,  center: false },
 ]
 
 // ─── User info ────────────────────────────────────────────────────────────────

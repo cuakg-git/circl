@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, use, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
@@ -65,12 +65,6 @@ type HistoryEvent = {
 type SSMode = 'task-view' | 'task-add' | 'member-view' | 'member-add' | 'doc-view' | 'doc-add' | null
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-function daysSince(iso: string | null) {
-  if (!iso) return 0
-  const ms = Date.now() - new Date(iso).getTime()
-  return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)))
-}
 
 function fmtLongDate(iso: string | null) {
   if (!iso) return '—'
@@ -151,14 +145,6 @@ const DOC_TYPE_LABELS: Record<string, string> = {
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
 
-function IconChevronLeft() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m15 18-6-6 6-6" />
-    </svg>
-  )
-}
-
 function IconDoc() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white"
@@ -203,7 +189,6 @@ function IconUpload() {
     </svg>
   )
 }
-
 
 function IconClose({ color = '#5a7478' }: { color?: string }) {
   return (
@@ -282,12 +267,8 @@ const SS_SELECT_STYLE: React.CSSProperties = {
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
-export default function CrisisDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
-  const { id } = use(params)
+export default function GestionPage() {
+  const [id, setId] = useState<string | null>(null)
   const router  = useRouter()
 
   // ── Page data state ──────────────────────────────────────────────────────────
@@ -343,27 +324,42 @@ export default function CrisisDetailPage({
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError || !user) { router.replace('/login'); return }
 
+      const { data: activeCrisis, error: activeCrisisError } = await supabase
+        .from('crises')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('status', 'activa')
+        .maybeSingle()
+
+      if (activeCrisisError || !activeCrisis) {
+        setLoading(false)
+        return
+      }
+
+      setId(activeCrisis.id)
+      const currentId = activeCrisis.id
+
       const [crisisRes, tasksRes, contactsRes, docsRes, historyRes] = await Promise.all([
         supabase
           .from('crises')
           .select('id, name, status, category, started_at, ai_summary')
-          .eq('id', id).eq('user_id', user.id).maybeSingle(),
+          .eq('id', currentId).eq('user_id', user.id).maybeSingle(),
         supabase
           .from('tasks')
           .select('id, title, status, due_date, assigned_contact_id, assigned_to_user')
-          .eq('crisis_id', id).order('due_date', { ascending: true, nullsFirst: false }),
+          .eq('crisis_id', currentId).order('due_date', { ascending: true, nullsFirst: false }),
         supabase
           .from('crisis_contacts')
           .select('contact:contacts(id, name, role, proximity, initials, phone, email, relationship)')
-          .eq('crisis_id', id),
+          .eq('crisis_id', currentId),
         supabase
           .from('documents')
           .select('id, name, type, created_at, storage_path, original_filename, file_size_bytes, file_mime_type, uploaded_by_user, uploaded_by_contact_id')
-          .eq('crisis_id', id).order('created_at', { ascending: false }),
+          .eq('crisis_id', currentId).order('created_at', { ascending: false }),
         supabase
           .from('crisis_history')
           .select('id, title, description, occurred_at')
-          .eq('crisis_id', id).order('occurred_at', { ascending: false }),
+          .eq('crisis_id', currentId).order('occurred_at', { ascending: false }),
       ])
 
       if (crisisRes.error) console.error('Error crisis:', crisisRes.error)
@@ -374,8 +370,6 @@ export default function CrisisDetailPage({
       setTasks((tasksRes.data ?? []) as Task[])
 
       if (contactsRes.error) console.error('Error contacts:', contactsRes.error)
-      // crisis_contacts may have duplicate rows for the same contact_id;
-      // dedupe by contact id before storing
       const ccRows = (contactsRes.data ?? []) as { contact: Contact | Contact[] | null }[]
       const dedup  = new Map<string, Contact>()
       for (const r of ccRows) {
@@ -395,7 +389,7 @@ export default function CrisisDetailPage({
     load()
   }, [id, router])
 
-  // ── Task reload (no full page refresh) ───────────────────────────────────────
+  // ── Task reload ───────────────────────────────────────────────────────────────
 
   const reloadTasks = useCallback(async () => {
     const { data } = await supabase
@@ -439,7 +433,6 @@ export default function CrisisDetailPage({
     if (data) setDocs(data as Doc[])
   }, [id])
 
-  // Best-effort write to crisis_history; never blocks the UI on failure
   const logHistory = useCallback(async (title: string, description: string | null, eventType: string) => {
     const { error } = await supabase.from('crisis_history').insert({
       crisis_id:   id,
@@ -539,7 +532,6 @@ export default function CrisisDetailPage({
     if (error) { setSsError(error.message); return }
     await reloadTasks()
 
-    // Log only when assigning to someone (not when clearing the assignee)
     let assigneeName: string | null = null
     if (val === 'yo') {
       assigneeName = 'Yo'
@@ -713,7 +705,6 @@ export default function CrisisDetailPage({
 
   async function handleDocOpen() {
     if (!ssDoc) return
-    // Reuse the thumb URL already fetched on open (avoids a second round-trip)
     if (docThumbUrl) {
       setDocModalUrl(docThumbUrl)
       setDocModalOpen(true)
@@ -830,7 +821,7 @@ export default function CrisisDetailPage({
               #f0f4f8;
           }
         }
-        .crisis-detail-bg { animation: heroBgDrift 30s ease-in-out infinite; }
+        .gestion-bg { animation: heroBgDrift 30s ease-in-out infinite; }
       `}</style>
 
       {/* ══════════════════════════════════════════════════════════════════════
@@ -879,8 +870,8 @@ export default function CrisisDetailPage({
             fontSize: '0.7rem', fontWeight: 700,
             letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5a7478',
           }}>
-            {ssMode === 'task-view'   ? 'Tarea'
-             : ssMode === 'task-add'  ? 'Nueva tarea'
+            {ssMode === 'task-view'     ? 'Tarea'
+             : ssMode === 'task-add'    ? 'Nueva tarea'
              : ssMode === 'member-view' ? 'Miembro del círculo'
              : ssMode === 'member-add'  ? 'Agregar al círculo'
              : ssMode === 'doc-view'    ? 'Documento'
@@ -952,7 +943,6 @@ export default function CrisisDetailPage({
                   textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
                 }}>Detalle</p>
                 <Card style={{ padding: 0, borderRadius: '1rem' }}>
-                  {/* Asignado a */}
                   <div style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '13px 20px', borderBottom: '1px solid rgba(10,126,140,0.12)', gap: 12,
@@ -973,7 +963,6 @@ export default function CrisisDetailPage({
                       ))}
                     </select>
                   </div>
-                  {/* Fecha */}
                   <div style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '13px 20px', gap: 12,
@@ -989,7 +978,6 @@ export default function CrisisDetailPage({
                 </Card>
               </div>
 
-              {/* Error inline */}
               {ssError && (
                 <p style={{
                   fontSize: '0.7rem', color: '#ba1a1a', fontWeight: 600,
@@ -1000,7 +988,6 @@ export default function CrisisDetailPage({
                 </p>
               )}
 
-              {/* Toggle status */}
               <div style={{ marginBottom: 24 }}>
                 <button
                   onClick={handleToggleStatus}
@@ -1016,12 +1003,10 @@ export default function CrisisDetailPage({
                     opacity: ssLoading ? 0.6 : 1,
                   }}
                 >
-                  {ssLoading ? 'Procesando…'
-                    : isDone ? 'Reabrir tarea' : 'Marcar como completada'}
+                  {ssLoading ? 'Procesando…' : isDone ? 'Reabrir tarea' : 'Marcar como completada'}
                 </button>
               </div>
 
-              {/* Acciones / Eliminar */}
               <div>
                 <p style={{
                   fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
@@ -1058,7 +1043,6 @@ export default function CrisisDetailPage({
         {/* ── TASK ADD ── */}
         {ssMode === 'task-add' && (
           <div style={{ padding: '0 24px 40px', flex: 1 }}>
-            {/* Hero */}
             <div style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center',
               textAlign: 'center', padding: '24px 0 20px',
@@ -1077,10 +1061,7 @@ export default function CrisisDetailPage({
                   <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
                 </svg>
               </div>
-              <div style={{
-                fontSize: '1.5rem', fontWeight: 800,
-                letterSpacing: '-0.02em', color: '#1A1A2E',
-              }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#1A1A2E' }}>
                 Nueva tarea
               </div>
             </div>
@@ -1091,7 +1072,6 @@ export default function CrisisDetailPage({
                 textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
               }}>Datos</p>
               <Card style={{ padding: 0, borderRadius: '1rem', marginBottom: 24 }}>
-                {/* Tarea */}
                 <div style={{
                   display: 'flex', alignItems: 'center',
                   padding: '13px 20px', borderBottom: '1px solid rgba(10,126,140,0.12)', gap: 12,
@@ -1101,15 +1081,11 @@ export default function CrisisDetailPage({
                     textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
                   }}>Tarea</span>
                   <input
-                    type="text"
-                    required
-                    placeholder="Describí la tarea…"
-                    value={addTitle}
-                    onChange={(e) => setAddTitle(e.target.value)}
+                    type="text" required placeholder="Describí la tarea…"
+                    value={addTitle} onChange={(e) => setAddTitle(e.target.value)}
                     style={{ ...SS_INPUT_STYLE }}
                   />
                 </div>
-                {/* Fecha */}
                 <div style={{
                   display: 'flex', alignItems: 'center',
                   padding: '13px 20px', borderBottom: '1px solid rgba(10,126,140,0.12)', gap: 12,
@@ -1119,17 +1095,10 @@ export default function CrisisDetailPage({
                     textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
                   }}>Fecha</span>
                   <input
-                    type="date"
-                    value={addDate}
-                    onChange={(e) => setAddDate(e.target.value)}
-                    style={{
-                      ...SS_INPUT_STYLE,
-                      fontWeight: 400,
-                      colorScheme: 'light',
-                    }}
+                    type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)}
+                    style={{ ...SS_INPUT_STYLE, fontWeight: 400, colorScheme: 'light' }}
                   />
                 </div>
-                {/* Horario */}
                 <div style={{
                   display: 'flex', alignItems: 'center',
                   padding: '13px 20px', borderBottom: '1px solid rgba(10,126,140,0.12)', gap: 12,
@@ -1141,9 +1110,7 @@ export default function CrisisDetailPage({
                   }}>Horario</span>
                   <div style={{ flex: 1, position: 'relative' }}>
                     <input
-                      type="text"
-                      placeholder="HH:MM"
-                      value={addTime}
+                      type="text" placeholder="HH:MM" value={addTime}
                       onChange={(e) => { setAddTime(e.target.value); setTimeOpen(true) }}
                       onFocus={() => setTimeOpen(true)}
                       onBlur={() => setTimeout(() => setTimeOpen(false), 150)}
@@ -1151,49 +1118,34 @@ export default function CrisisDetailPage({
                     />
                     {timeOpen && (
                       <div style={{
-                        position:    'absolute',
-                        top:         'calc(100% + 6px)',
-                        left:        -20,
-                        right:       -20,
-                        maxHeight:   220,
-                        overflowY:   'auto',
-                        background:  '#FFFFFF',
-                        borderRadius: '1rem',
-                        boxShadow:   '0 8px 32px rgba(10,126,140,0.18)',
-                        border:      '1px solid rgba(10,126,140,0.10)',
-                        zIndex:      400,
+                        position: 'absolute', top: 'calc(100% + 6px)', left: -20, right: -20,
+                        maxHeight: 220, overflowY: 'auto', background: '#FFFFFF',
+                        borderRadius: '1rem', boxShadow: '0 8px 32px rgba(10,126,140,0.18)',
+                        border: '1px solid rgba(10,126,140,0.10)', zIndex: 400,
                       }}>
-                        {TIME_OPTIONS
-                          .filter(t => !addTime || t.startsWith(addTime))
-                          .map((t, i, arr) => (
-                            <div
-                              key={t}
-                              onMouseDown={() => { setAddTime(t); setTimeOpen(false) }}
-                              style={{
-                                padding:      '10px 20px',
-                                fontSize:     '0.875rem',
-                                fontWeight:   addTime === t ? 700 : 400,
-                                color:        addTime === t ? '#0A7E8C' : '#1A1A2E',
-                                background:   addTime === t ? 'rgba(10,126,140,0.07)' : 'transparent',
-                                cursor:       'pointer',
-                                borderBottom: i < arr.length - 1 ? '1px solid rgba(10,126,140,0.06)' : 'none',
-                                transition:   'background 0.1s',
-                              }}
-                              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(61,199,166,0.10)' }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = addTime === t
-                                  ? 'rgba(10,126,140,0.07)' : 'transparent'
-                              }}
-                            >
-                              {t}
-                            </div>
-                          ))
-                        }
+                        {TIME_OPTIONS.filter(t => !addTime || t.startsWith(addTime)).map((t, i, arr) => (
+                          <div
+                            key={t}
+                            onMouseDown={() => { setAddTime(t); setTimeOpen(false) }}
+                            style={{
+                              padding: '10px 20px', fontSize: '0.875rem',
+                              fontWeight: addTime === t ? 700 : 400,
+                              color: addTime === t ? '#0A7E8C' : '#1A1A2E',
+                              background: addTime === t ? 'rgba(10,126,140,0.07)' : 'transparent',
+                              cursor: 'pointer',
+                              borderBottom: i < arr.length - 1 ? '1px solid rgba(10,126,140,0.06)' : 'none',
+                              transition: 'background 0.1s',
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(61,199,166,0.10)' }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = addTime === t ? 'rgba(10,126,140,0.07)' : 'transparent'
+                            }}
+                          >
+                            {t}
+                          </div>
+                        ))}
                         {TIME_OPTIONS.filter(t => !addTime || t.startsWith(addTime)).length === 0 && (
-                          <div style={{
-                            padding: '14px 20px', fontSize: '0.875rem',
-                            color: '#5a7478', textAlign: 'center',
-                          }}>
+                          <div style={{ padding: '14px 20px', fontSize: '0.875rem', color: '#5a7478', textAlign: 'center' }}>
                             Sin resultados
                           </div>
                         )}
@@ -1201,21 +1153,12 @@ export default function CrisisDetailPage({
                     )}
                   </div>
                 </div>
-
-                {/* Asignado */}
-                <div style={{
-                  display: 'flex', alignItems: 'center',
-                  padding: '13px 20px', gap: 12,
-                }}>
+                <div style={{ display: 'flex', alignItems: 'center', padding: '13px 20px', gap: 12 }}>
                   <span style={{
                     fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
                     textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
                   }}>Asignado</span>
-                  <select
-                    value={addAssignee}
-                    onChange={(e) => setAddAssignee(e.target.value)}
-                    style={SS_SELECT_STYLE}
-                  >
+                  <select value={addAssignee} onChange={(e) => setAddAssignee(e.target.value)} style={SS_SELECT_STYLE}>
                     <option value="">— Sin asignar —</option>
                     <option value="yo">Yo</option>
                     {contacts.map((c) => (
@@ -1225,7 +1168,6 @@ export default function CrisisDetailPage({
                 </div>
               </Card>
 
-              {/* Error inline */}
               {ssError && (
                 <p style={{
                   fontSize: '0.7rem', color: '#ba1a1a', fontWeight: 600,
@@ -1237,8 +1179,7 @@ export default function CrisisDetailPage({
               )}
 
               <button
-                type="submit"
-                disabled={ssLoading || !addTitle.trim()}
+                type="submit" disabled={ssLoading || !addTitle.trim()}
                 style={{
                   width: '100%', padding: '14px', borderRadius: 9999,
                   border: 'none', cursor: ssLoading ? 'not-allowed' : 'pointer',
@@ -1261,7 +1202,6 @@ export default function CrisisDetailPage({
           const badge = ROLE_BADGES[ssMember.role ?? ''] ?? null
           return (
             <div style={{ padding: '0 24px 40px', flex: 1 }}>
-              {/* Hero */}
               <div style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 textAlign: 'center', padding: '24px 0 20px',
@@ -1272,15 +1212,11 @@ export default function CrisisDetailPage({
                   background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontWeight: 800, fontSize: '1.5rem', color: 'white',
-                  boxShadow: '0 8px 40px rgba(10,126,140,0.16)',
-                  marginBottom: 14,
+                  boxShadow: '0 8px 40px rgba(10,126,140,0.16)', marginBottom: 14,
                 }}>
                   {initials}
                 </div>
-                <div style={{
-                  fontSize: '1.5rem', fontWeight: 800,
-                  letterSpacing: '-0.02em', marginBottom: 8, color: '#1A1A2E',
-                }}>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 8, color: '#1A1A2E' }}>
                   {ssMember.name}
                 </div>
                 {badge && (
@@ -1295,7 +1231,6 @@ export default function CrisisDetailPage({
                 )}
               </div>
 
-              {/* Datos de contacto */}
               <div style={{ marginBottom: 24 }}>
                 <p style={{
                   fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
@@ -1341,7 +1276,6 @@ export default function CrisisDetailPage({
                 </Card>
               </div>
 
-              {/* Rol y cercanía */}
               <div style={{ marginBottom: 24 }}>
                 <p style={{
                   fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
@@ -1357,8 +1291,7 @@ export default function CrisisDetailPage({
                       textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
                     }}>Rol</span>
                     <select
-                      value={mvRole}
-                      onChange={(e) => handleRoleChange(e.target.value)}
+                      value={mvRole} onChange={(e) => handleRoleChange(e.target.value)}
                       style={{ ...SS_SELECT_STYLE, maxWidth: 240 }}
                     >
                       <option value="">— Sin rol —</option>
@@ -1376,8 +1309,7 @@ export default function CrisisDetailPage({
                       textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
                     }}>Cercanía</span>
                     <select
-                      value={mvProximity}
-                      onChange={(e) => handleProximityChange(e.target.value)}
+                      value={mvProximity} onChange={(e) => handleProximityChange(e.target.value)}
                       style={{ ...SS_SELECT_STYLE, maxWidth: 280 }}
                     >
                       <option value="">— Sin definir —</option>
@@ -1389,7 +1321,6 @@ export default function CrisisDetailPage({
                 </Card>
               </div>
 
-              {/* Error inline */}
               {ssError && (
                 <p style={{
                   fontSize: '0.7rem', color: '#ba1a1a', fontWeight: 600,
@@ -1400,7 +1331,6 @@ export default function CrisisDetailPage({
                 </p>
               )}
 
-              {/* Acciones */}
               <div>
                 <p style={{
                   fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
@@ -1415,8 +1345,7 @@ export default function CrisisDetailPage({
                       Quitar a {ssMember.name.split(' ')[0]} de esta crisis
                     </span>
                     <button
-                      onClick={handleRemoveMember}
-                      disabled={ssLoading}
+                      onClick={handleRemoveMember} disabled={ssLoading}
                       style={{
                         background: 'rgba(186,26,26,0.06)', color: '#ba1a1a',
                         border: 'none', borderRadius: '0.6rem',
@@ -1437,7 +1366,6 @@ export default function CrisisDetailPage({
         {/* ── MEMBER ADD ── */}
         {ssMode === 'member-add' && (
           <div style={{ padding: '0 24px 40px', flex: 1 }}>
-            {/* Hero */}
             <div style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center',
               textAlign: 'center', padding: '24px 0 20px',
@@ -1452,15 +1380,11 @@ export default function CrisisDetailPage({
               }}>
                 <IconAddPerson />
               </div>
-              <div style={{
-                fontSize: '1.5rem', fontWeight: 800,
-                letterSpacing: '-0.02em', color: '#1A1A2E',
-              }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#1A1A2E' }}>
                 Agregar al círculo
               </div>
             </div>
 
-            {/* Error inline */}
             {ssError && (
               <p style={{
                 fontSize: '0.7rem', color: '#ba1a1a', fontWeight: 600,
@@ -1471,14 +1395,12 @@ export default function CrisisDetailPage({
               </p>
             )}
 
-            {/* Loading state */}
             {availableLoading && (
               <p className="text-center" style={{ fontSize: '0.875rem', color: '#5a7478', padding: '24px 0' }}>
                 Cargando contactos…
               </p>
             )}
 
-            {/* Empty state */}
             {!availableLoading && availableContacts.length === 0 && (
               <Card style={{ padding: 24, textAlign: 'center' }}>
                 <p style={{ fontSize: '0.875rem', color: '#5a7478', lineHeight: 1.6 }}>
@@ -1488,7 +1410,6 @@ export default function CrisisDetailPage({
               </Card>
             )}
 
-            {/* Available contacts list */}
             {!availableLoading && availableContacts.length > 0 && (
               <>
                 <p style={{
@@ -1501,18 +1422,14 @@ export default function CrisisDetailPage({
                     const badge = ROLE_BADGES[c.role ?? ''] ?? null
                     return (
                       <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => handleAddMember(c)}
-                        disabled={ssLoading}
-                        className="flex items-center w-full text-left"
+                        key={c.id} type="button" onClick={() => handleAddMember(c)}
+                        disabled={ssLoading} className="flex items-center w-full text-left"
                         style={{
                           gap: 12, padding: '14px 20px',
                           borderBottom: i < availableContacts.length - 1 ? '1px solid rgba(10,126,140,0.12)' : 'none',
                           background: 'transparent', border: 'none',
                           cursor: ssLoading ? 'not-allowed' : 'pointer',
-                          opacity: ssLoading ? 0.6 : 1,
-                          transition: 'background 0.15s',
+                          opacity: ssLoading ? 0.6 : 1, transition: 'background 0.15s',
                         }}
                         onMouseEnter={(e) => { if (!ssLoading) e.currentTarget.style.background = 'rgba(61,199,166,0.07)' }}
                         onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
@@ -1561,7 +1478,6 @@ export default function CrisisDetailPage({
               : '—'
           return (
             <div style={{ padding: '0 24px 40px', flex: 1 }}>
-              {/* Hero */}
               <div style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 textAlign: 'center', padding: '24px 0 20px',
@@ -1571,15 +1487,11 @@ export default function CrisisDetailPage({
                   width: 80, height: 80, borderRadius: '50%',
                   background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 8px 40px rgba(10,126,140,0.16)',
-                  marginBottom: 14,
+                  boxShadow: '0 8px 40px rgba(10,126,140,0.16)', marginBottom: 14,
                 }}>
                   <IconDoc />
                 </div>
-                <div style={{
-                  fontSize: '1.5rem', fontWeight: 800,
-                  letterSpacing: '-0.02em', marginBottom: 8, color: '#1A1A2E',
-                }}>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 8, color: '#1A1A2E' }}>
                   {ssDoc.name}
                 </div>
                 <span style={{ fontSize: '0.7rem', color: '#5a7478' }}>
@@ -1587,7 +1499,6 @@ export default function CrisisDetailPage({
                 </span>
               </div>
 
-              {/* Información */}
               <div style={{ marginBottom: 24 }}>
                 <p style={{
                   fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
@@ -1633,7 +1544,6 @@ export default function CrisisDetailPage({
                 </Card>
               </div>
 
-              {/* Error */}
               {ssError && (
                 <p style={{
                   fontSize: '0.7rem', color: '#ba1a1a', fontWeight: 600,
@@ -1644,11 +1554,9 @@ export default function CrisisDetailPage({
                 </p>
               )}
 
-              {/* Descargar */}
               <div style={{ marginBottom: 12 }}>
                 <button
-                  onClick={() => handleDocDownload()}
-                  disabled={ssLoading}
+                  onClick={() => handleDocDownload()} disabled={ssLoading}
                   style={{
                     width: '100%', padding: '14px', borderRadius: 9999,
                     border: 'none', cursor: ssLoading ? 'not-allowed' : 'pointer',
@@ -1663,7 +1571,6 @@ export default function CrisisDetailPage({
                 </button>
               </div>
 
-              {/* Preview thumbnail or Ver button */}
               {(() => {
                 const mime = ssDoc.file_mime_type ?? ''
                 const isPreviewable = mime.startsWith('image/') || mime === 'application/pdf'
@@ -1671,8 +1578,7 @@ export default function CrisisDetailPage({
                   return (
                     <div style={{ marginBottom: 24 }}>
                       <button
-                        onClick={handleDocOpen}
-                        disabled={docModalLoading || ssLoading}
+                        onClick={handleDocOpen} disabled={docModalLoading || ssLoading}
                         style={{
                           width: '100%', padding: '13px', borderRadius: 9999,
                           border: '1.5px solid rgba(10,126,140,0.25)',
@@ -1690,11 +1596,8 @@ export default function CrisisDetailPage({
                 }
                 return (
                   <div style={{ marginBottom: 24 }}>
-                    {/* Clickable thumbnail */}
                     <div
-                      onClick={handleDocOpen}
-                      role="button"
-                      tabIndex={0}
+                      onClick={handleDocOpen} role="button" tabIndex={0}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleDocOpen() }}
                       style={{
                         position: 'relative', borderRadius: '0.875rem', overflow: 'hidden',
@@ -1714,49 +1617,29 @@ export default function CrisisDetailPage({
                       {docThumbUrl ? (
                         mime.startsWith('image/') ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={docThumbUrl}
-                            alt={ssDoc.name}
-                            style={{
-                              width: '100%', height: '100%',
-                              objectFit: 'cover', display: 'block',
-                              pointerEvents: 'none',
-                            }}
+                          <img src={docThumbUrl} alt={ssDoc.name}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }}
                           />
                         ) : (
-                          /* PDF: render first page via iframe, block all iframe interactions */
                           <>
                             <iframe
                               src={`${docThumbUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
                               title="preview"
-                              style={{
-                                width: '100%', height: '100%',
-                                border: 'none', display: 'block',
-                                pointerEvents: 'none',
-                              }}
+                              style={{ width: '100%', height: '100%', border: 'none', display: 'block', pointerEvents: 'none' }}
                             />
-                            {/* Transparent click-through overlay so the div captures the click */}
                             <div style={{ position: 'absolute', inset: 0 }} />
                           </>
                         )
                       ) : (
-                        /* Still loading thumb */
-                        <div style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          height: '100%', color: '#5a7478', fontSize: '0.8rem',
-                        }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#5a7478', fontSize: '0.8rem' }}>
                           Cargando vista previa…
                         </div>
                       )}
-
-                      {/* "Ver" badge overlay */}
                       <div style={{
                         position: 'absolute', bottom: 10, right: 10,
-                        background: 'rgba(10,126,140,0.82)',
-                        backdropFilter: 'blur(6px)',
+                        background: 'rgba(10,126,140,0.82)', backdropFilter: 'blur(6px)',
                         borderRadius: 9999, padding: '4px 12px',
-                        fontSize: '0.75rem', fontWeight: 700, color: 'white',
-                        pointerEvents: 'none',
+                        fontSize: '0.75rem', fontWeight: 700, color: 'white', pointerEvents: 'none',
                       }}>
                         Ver
                       </div>
@@ -1765,7 +1648,6 @@ export default function CrisisDetailPage({
                 )
               })()}
 
-              {/* Eliminar */}
               <div>
                 <p style={{
                   fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
@@ -1780,8 +1662,7 @@ export default function CrisisDetailPage({
                       Eliminar este documento
                     </span>
                     <button
-                      onClick={handleDocDelete}
-                      disabled={ssLoading}
+                      onClick={handleDocDelete} disabled={ssLoading}
                       style={{
                         background: 'rgba(186,26,26,0.06)', color: '#ba1a1a',
                         border: 'none', borderRadius: '0.6rem',
@@ -1802,7 +1683,6 @@ export default function CrisisDetailPage({
         {/* ── DOC ADD ── */}
         {ssMode === 'doc-add' && (
           <div style={{ padding: '0 24px 40px', flex: 1 }}>
-            {/* Hero */}
             <div style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center',
               textAlign: 'center', padding: '24px 0 20px',
@@ -1817,10 +1697,7 @@ export default function CrisisDetailPage({
               }}>
                 <IconUpload />
               </div>
-              <div style={{
-                fontSize: '1.5rem', fontWeight: 800,
-                letterSpacing: '-0.02em', color: '#1A1A2E',
-              }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#1A1A2E' }}>
                 Cargar documento
               </div>
             </div>
@@ -1840,27 +1717,17 @@ export default function CrisisDetailPage({
                     textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
                   }}>Nombre</span>
                   <input
-                    type="text"
-                    required
-                    placeholder="Nombre del documento…"
-                    value={docName}
-                    onChange={(e) => setDocName(e.target.value)}
+                    type="text" required placeholder="Nombre del documento…"
+                    value={docName} onChange={(e) => setDocName(e.target.value)}
                     style={{ ...SS_INPUT_STYLE }}
                   />
                 </div>
-                <div style={{
-                  display: 'flex', alignItems: 'center',
-                  padding: '13px 20px', gap: 12,
-                }}>
+                <div style={{ display: 'flex', alignItems: 'center', padding: '13px 20px', gap: 12 }}>
                   <span style={{
                     fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
                     textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
                   }}>Tipo</span>
-                  <select
-                    value={docType}
-                    onChange={(e) => setDocType(e.target.value)}
-                    style={SS_SELECT_STYLE}
-                  >
+                  <select value={docType} onChange={(e) => setDocType(e.target.value)} style={SS_SELECT_STYLE}>
                     {Object.entries(DOC_TYPE_LABELS).map(([val, label]) => (
                       <option key={val} value={val}>{label}</option>
                     ))}
@@ -1868,7 +1735,6 @@ export default function CrisisDetailPage({
                 </div>
               </Card>
 
-              {/* Drop zone */}
               <div
                 onDragEnter={(e) => { e.preventDefault(); dragCounterRef.current++; setIsDraggingDoc(true) }}
                 onDragLeave={() => { dragCounterRef.current--; if (dragCounterRef.current === 0) setIsDraggingDoc(false) }}
@@ -1891,14 +1757,9 @@ export default function CrisisDetailPage({
                 }}
               >
                 <input
-                  ref={fileInputRef}
-                  type="file"
-                  style={{ display: 'none' }}
+                  ref={fileInputRef} type="file" style={{ display: 'none' }}
                   accept=".pdf,image/*,.doc,.docx"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (file) handleFileSelect(file)
-                  }}
+                  onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileSelect(file) }}
                 />
                 <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center', color: '#0A7E8C' }}>
                   <IconUpload />
@@ -1914,7 +1775,6 @@ export default function CrisisDetailPage({
                 )}
               </div>
 
-              {/* Error */}
               {ssError && (
                 <p style={{
                   fontSize: '0.7rem', color: '#ba1a1a', fontWeight: 600,
@@ -1926,8 +1786,7 @@ export default function CrisisDetailPage({
               )}
 
               <button
-                type="submit"
-                disabled={ssLoading || !docName.trim() || !docFile}
+                type="submit" disabled={ssLoading || !docName.trim() || !docFile}
                 style={{
                   width: '100%', padding: '14px', borderRadius: 9999,
                   border: 'none', cursor: (ssLoading || !docName.trim() || !docFile) ? 'not-allowed' : 'pointer',
@@ -1949,287 +1808,198 @@ export default function CrisisDetailPage({
           MAIN PAGE
       ══════════════════════════════════════════════════════════════════════ */}
 
-      <div className="crisis-detail-bg flex min-h-screen">
+      <div className="gestion-bg flex min-h-screen">
         <Sidebar />
 
         <main className="flex-1 ml-0 md:ml-[240px] min-h-screen px-5 py-8 pb-28 md:px-10 md:py-10 md:pb-10">
           <SkeletonStyles />
 
-          {/* Back link */}
-          <Link
-            href="/crisis"
-            className="inline-flex items-center gap-1.5 font-semibold text-[#5a7478] no-underline hover:text-[#0A7E8C] transition-colors"
-            style={{ fontSize: '0.875rem', marginBottom: 24 }}
-          >
-            <IconChevronLeft /> Volver a Crisis
-          </Link>
-
-          {/* Header */}
-          {crisis && (
-            <div className="flex items-start justify-between flex-wrap"
-              style={{ gap: 12, marginBottom: 40 }}>
-              <div>
-                <h1 className="font-extrabold text-[#1A1A2E]"
-                  style={{ fontSize: '2rem', letterSpacing: '-0.03em', marginBottom: 8, lineHeight: 1.15 }}>
-                  {crisis.name}
-                </h1>
-                <div className="flex items-center flex-wrap" style={{ gap: 10 }}>
-                  {crisis.status === 'activa' ? (
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', borderRadius: 9999,
-                      padding: '3px 11px', fontSize: '0.7rem', fontWeight: 700,
-                      letterSpacing: '0.05em', textTransform: 'uppercase',
-                      background: 'rgba(46,205,167,0.14)', color: '#0a6e5a',
-                    }}>Activa</span>
-                  ) : (
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', borderRadius: 9999,
-                      padding: '3px 11px', fontSize: '0.7rem', fontWeight: 700,
-                      letterSpacing: '0.05em', textTransform: 'uppercase',
-                      background: 'rgba(90,116,120,0.10)', color: '#5a7478',
-                    }}>Resuelta</span>
-                  )}
-                  <span className="text-[#5a7478]" style={{ fontSize: '0.7rem' }}>
-                    Desde el {fmtLongDate(crisis.started_at)} · {daysSince(crisis.started_at)} días
-                  </span>
-                </div>
+          {/* Empty state — no active crisis */}
+          {!loading && !crisis && (
+            <div className="flex justify-center" style={{ marginTop: 80 }}>
+              <div style={{ textAlign: 'center', maxWidth: 400 }}>
+                <p className="font-bold text-[#1A1A2E]" style={{ fontSize: '1rem', marginBottom: 8 }}>
+                  No hay ninguna crisis activa
+                </p>
+                <p style={{ fontSize: '0.875rem', color: '#5a7478', marginBottom: 24 }}>
+                  Hablá con el agente para registrar tu situación.
+                </p>
+                <Link href="/chat"
+                  className="inline-block bg-[#0A7E8C] text-white font-bold rounded-full transition-all hover:brightness-110"
+                  style={{ padding: '12px 28px', fontSize: '0.875rem' }}>
+                  Hablar con el agente
+                </Link>
               </div>
             </div>
           )}
 
-          {/* Contexto */}
-          {crisis?.ai_summary && (
+          {/* Header */}
+          {crisis && (
             <div style={{ marginBottom: 40 }}>
-              <SectionTitle>Contexto</SectionTitle>
-              <Card>
-                <p className="text-[#5a7478]" style={{ fontSize: '0.875rem', lineHeight: 1.75 }}>
-                  {crisis.ai_summary}
-                </p>
-              </Card>
+              <h1 className="font-extrabold text-[#1A1A2E]"
+                style={{ fontSize: '2rem', letterSpacing: '-0.03em', marginBottom: 4, lineHeight: 1.15 }}>
+                Gestión
+              </h1>
+              <p style={{ fontSize: '0.875rem', color: '#5a7478', fontWeight: 500 }}>
+                {crisis.name}
+              </p>
             </div>
           )}
 
-          {/* 3-col grid */}
+          {/* 2-col grid */}
           <style>{`
-            @media (min-width: 581px) and (max-width: 860px) {
-              .crisis-grid { grid-template-columns: 1fr 1fr !important; }
-              .crisis-grid-full { grid-column: 1 / -1 !important; }
-            }
-            @media (min-width: 861px) {
-              .crisis-grid { grid-template-columns: repeat(2, 1fr) !important; }
-              .crisis-grid-full { grid-column: 1 / -1 !important; }
+            @media (min-width: 581px) {
+              .gestion-grid { grid-template-columns: 1fr 1fr !important; }
             }
           `}</style>
 
-          <div className="crisis-grid grid items-start" style={{ gap: 24, gridTemplateColumns: '1fr' }}>
+          {crisis && (
+            <div className="gestion-grid grid items-start" style={{ gap: 24, gridTemplateColumns: '1fr' }}>
 
-            {/* ── Col 1: Tareas ───────────────────────────────────────── */}
-            <div>
-              <SectionTitle>Tareas</SectionTitle>
-              <Card>
-                {tasks.length > 0 ? (
-                  <div className="flex flex-col">
-                    {tasks.map((t, i) => {
-                      const contact = t.assigned_contact_id ? contactById.get(t.assigned_contact_id) : null
-                      let avInitials = '', avBg = ''
-                      if (t.assigned_to_user) {
-                        avInitials = 'Yo'; avBg = 'linear-gradient(135deg, #0A7E8C, #2ECDA7)'
-                      } else if (contact) {
-                        avInitials = (contact.initials ?? getInitials(contact.name)).slice(0, 2)
-                        avBg = 'linear-gradient(135deg, #f4ab66, #E8913A)'
-                      }
-                      const isDone = t.status === 'completada'
-                      return (
-                        <div
-                          key={t.id}
-                          className="flex items-center cursor-pointer rounded-md"
-                          onClick={() => openTaskView(t)}
-                          style={{
-                            gap: 14, padding: '13px 6px',
-                            borderBottom: i < tasks.length - 1 ? '1px solid rgba(10,126,140,0.12)' : 'none',
-                            margin: '0 -6px',
-                            transition: 'background 0.15s',
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(61,199,166,0.07)' }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div style={{
-                              fontSize: '0.875rem',
-                              textDecoration: isDone ? 'line-through' : 'none',
-                              color: isDone ? '#5a7478' : '#1A1A2E',
-                              fontWeight: isDone ? 400 : 600,
-                            }}>
-                              {t.title}
+              {/* ── Col 1: Tareas ───────────────────────────────────────── */}
+              <div>
+                <SectionTitle>Tareas</SectionTitle>
+                <Card>
+                  {tasks.length > 0 ? (
+                    <div className="flex flex-col">
+                      {tasks.map((t, i) => {
+                        const contact = t.assigned_contact_id ? contactById.get(t.assigned_contact_id) : null
+                        let avInitials = '', avBg = ''
+                        if (t.assigned_to_user) {
+                          avInitials = 'Yo'; avBg = 'linear-gradient(135deg, #0A7E8C, #2ECDA7)'
+                        } else if (contact) {
+                          avInitials = (contact.initials ?? getInitials(contact.name)).slice(0, 2)
+                          avBg = 'linear-gradient(135deg, #f4ab66, #E8913A)'
+                        }
+                        const isDone = t.status === 'completada'
+                        return (
+                          <div
+                            key={t.id}
+                            className="flex items-center cursor-pointer rounded-md"
+                            onClick={() => openTaskView(t)}
+                            style={{
+                              gap: 14, padding: '13px 6px',
+                              borderBottom: i < tasks.length - 1 ? '1px solid rgba(10,126,140,0.12)' : 'none',
+                              margin: '0 -6px', transition: 'background 0.15s',
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(61,199,166,0.07)' }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div style={{
+                                fontSize: '0.875rem',
+                                textDecoration: isDone ? 'line-through' : 'none',
+                                color: isDone ? '#5a7478' : '#1A1A2E',
+                                fontWeight: isDone ? 400 : 600,
+                              }}>
+                                {t.title}
+                              </div>
+                              <div style={{ fontSize: '0.7rem', color: '#5a7478', marginTop: 2 }}>
+                                {t.due_date ? `Vence el ${fmtLongDate(t.due_date)}` : 'Sin fecha'}
+                              </div>
                             </div>
-                            <div style={{ fontSize: '0.7rem', color: '#5a7478', marginTop: 2 }}>
-                              {t.due_date ? `Vence el ${fmtLongDate(t.due_date)}` : 'Sin fecha'}
-                            </div>
-                          </div>
-                          {avInitials && (
-                            <div className="rounded-full flex items-center justify-center flex-shrink-0 text-white"
-                              style={{ width: 24, height: 24, fontSize: '0.62rem', fontWeight: 700, background: avBg }}>
-                              {avInitials}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-[#5a7478] text-center" style={{ fontSize: '0.875rem', padding: '24px 0' }}>
-                    Sin tareas todavía
-                  </p>
-                )}
-
-                <div style={{ borderTop: '1px solid rgba(10,126,140,0.12)', marginTop: 4 }}>
-                  <button
-                    type="button"
-                    onClick={openTaskAdd}
-                    className="flex items-center gap-3 w-full bg-transparent border-0 text-left cursor-pointer"
-                    style={{ padding: '12px 0' }}
-                  >
-                    <div className="rounded-full flex items-center justify-center flex-shrink-0"
-                      style={{ width: 40, height: 40, background: 'rgba(61,199,166,0.08)', border: '1.5px dashed rgba(61,199,166,0.5)' }}>
-                      <IconAddTask />
-                    </div>
-                    <span className="font-bold text-[#0A7E8C]" style={{ fontSize: '0.875rem' }}>
-                      Agregar tarea
-                    </span>
-                  </button>
-                </div>
-              </Card>
-            </div>
-
-             
-            {/* ── Col 2: Documentos ──────────────────────────────────────── */}
-            <div>
-              <SectionTitle>Documentos</SectionTitle>
-              <Card>
-                {docs.length > 0 ? (
-                  <div className="flex flex-col" style={{ gap: 10 }}>
-                    {docs.map((d) => {
-                      const uploaderLabel = d.uploaded_by_user
-                        ? 'Cargado por vos'
-                        : d.uploaded_by_contact_id
-                          ? `Cargado por ${contactById.get(d.uploaded_by_contact_id)?.name ?? '—'}`
-                          : ''
-                      return (
-                        <div key={d.id} className="flex items-center cursor-pointer"
-                          onClick={() => openDocView(d)}
-                          style={{ gap: 12, padding: '10px 12px', background: 'rgba(10,126,140,0.04)', borderRadius: '0.6rem', transition: 'background 0.15s' }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(61,199,166,0.07)' }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.04)' }}
-                        >
-                          <div className="rounded-lg flex items-center justify-center flex-shrink-0"
-                            style={{ width: 36, height: 36, background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)' }}>
-                            <IconDoc />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-[#1A1A2E] truncate" style={{ fontSize: '0.875rem' }}>
-                              {d.name}
-                            </div>
-                            <div style={{ fontSize: '0.7rem', color: '#5a7478', marginTop: 2 }}>
-                              {[DOC_TYPE_LABELS[d.type ?? ''], fmtShortDate(d.created_at), uploaderLabel].filter(Boolean).join(' · ')}
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-[#5a7478] text-center" style={{ fontSize: '0.875rem', padding: '24px 0' }}>
-                    Sin documentos cargados
-                  </p>
-                )}
-                <div style={{ borderTop: '1px solid rgba(10,126,140,0.12)', marginTop: 4 }}>
-                  <button type="button"
-                    onClick={openDocAdd}
-                    className="flex items-center gap-3 w-full bg-transparent border-0 text-left cursor-pointer"
-                    style={{ padding: '12px 0' }}>
-                    <div className="rounded-full flex items-center justify-center flex-shrink-0"
-                      style={{ width: 40, height: 40, background: 'rgba(61,199,166,0.08)', border: '1.5px dashed rgba(61,199,166,0.5)' }}>
-                      <IconUpload />
-                    </div>
-                    <span className="font-bold text-[#0A7E8C]" style={{ fontSize: '0.875rem' }}>Agregar documento</span>
-                  </button>
-                </div>
-              </Card>
-            </div>
-
-            {/* ── Full row: Historia ─────────────────────────────────────── */}
-            <div className="crisis-grid-full">
-              <SectionTitle>Historia</SectionTitle>
-              <Card>
-                {history.length > 0 ? (
-                  <div className="flex flex-col">
-                    {history.map((h, i) => {
-                      const isLast = i === history.length - 1
-                      return (
-                        <div key={h.id} className="flex"
-                          style={{ gap: 16, paddingBottom: 28, position: 'relative' }}>
-                          {!isLast && (
-                            <div style={{
-                              position: 'absolute', left: 15, top: 34, bottom: 0,
-                              width: 2, background: 'rgba(10,126,140,0.12)',
-                            }} />
-                          )}
-                          <div className="rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{ width: 32, height: 32, background: '#FFFFFF', border: '2px solid #0A7E8C', position: 'relative', zIndex: 1 }}>
-                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#0A7E8C' }} />
-                          </div>
-                          <div className="flex-1" style={{ paddingTop: 4 }}>
-                            <div style={{ fontSize: '0.7rem', color: '#5a7478', marginBottom: 3 }}>
-                              {fmtLongDate(h.occurred_at)}
-                            </div>
-                            <div className="font-bold text-[#1A1A2E]" style={{ fontSize: '0.875rem', marginBottom: 3 }}>
-                              {h.title}
-                            </div>
-                            {h.description && (
-                              <div style={{ fontSize: '0.875rem', color: '#5a7478', lineHeight: 1.5 }}>
-                                {h.description}
+                            {avInitials && (
+                              <div className="rounded-full flex items-center justify-center flex-shrink-0 text-white"
+                                style={{ width: 24, height: 24, fontSize: '0.62rem', fontWeight: 700, background: avBg }}>
+                                {avInitials}
                               </div>
                             )}
                           </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-[#5a7478] text-center" style={{ fontSize: '0.875rem', padding: '24px 0' }}>
-                    Sin eventos en la historia todavía
-                  </p>
-                )}
-              </Card>
-            </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-[#5a7478] text-center" style={{ fontSize: '0.875rem', padding: '24px 0' }}>
+                      Sin tareas todavía
+                    </p>
+                  )}
 
-          </div>
+                  <div style={{ borderTop: '1px solid rgba(10,126,140,0.12)', marginTop: 4 }}>
+                    <button
+                      type="button" onClick={openTaskAdd}
+                      className="flex items-center gap-3 w-full bg-transparent border-0 text-left cursor-pointer"
+                      style={{ padding: '12px 0' }}
+                    >
+                      <div className="rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{ width: 40, height: 40, background: 'rgba(61,199,166,0.08)', border: '1.5px dashed rgba(61,199,166,0.5)' }}>
+                        <IconAddTask />
+                      </div>
+                      <span className="font-bold text-[#0A7E8C]" style={{ fontSize: '0.875rem' }}>
+                        Agregar tarea
+                      </span>
+                    </button>
+                  </div>
+                </Card>
+              </div>
+
+              {/* ── Col 2: Documentos ──────────────────────────────────────── */}
+              <div>
+                <SectionTitle>Documentos</SectionTitle>
+                <Card>
+                  {docs.length > 0 ? (
+                    <div className="flex flex-col" style={{ gap: 10 }}>
+                      {docs.map((d) => {
+                        const uploaderLabel = d.uploaded_by_user
+                          ? 'Cargado por vos'
+                          : d.uploaded_by_contact_id
+                            ? `Cargado por ${contactById.get(d.uploaded_by_contact_id)?.name ?? '—'}`
+                            : ''
+                        return (
+                          <div key={d.id} className="flex items-center cursor-pointer"
+                            onClick={() => openDocView(d)}
+                            style={{ gap: 12, padding: '10px 12px', background: 'rgba(10,126,140,0.04)', borderRadius: '0.6rem', transition: 'background 0.15s' }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(61,199,166,0.07)' }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.04)' }}
+                          >
+                            <div className="rounded-lg flex items-center justify-center flex-shrink-0"
+                              style={{ width: 36, height: 36, background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)' }}>
+                              <IconDoc />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-[#1A1A2E] truncate" style={{ fontSize: '0.875rem' }}>
+                                {d.name}
+                              </div>
+                              <div style={{ fontSize: '0.7rem', color: '#5a7478', marginTop: 2 }}>
+                                {[DOC_TYPE_LABELS[d.type ?? ''], fmtShortDate(d.created_at), uploaderLabel].filter(Boolean).join(' · ')}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-[#5a7478] text-center" style={{ fontSize: '0.875rem', padding: '24px 0' }}>
+                      Sin documentos cargados
+                    </p>
+                  )}
+                  <div style={{ borderTop: '1px solid rgba(10,126,140,0.12)', marginTop: 4 }}>
+                    <button type="button" onClick={openDocAdd}
+                      className="flex items-center gap-3 w-full bg-transparent border-0 text-left cursor-pointer"
+                      style={{ padding: '12px 0' }}>
+                      <div className="rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{ width: 40, height: 40, background: 'rgba(61,199,166,0.08)', border: '1.5px dashed rgba(61,199,166,0.5)' }}>
+                        <IconUpload />
+                      </div>
+                      <span className="font-bold text-[#0A7E8C]" style={{ fontSize: '0.875rem' }}>Agregar documento</span>
+                    </button>
+                  </div>
+                </Card>
+              </div>
+
+            </div>
+          )}
 
           {/* ── Loading skeleton ─────────────────────────────────────── */}
           {loading && !crisis && (
             <div>
               {/* Header skeleton */}
               <div className="mb-10">
-                <SkeletonText width="55%" style={{ height: 32, marginBottom: 16 }} />
-                <div className="flex items-center gap-3">
-                  <SkeletonBase width={52} height={22} style={{ borderRadius: 9999 }} />
-                  <SkeletonText width={180} />
-                </div>
+                <SkeletonText width="25%" style={{ height: 32, marginBottom: 10 }} />
+                <SkeletonText width="45%" />
               </div>
 
-              {/* Context card skeleton */}
-              <div className="mb-10">
-                <SkeletonCard>
-                  <div className="flex flex-col gap-3">
-                    <SkeletonText width="90%" />
-                    <SkeletonText width="80%" />
-                    <SkeletonText width="60%" />
-                  </div>
-                </SkeletonCard>
-              </div>
-
-              {/* 3-col grid skeleton */}
-              <div className="crisis-grid grid items-start" style={{ gap: 24, gridTemplateColumns: '1fr' }}>
+              {/* 2-col grid skeleton */}
+              <div className="gestion-grid grid items-start" style={{ gap: 24, gridTemplateColumns: '1fr' }}>
                 {/* Tasks col */}
                 <SkeletonCard>
                   <SkeletonText width="40%" style={{ marginBottom: 16 }} />
@@ -2238,18 +2008,6 @@ export default function CrisisDetailPage({
                       style={{ borderBottom: i < 3 ? '1px solid rgba(10,126,140,0.08)' : 'none' }}>
                       <SkeletonText width={`${w}%`} />
                       <SkeletonAvatar size={24} />
-                    </div>
-                  ))}
-                </SkeletonCard>
-
-                {/* Circle col */}
-                <SkeletonCard>
-                  <SkeletonText width="40%" style={{ marginBottom: 16 }} />
-                  {[0, 1, 2, 3].map((i) => (
-                    <div key={i} className="flex items-center gap-3 py-3"
-                      style={{ borderBottom: i < 3 ? '1px solid rgba(10,126,140,0.08)' : 'none' }}>
-                      <SkeletonAvatar size={32} />
-                      <SkeletonText width="60%" />
                     </div>
                   ))}
                 </SkeletonCard>
@@ -2268,22 +2026,6 @@ export default function CrisisDetailPage({
                     </div>
                   ))}
                 </SkeletonCard>
-
-                {/* History row */}
-                <SkeletonCard className="crisis-grid-full">
-                  <SkeletonText width="30%" style={{ marginBottom: 16 }} />
-                  <div className="flex gap-6">
-                    {[0, 1, 2].map((i) => (
-                      <div key={i} className="flex items-start gap-2 flex-1">
-                        <SkeletonAvatar size={10} />
-                        <div className="flex-1 flex flex-col gap-1.5">
-                          <SkeletonText width="80%" />
-                          <SkeletonText width="55%" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </SkeletonCard>
               </div>
             </div>
           )}
@@ -2299,41 +2041,27 @@ export default function CrisisDetailPage({
           {/* Backdrop */}
           <div
             onClick={() => { setDocModalOpen(false); setDocModalUrl(null) }}
-            style={{
-              position: 'fixed', inset: 0,
-              background: 'rgba(0,0,0,0.72)',
-              zIndex: 300,
-            }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 300 }}
           />
 
           {/* Modal */}
           <div
             style={{
-              position: 'fixed',
-              top: '50%', left: '50%',
+              position: 'fixed', top: '50%', left: '50%',
               transform: 'translate(-50%, -50%)',
-              zIndex: 301,
-              width: 'min(92vw, 860px)',
-              maxHeight: '90vh',
-              background: '#fff',
-              borderRadius: '1.25rem',
+              zIndex: 301, width: 'min(92vw, 860px)', maxHeight: '90vh',
+              background: '#fff', borderRadius: '1.25rem',
               boxShadow: '0 24px 80px rgba(0,0,0,0.30)',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
+              display: 'flex', flexDirection: 'column', overflow: 'hidden',
             }}
           >
-            {/* Modal header */}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '16px 20px',
-              borderBottom: '1px solid rgba(10,126,140,0.12)',
-              flexShrink: 0,
+              padding: '16px 20px', borderBottom: '1px solid rgba(10,126,140,0.12)', flexShrink: 0,
             }}>
               <span style={{
-                fontSize: '0.875rem', fontWeight: 700,
-                color: '#1A1A2E', maxWidth: 'calc(100% - 40px)',
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                fontSize: '0.875rem', fontWeight: 700, color: '#1A1A2E',
+                maxWidth: 'calc(100% - 40px)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>
                 {ssDoc.name}
               </span>
@@ -2352,7 +2080,6 @@ export default function CrisisDetailPage({
               </button>
             </div>
 
-            {/* Preview area */}
             <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
               {docModalUrl ? (
                 (() => {
@@ -2360,31 +2087,20 @@ export default function CrisisDetailPage({
                   if (mime.startsWith('image/')) {
                     return (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={docModalUrl}
-                        alt={ssDoc.name}
-                        style={{
-                          display: 'block', maxWidth: '100%', maxHeight: '70vh',
-                          margin: 'auto', objectFit: 'contain', padding: 16,
-                        }}
+                      <img src={docModalUrl} alt={ssDoc.name}
+                        style={{ display: 'block', maxWidth: '100%', maxHeight: '70vh', margin: 'auto', objectFit: 'contain', padding: 16 }}
                       />
                     )
                   }
                   if (mime === 'application/pdf' || mime === '') {
                     return (
-                      <iframe
-                        src={docModalUrl}
-                        title={ssDoc.name}
+                      <iframe src={docModalUrl} title={ssDoc.name}
                         style={{ width: '100%', height: '70vh', border: 'none', display: 'block' }}
                       />
                     )
                   }
-                  // Unsupported MIME — show fallback
                   return (
-                    <div style={{
-                      display: 'flex', flexDirection: 'column', alignItems: 'center',
-                      justifyContent: 'center', height: 220, gap: 12,
-                    }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 220, gap: 12 }}>
                       <span style={{ fontSize: '2.5rem' }}>📄</span>
                       <p style={{ fontSize: '0.875rem', color: '#5a7478', textAlign: 'center', padding: '0 24px' }}>
                         No se puede previsualizar este tipo de archivo.<br />
@@ -2394,16 +2110,12 @@ export default function CrisisDetailPage({
                   )
                 })()
               ) : (
-                <div style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  height: 200, color: '#5a7478', fontSize: '0.875rem',
-                }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: '#5a7478', fontSize: '0.875rem' }}>
                   Cargando…
                 </div>
               )}
             </div>
 
-            {/* Modal footer */}
             <div style={{
               display: 'flex', gap: 8, padding: '14px 20px',
               borderTop: '1px solid rgba(10,126,140,0.12)',
@@ -2414,8 +2126,7 @@ export default function CrisisDetailPage({
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   padding: '10px 22px', borderRadius: 9999,
-                  border: 'none', cursor: 'pointer',
-                  fontWeight: 700, fontSize: '0.875rem',
+                  border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.875rem',
                   background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
                   color: 'white', transition: 'filter 0.15s',
                 }}

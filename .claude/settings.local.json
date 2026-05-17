@@ -17,7 +17,14 @@
       "PowerShell(New-Item -ItemType Directory -Path \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\\\\app\\\\profile\" -Force)",
       "Bash(node node_modules\\\\typescript\\\\bin\\\\tsc --noEmit)",
       "PowerShell(Get-ChildItem \"C:\\\\Program Files\\\\nodejs\\\\node.exe\" -ErrorAction SilentlyContinue; Get-ChildItem \"C:\\\\Program Files \\(x86\\)\\\\nodejs\\\\node.exe\" -ErrorAction SilentlyContinue; Get-ChildItem \"$env:APPDATA\\\\npm\\\\node.exe\" -ErrorAction SilentlyContinue; Get-ChildItem \"$env:LOCALAPPDATA\\\\Programs\\\\nodejs\\\\node.exe\" -ErrorAction SilentlyContinue)",
-      "PowerShell(& \"C:\\\\Program Files\\\\nodejs\\\\node.exe\" \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\\\\node_modules\\\\typescript\\\\bin\\\\tsc\" --noEmit 2>&1)"
+      "PowerShell(& \"C:\\\\Program Files\\\\nodejs\\\\node.exe\" \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\\\\node_modules\\\\typescript\\\\bin\\\\tsc\" --noEmit 2>&1)",
+      "Bash(mkdir -p \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\\\\app\\\\circulo\\\\[id]\")",
+      "Bash(npm install *)",
+      "Bash(not exist *)",
+      "Bash(New-Item -ItemType Directory -Path \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\\\\app\\\\circulo\\\\nuevo\" -Force)",
+      "Bash(Out-Null)",
+      "Bash(Write-Host \"OK\")",
+      "Bash(mkdir -p \"/mnt/c/Users/HP/Desktop/Circl/app/circulo/nuevo\" && echo \"OK\")"
     ]
   }
 }
