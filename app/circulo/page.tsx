@@ -987,10 +987,11 @@ export default function CirculoPage() {
                 </p>
 
                 {suggestionsLoading ? (
-                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 12, flexDirection: 'column' }}
+                    className="md:!flex-row md:!flex-wrap">
                     {[0, 1, 2].map((i) => (
                       <div key={i} style={{
-                        flex: '1 1 180px', minWidth: 160,
+                        flex: '1 1 180px', minWidth: 0,
                         borderRadius: '1rem', height: 110,
                         background: 'linear-gradient(90deg, #f0f4f8 25%, #e8edf0 50%, #f0f4f8 75%)',
                         backgroundSize: '200% 100%',
@@ -999,12 +1000,13 @@ export default function CirculoPage() {
                     ))}
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 12, flexDirection: 'column' }}
+                    className="md:!flex-row md:!flex-wrap">
                     {suggestions.map((s, i) => (
                       <div
                         key={i}
                         style={{
-                          flex: '1 1 180px', minWidth: 160,
+                          flex: '1 1 180px', minWidth: 0,
                           background: '#FFFFFF', borderRadius: '1rem',
                           boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
                           padding: '16px 18px',
@@ -1103,7 +1105,7 @@ export default function CirculoPage() {
                       key={c.id}
                       href={`/circulo/${c.id}`}
                       style={{
-                        display: 'flex', alignItems: 'center', gap: 16,
+                        display: 'flex', flexDirection: 'column', gap: 6,
                         padding: '14px 8px',
                         borderBottom: '1px solid rgba(10,126,140,0.08)',
                         textDecoration: 'none', color: 'inherit',
@@ -1113,53 +1115,56 @@ export default function CirculoPage() {
                       onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(10,126,140,0.03)' }}
                       onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                     >
-                      {/* Avatar */}
-                      <div style={{
-                        width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-                        background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        overflow: 'hidden', fontWeight: 700, color: 'white', fontSize: '0.9rem',
-                      }}>
-                        {avatarUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={avatarUrl} alt={c.name}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : initials}
-                      </div>
-
-                      {/* Nombre */}
-                      <div style={{ flex: '0 0 160px', minWidth: 0 }}>
+                      {/* Fila superior */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        {/* Avatar */}
                         <div style={{
-                          fontSize: '0.9375rem', fontWeight: 700,
-                          color: '#1A1A2E', whiteSpace: 'nowrap',
-                          overflow: 'hidden', textOverflow: 'ellipsis',
-                        }}>{c.name}</div>
-                        {c.relationship && (
+                          width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+                          background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          overflow: 'hidden', fontWeight: 700, color: 'white', fontSize: '0.9rem',
+                        }}>
+                          {avatarUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={avatarUrl} alt={c.name}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : initials}
+                        </div>
+
+                        {/* Nombre */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{
-                            fontSize: '0.75rem', color: '#5a7478',
-                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                          }}>{c.relationship}</div>
-                        )}
-                      </div>
- 
+                            fontSize: '0.9375rem', fontWeight: 700,
+                            color: '#1A1A2E', whiteSpace: 'nowrap',
+                            overflow: 'hidden', textOverflow: 'ellipsis',
+                          }}>{c.name}</div>
+                          {c.relationship && (
+                            <div style={{
+                              fontSize: '0.75rem', color: '#5a7478',
+                              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                            }}>{c.relationship}</div>
+                          )}
+                        </div>
 
-                      {/* Context summary */}
-                      <div style={{
-                        flex: 1, minWidth: 0,
-                        fontSize: '0.8125rem', color: '#5a7478',
-                        lineHeight: 1.5,
-                        overflow: 'hidden',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                      }}>
-                        {c.context_summary ?? '—'}
+                        {/* Arrow */}
+                        <div style={{ flexShrink: 0, color: '#5a7478', display: 'flex' }}>
+                          <IconArrow />
+                        </div>
                       </div>
 
-                      {/* Arrow */}
-                      <div style={{ flexShrink: 0, color: '#5a7478', display: 'flex' }}>
-                        <IconArrow />
-                      </div>
+                      {/* Context summary — debajo, 2 líneas */}
+                      {c.context_summary && (
+                        <div style={{
+                          fontSize: '0.8125rem', color: '#5a7478',
+                          lineHeight: 1.5, paddingLeft: 56,
+                          overflow: 'hidden',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                        }}>
+                          {c.context_summary}
+                        </div>
+                      )}
                     </Link>
                   )
                 })}

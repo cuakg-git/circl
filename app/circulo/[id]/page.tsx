@@ -379,10 +379,10 @@ export default function ContactoDetailPage() {
         .contacto-bg { animation: heroBgDrift 30s ease-in-out infinite; }
       `}</style>
 
-      <div className="contacto-bg flex min-h-screen">
+      <div className="contacto-bg flex min-h-screen" style={{ overflowX: 'hidden' }}>
         <Sidebar />
 
-        <main className="flex-1 ml-0 md:ml-[240px] min-h-screen px-5 py-8 pb-28 md:px-10 md:py-10 md:pb-10">
+        <main className="flex-1 ml-0 md:ml-[240px] min-h-screen px-5 py-8 pb-28 md:px-10 md:py-10 md:pb-10" style={{ overflowX: 'hidden', minWidth: 0 }}>
           <SkeletonStyles />
 
           {/* Breadcrumb */}

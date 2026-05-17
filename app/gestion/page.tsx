@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
@@ -28,6 +29,14 @@ type Task = {
   due_date:            string | null
   assigned_contact_id: string | null
   assigned_to_user:    boolean | null
+  topic_id:            string | null
+}
+
+type Topic = {
+  id:        string
+  name:      string
+  color:     string | null
+  crisis_id: string
 }
 
 type Contact = {
@@ -135,6 +144,15 @@ const PROXIMITY_LABELS: Record<string, string> = {
   ayuda:        'Es alguien que me ayuda o puede ayudar',
   profesional:  'Es un proveedor de servicios o un profesional',
 }
+
+const TOPIC_COLORS = [
+  { value: '#0A7E8C', label: 'Teal' },
+  { value: '#2ECDA7', label: 'Mint' },
+  { value: '#8FA44A', label: 'Verde' },
+  { value: '#E8913A', label: 'Naranja' },
+  { value: '#4BAAB5', label: 'Celeste' },
+  { value: '#7B8FA6', label: 'Gris azul' },
+]
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   estudio_medico: 'Estudio médico',
@@ -267,6 +285,264 @@ const SS_SELECT_STYLE: React.CSSProperties = {
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
+function TopicDropdownPortal({
+  topics,
+  selectedId,
+  topicDropdown,
+  editTopicName,
+  setEditTopicName,
+  editTopicColor,
+  setEditTopicColor,
+  editTopicLoading,
+  onClose,
+  onToggleTopic,
+  onOpenEdit,
+  onOpenCreate,
+  onSaveTopic,
+  onDeleteTopic,
+}: {
+  topics:            Topic[]
+  selectedId:        string
+  topicDropdown:     { open: boolean; context: 'view' | 'add'; view: 'list' | 'edit' | 'create'; editTopic: Topic | null; anchorRect: DOMRect | null }
+  editTopicName:     string
+  setEditTopicName:  (v: string) => void
+  editTopicColor:    string
+  setEditTopicColor: (v: string) => void
+  editTopicLoading:  boolean
+  onClose:           () => void
+  onToggleTopic:     (id: string) => void
+  onOpenEdit:        (t: Topic) => void
+  onOpenCreate:      () => void
+  onSaveTopic:       () => void
+  onDeleteTopic:     () => void
+}) {
+  const { anchorRect, view, editTopic } = topicDropdown
+  if (!anchorRect) return null
+
+  const PANEL_W = 260
+  const left = Math.min(anchorRect.left, (typeof window !== 'undefined' ? window.innerWidth : 800) - PANEL_W - 8)
+  const top  = anchorRect.bottom + 6
+
+  const panel = (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{ position: 'fixed', inset: 0, zIndex: 500 }}
+      />
+
+      {/* Floating panel */}
+      <div
+        style={{
+          position: 'fixed', top, left, width: PANEL_W,
+          background: '#FFFFFF', borderRadius: '1rem',
+          boxShadow: '0 8px 36px rgba(0,0,0,0.18)',
+          border: '1px solid rgba(10,126,140,0.10)',
+          zIndex: 501, overflow: 'hidden',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* ── LIST VIEW ── */}
+        {view === 'list' && (
+          <div>
+            <div style={{ padding: '10px 14px 6px', borderBottom: '1px solid rgba(10,126,140,0.08)' }}>
+              <span style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5a7478' }}>
+                Temas
+              </span>
+            </div>
+            <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+              {/* "Sin tema" row */}
+              <div
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '9px 14px', cursor: 'pointer',
+                  background: selectedId === '' ? 'rgba(10,126,140,0.06)' : 'transparent',
+                  transition: 'background 0.12s',
+                }}
+                onMouseEnter={(e) => { if (selectedId !== '') e.currentTarget.style.background = 'rgba(10,126,140,0.04)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = selectedId === '' ? 'rgba(10,126,140,0.06)' : 'transparent' }}
+                onClick={() => onToggleTopic('')}
+              >
+                <div style={{
+                  width: 12, height: 12, borderRadius: '50%', flexShrink: 0,
+                  border: '1.5px dashed #9ab4b8', background: 'transparent',
+                }} />
+                <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500, color: '#5a7478' }}>Sin tema</span>
+                {selectedId === '' && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0A7E8C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
+              {topics.map((t) => {
+                const isSelected = selectedId === t.id
+                return (
+                  <div
+                    key={t.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '9px 14px', cursor: 'pointer',
+                      background: isSelected ? `${t.color ?? '#0A7E8C'}12` : 'transparent',
+                      transition: 'background 0.12s',
+                    }}
+                    onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = 'rgba(10,126,140,0.04)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = isSelected ? `${t.color ?? '#0A7E8C'}12` : 'transparent' }}
+                  >
+                    <div
+                      onClick={() => onToggleTopic(t.id)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}
+                    >
+                      <div style={{
+                        width: 12, height: 12, borderRadius: '50%', flexShrink: 0,
+                        background: t.color ?? '#0A7E8C',
+                      }} />
+                      <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500, color: '#1A1A2E' }}>{t.name}</span>
+                      {isSelected && (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={t.color ?? '#0A7E8C'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onOpenEdit(t) }}
+                      title="Editar tema"
+                      style={{
+                        width: 24, height: 24, borderRadius: '0.35rem', flexShrink: 0,
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: '#9ab4b8', transition: 'background 0.12s, color 0.12s',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.08)'; e.currentTarget.style.color = '#0A7E8C' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#9ab4b8' }}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+            {/* Create link */}
+            <div style={{ borderTop: '1px solid rgba(10,126,140,0.08)', padding: '8px 14px' }}>
+              <button
+                type="button"
+                onClick={onOpenCreate}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: '#0A7E8C', fontSize: '0.75rem', fontWeight: 700,
+                  fontFamily: 'inherit', padding: 0, display: 'flex', alignItems: 'center', gap: 5,
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                Crear tema nuevo
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── EDIT / CREATE VIEW ── */}
+        {(view === 'edit' || view === 'create') && (
+          <div style={{ padding: '14px' }}>
+            {/* Back */}
+            <button
+              type="button"
+              onClick={() => { setEditTopicName(''); setEditTopicColor('#0A7E8C'); onClose() }}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: '#5a7478', fontSize: '0.7rem', fontWeight: 600,
+                fontFamily: 'inherit', padding: 0, marginBottom: 10,
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}
+            >
+              ← Volver
+            </button>
+            <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5a7478', marginBottom: 8 }}>
+              {view === 'create' ? 'Nuevo tema' : 'Editar tema'}
+            </div>
+            <input
+              type="text"
+              placeholder="Nombre del tema…"
+              value={editTopicName}
+              onChange={(e) => setEditTopicName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); onSaveTopic() }
+                if (e.key === 'Escape') { onClose() }
+              }}
+              autoFocus
+              style={{
+                width: '100%', border: 'none',
+                borderBottom: '1.5px solid rgba(10,126,140,0.2)',
+                background: 'transparent', fontSize: '0.875rem',
+                fontWeight: 600, outline: 'none', color: '#1A1A2E',
+                fontFamily: 'inherit', padding: '2px 0', marginBottom: 10,
+                boxSizing: 'border-box',
+              }}
+            />
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              {TOPIC_COLORS.map((c) => (
+                <button
+                  key={c.value}
+                  type="button"
+                  onClick={() => setEditTopicColor(c.value)}
+                  title={c.label}
+                  style={{
+                    width: 20, height: 20, borderRadius: '50%',
+                    background: c.value, border: 'none', cursor: 'pointer',
+                    outline: editTopicColor === c.value ? `2.5px solid ${c.value}` : '2.5px solid transparent',
+                    outlineOffset: 2,
+                    transform: editTopicColor === c.value ? 'scale(1.2)' : 'scale(1)',
+                    transition: 'transform 0.15s',
+                    flexShrink: 0,
+                  }}
+                />
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={onSaveTopic}
+                disabled={editTopicLoading || !editTopicName.trim()}
+                style={{
+                  background: '#0A7E8C', color: 'white', border: 'none',
+                  borderRadius: '0.5rem', padding: '6px 16px',
+                  fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  opacity: (editTopicLoading || !editTopicName.trim()) ? 0.5 : 1,
+                }}
+              >
+                {editTopicLoading ? '…' : view === 'create' ? 'Crear' : 'Guardar'}
+              </button>
+              {view === 'edit' && editTopic && (
+                <button
+                  type="button"
+                  onClick={onDeleteTopic}
+                  disabled={editTopicLoading}
+                  style={{
+                    background: 'rgba(186,26,26,0.07)', color: '#ba1a1a', border: 'none',
+                    borderRadius: '0.5rem', padding: '6px 14px',
+                    fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
+                    fontFamily: 'inherit', opacity: editTopicLoading ? 0.5 : 1,
+                    marginLeft: 'auto',
+                  }}
+                >
+                  Eliminar
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  )
+
+  return createPortal(panel, document.body)
+}
+
 export default function GestionPage() {
   const [id, setId] = useState<string | null>(null)
   const router  = useRouter()
@@ -279,8 +555,22 @@ export default function GestionPage() {
   const [history,  setHistory]  = useState<HistoryEvent[]>([])
   const [loading,  setLoading]  = useState(true)
 
+  const [topics, setTopics] = useState<Topic[]>([])
+  const [topicDropdown, setTopicDropdown] = useState<{
+    open:       boolean
+    context:    'view' | 'add'
+    view:       'list' | 'edit' | 'create'
+    editTopic:  Topic | null
+    anchorRect: DOMRect | null
+  }>({ open: false, context: 'view', view: 'list', editTopic: null, anchorRect: null })
+  const [editTopicName,    setEditTopicName]    = useState('')
+  const [editTopicColor,   setEditTopicColor]   = useState('#0A7E8C')
+  const [editTopicLoading, setEditTopicLoading] = useState(false)
+  const [addTopicId,       setAddTopicId]       = useState<string>('')
+
   // ── Sidesheet state ──────────────────────────────────────────────────────────
   const [ssMode,    setSsMode]    = useState<SSMode>(null)
+  const [completingTaskId, setCompletingTaskId] = useState<string | null>(null)
   const [ssTask,    setSsTask]    = useState<Task | null>(null)
   const [ssLoading, setSsLoading] = useState(false)
   const [ssError,   setSsError]   = useState<string | null>(null)
@@ -339,14 +629,14 @@ export default function GestionPage() {
       setId(activeCrisis.id)
       const currentId = activeCrisis.id
 
-      const [crisisRes, tasksRes, contactsRes, docsRes, historyRes] = await Promise.all([
+      const [crisisRes, tasksRes, contactsRes, docsRes, historyRes, topicsRes] = await Promise.all([
         supabase
           .from('crises')
           .select('id, name, status, category, started_at, ai_summary')
           .eq('id', currentId).eq('user_id', user.id).maybeSingle(),
         supabase
           .from('tasks')
-          .select('id, title, status, due_date, assigned_contact_id, assigned_to_user')
+          .select('id, title, status, due_date, assigned_contact_id, assigned_to_user, topic_id')
           .eq('crisis_id', currentId).order('due_date', { ascending: true, nullsFirst: false }),
         supabase
           .from('crisis_contacts')
@@ -360,6 +650,11 @@ export default function GestionPage() {
           .from('crisis_history')
           .select('id, title, description, occurred_at')
           .eq('crisis_id', currentId).order('occurred_at', { ascending: false }),
+        supabase
+          .from('topics')
+          .select('id, name, color, crisis_id')
+          .eq('crisis_id', currentId)
+          .order('created_at', { ascending: true }),
       ])
 
       if (crisisRes.error) console.error('Error crisis:', crisisRes.error)
@@ -384,6 +679,8 @@ export default function GestionPage() {
       if (historyRes.error) console.error('Error history:', historyRes.error)
       setHistory((historyRes.data ?? []) as HistoryEvent[])
 
+      setTopics((topicsRes.data ?? []) as Topic[])
+
       setLoading(false)
     }
     load()
@@ -394,8 +691,9 @@ export default function GestionPage() {
   const reloadTasks = useCallback(async () => {
     const { data } = await supabase
       .from('tasks')
-      .select('id, title, status, due_date, assigned_contact_id, assigned_to_user')
+      .select('id, title, status, due_date, assigned_contact_id, assigned_to_user, topic_id')
       .eq('crisis_id', id)
+      .eq('status', 'pendiente')
       .order('due_date', { ascending: true, nullsFirst: false })
     if (data) setTasks(data as Task[])
   }, [id])
@@ -422,6 +720,15 @@ export default function GestionPage() {
       .eq('crisis_id', id)
       .order('occurred_at', { ascending: false })
     if (data) setHistory(data as HistoryEvent[])
+  }, [id])
+
+  const reloadTopics = useCallback(async () => {
+    const { data } = await supabase
+      .from('topics')
+      .select('id, name, color, crisis_id')
+      .eq('crisis_id', id)
+      .order('created_at', { ascending: true })
+    if (data) setTopics(data as Topic[])
   }, [id])
 
   const reloadDocs = useCallback(async () => {
@@ -476,6 +783,7 @@ export default function GestionPage() {
     setAddTime('')
     setTimeOpen(false)
     setAddAssignee('')
+    setAddTopicId('')
     setSsError(null)
     setSsMode('task-add')
   }
@@ -522,6 +830,102 @@ export default function GestionPage() {
     setDocThumbUrl(null)
   }
 
+  // ── Topic dropdown handlers ───────────────────────────────────────────────────
+
+  function openTopicDropdown(e: React.MouseEvent, context: 'view' | 'add') {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    setTopicDropdown({ open: true, context, view: 'list', editTopic: null, anchorRect: rect })
+    setEditTopicName('')
+    setEditTopicColor('#0A7E8C')
+  }
+
+  function closeTopicDropdown() {
+    setTopicDropdown(prev => ({ ...prev, open: false }))
+  }
+
+  function openEditTopic(t: Topic) {
+    setEditTopicName(t.name)
+    setEditTopicColor(t.color ?? '#0A7E8C')
+    setTopicDropdown(prev => ({ ...prev, view: 'edit', editTopic: t }))
+  }
+
+  function openCreateTopic() {
+    setEditTopicName('')
+    setEditTopicColor('#0A7E8C')
+    setTopicDropdown(prev => ({ ...prev, view: 'create', editTopic: null }))
+  }
+
+  async function handleSaveTopic() {
+    if (!editTopicName.trim() || !id) return
+    setEditTopicLoading(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setEditTopicLoading(false); return }
+
+    if (topicDropdown.view === 'create') {
+      const { data: newTopic, error } = await supabase
+        .from('topics')
+        .insert({ crisis_id: id, user_id: user.id, name: editTopicName.trim(), color: editTopicColor })
+        .select('id, name, color, crisis_id')
+        .single()
+      setEditTopicLoading(false)
+      if (error) { setSsError(error.message); return }
+      await reloadTopics()
+      // Auto-select the new topic for the triggering context
+      if (topicDropdown.context === 'add') {
+        setAddTopicId(newTopic.id)
+      } else if (topicDropdown.context === 'view' && ssTask) {
+        await supabase.from('tasks').update({ topic_id: newTopic.id }).eq('id', ssTask.id)
+        await reloadTasks()
+        setSsTask(prev => prev ? { ...prev, topic_id: newTopic.id } : prev)
+      }
+      setTopicDropdown(prev => ({ ...prev, view: 'list', editTopic: null }))
+    } else if (topicDropdown.view === 'edit' && topicDropdown.editTopic) {
+      const { error } = await supabase
+        .from('topics')
+        .update({ name: editTopicName.trim(), color: editTopicColor })
+        .eq('id', topicDropdown.editTopic.id)
+      setEditTopicLoading(false)
+      if (error) { setSsError(error.message); return }
+      await reloadTopics()
+      setTopicDropdown(prev => ({ ...prev, view: 'list', editTopic: null }))
+    }
+  }
+
+  async function handleDeleteTopic() {
+    if (!topicDropdown.editTopic) return
+    if (!window.confirm(`¿Eliminar el tema "${topicDropdown.editTopic.name}"?`)) return
+    setEditTopicLoading(true)
+    const { error } = await supabase.from('topics').delete().eq('id', topicDropdown.editTopic.id)
+    setEditTopicLoading(false)
+    if (error) { setSsError(error.message); return }
+    await reloadTopics()
+    // Clear selection if this topic was selected
+    if (topicDropdown.context === 'add' && addTopicId === topicDropdown.editTopic.id) setAddTopicId('')
+    if (topicDropdown.context === 'view' && ssTask?.topic_id === topicDropdown.editTopic.id) {
+      await supabase.from('tasks').update({ topic_id: null }).eq('id', ssTask.id)
+      await reloadTasks()
+      setSsTask(prev => prev ? { ...prev, topic_id: null } : prev)
+    }
+    setTopicDropdown(prev => ({ ...prev, view: 'list', editTopic: null }))
+  }
+
+  async function handleToggleTopicOnTask(topicId: string) {
+    if (topicDropdown.context === 'add') {
+      setAddTopicId(topicId)
+      closeTopicDropdown()
+    } else if (topicDropdown.context === 'view' && ssTask) {
+      // '' means "Sin tema" → always set null; otherwise toggle
+      const newId = topicId === ''
+        ? null
+        : ssTask.topic_id === topicId ? null : topicId
+      const { error } = await supabase.from('tasks').update({ topic_id: newId }).eq('id', ssTask.id)
+      if (error) { setSsError(error.message); return }
+      await reloadTasks()
+      setSsTask(prev => prev ? { ...prev, topic_id: newId } : prev)
+      closeTopicDropdown()
+    }
+  }
+
   // ── Task view actions ─────────────────────────────────────────────────────────
 
   async function handleAssigneeChange(val: string) {
@@ -552,11 +956,22 @@ export default function GestionPage() {
     const { error } = await supabase.from('tasks').update({ status: newStatus }).eq('id', ssTask.id)
     setSsLoading(false)
     if (error) { setSsError(error.message); return }
-    await reloadTasks()
+
     if (newStatus === 'completada') {
-      await logHistory('Tarea completada', ssTask.title, 'tarea_completada')
+      // 1. Cerrar el sidesheet
+      closeSheet()
+      // 2. Disparar animación en la tarea
+      setCompletingTaskId(ssTask.id)
+      // 3. Después de la animación, recargar tareas
+      setTimeout(async () => {
+        setCompletingTaskId(null)
+        await reloadTasks()
+        await logHistory('Tarea completada', ssTask.title, 'tarea_completada')
+      }, 900)
+    } else {
+      await reloadTasks()
+      closeSheet()
     }
-    closeSheet()
   }
 
   async function handleDelete() {
@@ -587,6 +1002,7 @@ export default function GestionPage() {
       title,
       due_date:  dueDate,
       status:    'pendiente',
+      topic_id:  addTopicId || null,
       ...assigneeFields,
     })
     setSsLoading(false)
@@ -822,7 +1238,39 @@ export default function GestionPage() {
           }
         }
         .gestion-bg { animation: heroBgDrift 30s ease-in-out infinite; }
+        @keyframes strikethrough {
+          0%   { width: 0%; opacity: 1; }
+          60%  { width: 100%; opacity: 1; }
+          100% { width: 100%; opacity: 1; }
+        }
+        @keyframes taskFadeOut {
+          0%   { opacity: 1; transform: translateX(0);    max-height: 80px; }
+          100% { opacity: 0; transform: translateX(-12px); max-height: 0;   padding: 0; }
+        }
       `}</style>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          TOPIC DROPDOWN PORTAL
+      ══════════════════════════════════════════════════════════════════════ */}
+
+      {topicDropdown.open && (
+        <TopicDropdownPortal
+          topics={topics}
+          selectedId={topicDropdown.context === 'view' ? (ssTask?.topic_id ?? '') : addTopicId}
+          topicDropdown={topicDropdown}
+          editTopicName={editTopicName}
+          setEditTopicName={setEditTopicName}
+          editTopicColor={editTopicColor}
+          setEditTopicColor={setEditTopicColor}
+          editTopicLoading={editTopicLoading}
+          onClose={closeTopicDropdown}
+          onToggleTopic={handleToggleTopicOnTask}
+          onOpenEdit={openEditTopic}
+          onOpenCreate={openCreateTopic}
+          onSaveTopic={handleSaveTopic}
+          onDeleteTopic={handleDeleteTopic}
+        />
+      )}
 
       {/* ══════════════════════════════════════════════════════════════════════
           SIDESHEET OVERLAY + PANEL
@@ -974,6 +1422,48 @@ export default function GestionPage() {
                     <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1A1A2E', flex: 1 }}>
                       {ssTask.due_date ? fmtLongDate(ssTask.due_date) : 'Sin fecha'}
                     </span>
+                  </div>
+
+                  <div style={{
+                    display: 'flex', alignItems: 'center',
+                    padding: '13px 20px',
+                    borderTop: '1px solid rgba(10,126,140,0.12)', gap: 12,
+                  }}>
+                    <span style={{
+                      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
+                      textTransform: 'uppercase', color: '#5a7478',
+                      minWidth: 80, flexShrink: 0,
+                    }}>Tema</span>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      {(() => {
+                        const t = topics.find(x => x.id === ssTask.topic_id)
+                        return t ? (
+                          <span style={{
+                            padding: '3px 10px', borderRadius: 9999,
+                            background: `${t.color ?? '#0A7E8C'}18`,
+                            color: t.color ?? '#0A7E8C',
+                            fontSize: '0.72rem', fontWeight: 700,
+                            border: `1.5px solid ${t.color ?? '#0A7E8C'}40`,
+                          }}>{t.name}</span>
+                        ) : (
+                          <span style={{ fontSize: '0.8rem', color: '#9ab4b8', fontWeight: 500 }}>Sin tema</span>
+                        )
+                      })()}
+                      <button
+                        type="button"
+                        onClick={(e) => openTopicDropdown(e, 'view')}
+                        style={{
+                          padding: 0, background: 'none', border: 'none',
+                          color: '#0A7E8C', fontSize: '0.8125rem',
+                          fontWeight: 600, cursor: 'pointer',
+                          fontFamily: 'inherit',
+                          textDecoration: 'underline',
+                          textUnderlineOffset: 3,
+                        }}
+                      >
+                        {ssTask.topic_id ? 'Cambiar' : 'Agregar'}
+                      </button>
+                    </div>
                   </div>
                 </Card>
               </div>
@@ -1165,6 +1655,46 @@ export default function GestionPage() {
                       <option key={c.id} value={`c:${c.id}`}>{c.name}</option>
                     ))}
                   </select>
+                </div>
+              </Card>
+
+              <Card style={{ padding: 0, borderRadius: '1rem', marginBottom: 24, marginTop: 0 }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center',
+                  padding: '13px 20px', gap: 12,
+                }}>
+                  <span style={{
+                    fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
+                    textTransform: 'uppercase', color: '#5a7478', minWidth: 80, flexShrink: 0,
+                  }}>Tema</span>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    {(() => {
+                      const t = topics.find(x => x.id === addTopicId)
+                      return t ? (
+                        <span style={{
+                          padding: '3px 10px', borderRadius: 9999,
+                          background: `${t.color ?? '#0A7E8C'}18`,
+                          color: t.color ?? '#0A7E8C',
+                          fontSize: '0.72rem', fontWeight: 700,
+                          border: `1.5px solid ${t.color ?? '#0A7E8C'}40`,
+                        }}>{t.name}</span>
+                      ) : null
+                    })()}
+                    <button
+                      type="button"
+                      onClick={(e) => openTopicDropdown(e, 'add')}
+                      style={{
+                        padding: 0, background: 'none', border: 'none',
+                        color: '#0A7E8C', fontSize: '0.8125rem',
+                        fontWeight: 600, cursor: 'pointer',
+                        fontFamily: 'inherit',
+                        textDecoration: 'underline',
+                        textUnderlineOffset: 3,
+                      }}
+                    >
+                      {addTopicId ? 'Cambiar' : 'Agregar'}
+                    </button>
+                  </div>
                 </div>
               </Card>
 
@@ -1860,9 +2390,9 @@ export default function GestionPage() {
               <div>
                 <SectionTitle>Tareas</SectionTitle>
                 <Card>
-                  {tasks.length > 0 ? (
+                  {tasks.filter(t => t.status === 'pendiente').length > 0 ? (
                     <div className="flex flex-col">
-                      {tasks.map((t, i) => {
+                      {tasks.filter(t => t.status === 'pendiente').map((t, i, arr) => {
                         const contact = t.assigned_contact_id ? contactById.get(t.assigned_contact_id) : null
                         let avInitials = '', avBg = ''
                         if (t.assigned_to_user) {
@@ -1876,27 +2406,61 @@ export default function GestionPage() {
                           <div
                             key={t.id}
                             className="flex items-center cursor-pointer rounded-md"
-                            onClick={() => openTaskView(t)}
+                            onClick={() => completingTaskId !== t.id ? openTaskView(t) : undefined}
                             style={{
                               gap: 14, padding: '13px 6px',
-                              borderBottom: i < tasks.length - 1 ? '1px solid rgba(10,126,140,0.12)' : 'none',
-                              margin: '0 -6px', transition: 'background 0.15s',
+                              borderBottom: i < arr.length - 1 ? '1px solid rgba(10,126,140,0.12)' : 'none',
+                              margin: '0 -6px',
+                              transition: 'background 0.15s',
+                              overflow: 'hidden',
+                              animation: completingTaskId === t.id
+                                ? 'taskFadeOut 0.8s ease-out 0.35s forwards'
+                                : 'none',
                             }}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(61,199,166,0.07)' }}
+                            onMouseEnter={(e) => { if (completingTaskId !== t.id) e.currentTarget.style.background = 'rgba(61,199,166,0.07)' }}
                             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
                           >
                             <div className="flex-1 min-w-0">
                               <div style={{
                                 fontSize: '0.875rem',
-                                textDecoration: isDone ? 'line-through' : 'none',
-                                color: isDone ? '#5a7478' : '#1A1A2E',
+                                color: completingTaskId === t.id ? '#5a7478' : (isDone ? '#5a7478' : '#1A1A2E'),
                                 fontWeight: isDone ? 400 : 600,
+                                position: 'relative',
+                                display: 'inline-block',
                               }}>
                                 {t.title}
+                                {/* Línea de tachado animada */}
+                                {completingTaskId === t.id && (
+                                  <span style={{
+                                    position: 'absolute',
+                                    left: 0, top: '50%',
+                                    height: '1.5px',
+                                    background: '#5a7478',
+                                    borderRadius: 2,
+                                    animation: 'strikethrough 0.35s ease-out forwards',
+                                    pointerEvents: 'none',
+                                  }} />
+                                )}
                               </div>
                               <div style={{ fontSize: '0.7rem', color: '#5a7478', marginTop: 2 }}>
                                 {t.due_date ? `Vence el ${fmtLongDate(t.due_date)}` : 'Sin fecha'}
                               </div>
+                              {t.topic_id && (() => {
+                                const topic = topics.find(tp => tp.id === t.topic_id)
+                                return topic ? (
+                                  <span style={{
+                                    display: 'inline-flex', alignItems: 'center',
+                                    marginTop: 4,
+                                    padding: '2px 8px', borderRadius: 9999,
+                                    background: `${topic.color ?? '#0A7E8C'}22`,
+                                    color: topic.color ?? '#0A7E8C',
+                                    fontSize: '0.65rem', fontWeight: 700,
+                                    letterSpacing: '0.04em',
+                                  }}>
+                                    {topic.name}
+                                  </span>
+                                ) : null
+                              })()}
                             </div>
                             {avInitials && (
                               <div className="rounded-full flex items-center justify-center flex-shrink-0 text-white"
@@ -1930,6 +2494,20 @@ export default function GestionPage() {
                     </button>
                   </div>
                 </Card>
+                <div style={{ marginTop: 12, textAlign: 'right' }}>
+                  <Link
+                    href="/gestion/finalizadas"
+                    style={{
+                      fontSize: '0.75rem', fontWeight: 600,
+                      color: '#5a7478', textDecoration: 'none',
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#0A7E8C' }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = '#5a7478' }}
+                  >
+                    Ver tareas finalizadas →
+                  </Link>
+                </div>
               </div>
 
               {/* ── Col 2: Documentos ──────────────────────────────────────── */}

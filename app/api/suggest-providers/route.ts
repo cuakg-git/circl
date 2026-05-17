@@ -39,7 +39,10 @@ Reglas:
 - La razón debe ser personalizada al contexto, no genérica
 - Hablás en español rioplatense, segunda persona
 - El campo "name" es el tipo de prestador (ej: "Psicólogo oncológico", "Servicio de cuidado domiciliario"), no un nombre propio
-- El campo "prestacion" es ultra corto (ej: "Apoyo emocional oncología", "Cuidado en el hogar")`
+- El campo "prestacion" es ultra corto (ej: "Apoyo emocional oncología", "Cuidado en el hogar")
+- Hablás en español rioplatense: usás "vos", "podés", "tenés",
+  "acá", "también" (sin tilde). Tono cálido y directo, nunca
+  formal ni distante.`
 
 export async function POST(request: Request) {
   const body = await request.json()
