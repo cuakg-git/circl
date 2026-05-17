@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
@@ -52,7 +52,7 @@ function SSInputRow({
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
-export default function NuevoPrestadorPage() {
+function NuevoPrestadorContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -270,5 +270,13 @@ export default function NuevoPrestadorPage() {
         </main>
       </div>
     </>
+  )
+}
+
+export default function NuevoPrestadorPage() {
+  return (
+    <Suspense fallback={<div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center' }}>Cargando…</div>}>
+      <NuevoPrestadorContent />
+    </Suspense>
   )
 }
