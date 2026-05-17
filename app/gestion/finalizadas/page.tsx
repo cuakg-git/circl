@@ -613,7 +613,7 @@ export default function FinalizadasPage() {
                 <div style={{
                   background: '#FFFFFF', borderRadius: '1rem',
                   boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
-                  padding: 0, borderRadius: '1rem',
+                  padding: 0,
                 }}>
                   <div style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
