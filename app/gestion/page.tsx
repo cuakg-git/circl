@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
@@ -30,6 +29,11 @@ type Task = {
   assigned_contact_id: string | null
   assigned_to_user:    boolean | null
   topic_id:            string | null
+}
+
+type TaskDocCount = {
+  task_id: string
+  count:   number
 }
 
 type Topic = {
@@ -71,7 +75,7 @@ type HistoryEvent = {
 }
 
 // Sidesheet modes
-type SSMode = 'task-view' | 'task-add' | 'member-view' | 'member-add' | 'doc-view' | 'doc-add' | null
+type SSMode = 'member-view' | 'member-add' | null
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -285,305 +289,26 @@ const SS_SELECT_STYLE: React.CSSProperties = {
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
-function TopicDropdownPortal({
-  topics,
-  selectedId,
-  topicDropdown,
-  editTopicName,
-  setEditTopicName,
-  editTopicColor,
-  setEditTopicColor,
-  editTopicLoading,
-  onClose,
-  onToggleTopic,
-  onOpenEdit,
-  onOpenCreate,
-  onSaveTopic,
-  onDeleteTopic,
-}: {
-  topics:            Topic[]
-  selectedId:        string
-  topicDropdown:     { open: boolean; context: 'view' | 'add'; view: 'list' | 'edit' | 'create'; editTopic: Topic | null; anchorRect: DOMRect | null }
-  editTopicName:     string
-  setEditTopicName:  (v: string) => void
-  editTopicColor:    string
-  setEditTopicColor: (v: string) => void
-  editTopicLoading:  boolean
-  onClose:           () => void
-  onToggleTopic:     (id: string) => void
-  onOpenEdit:        (t: Topic) => void
-  onOpenCreate:      () => void
-  onSaveTopic:       () => void
-  onDeleteTopic:     () => void
-}) {
-  const { anchorRect, view, editTopic } = topicDropdown
-  if (!anchorRect) return null
-
-  const PANEL_W = 260
-  const left = Math.min(anchorRect.left, (typeof window !== 'undefined' ? window.innerWidth : 800) - PANEL_W - 8)
-  const top  = anchorRect.bottom + 6
-
-  const panel = (
-    <>
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        style={{ position: 'fixed', inset: 0, zIndex: 500 }}
-      />
-
-      {/* Floating panel */}
-      <div
-        style={{
-          position: 'fixed', top, left, width: PANEL_W,
-          background: '#FFFFFF', borderRadius: '1rem',
-          boxShadow: '0 8px 36px rgba(0,0,0,0.18)',
-          border: '1px solid rgba(10,126,140,0.10)',
-          zIndex: 501, overflow: 'hidden',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* ── LIST VIEW ── */}
-        {view === 'list' && (
-          <div>
-            <div style={{ padding: '10px 14px 6px', borderBottom: '1px solid rgba(10,126,140,0.08)' }}>
-              <span style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5a7478' }}>
-                Temas
-              </span>
-            </div>
-            <div style={{ maxHeight: 260, overflowY: 'auto' }}>
-              {/* "Sin tema" row */}
-              <div
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '9px 14px', cursor: 'pointer',
-                  background: selectedId === '' ? 'rgba(10,126,140,0.06)' : 'transparent',
-                  transition: 'background 0.12s',
-                }}
-                onMouseEnter={(e) => { if (selectedId !== '') e.currentTarget.style.background = 'rgba(10,126,140,0.04)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = selectedId === '' ? 'rgba(10,126,140,0.06)' : 'transparent' }}
-                onClick={() => onToggleTopic('')}
-              >
-                <div style={{
-                  width: 12, height: 12, borderRadius: '50%', flexShrink: 0,
-                  border: '1.5px dashed #9ab4b8', background: 'transparent',
-                }} />
-                <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500, color: '#5a7478' }}>Sin tema</span>
-                {selectedId === '' && (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0A7E8C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
-              </div>
-              {topics.map((t) => {
-                const isSelected = selectedId === t.id
-                return (
-                  <div
-                    key={t.id}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      padding: '9px 14px', cursor: 'pointer',
-                      background: isSelected ? `${t.color ?? '#0A7E8C'}12` : 'transparent',
-                      transition: 'background 0.12s',
-                    }}
-                    onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = 'rgba(10,126,140,0.04)' }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = isSelected ? `${t.color ?? '#0A7E8C'}12` : 'transparent' }}
-                  >
-                    <div
-                      onClick={() => onToggleTopic(t.id)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}
-                    >
-                      <div style={{
-                        width: 12, height: 12, borderRadius: '50%', flexShrink: 0,
-                        background: t.color ?? '#0A7E8C',
-                      }} />
-                      <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500, color: '#1A1A2E' }}>{t.name}</span>
-                      {isSelected && (
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={t.color ?? '#0A7E8C'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); onOpenEdit(t) }}
-                      title="Editar tema"
-                      style={{
-                        width: 24, height: 24, borderRadius: '0.35rem', flexShrink: 0,
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: '#9ab4b8', transition: 'background 0.12s, color 0.12s',
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.08)'; e.currentTarget.style.color = '#0A7E8C' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#9ab4b8' }}
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                      </svg>
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-            {/* Create link */}
-            <div style={{ borderTop: '1px solid rgba(10,126,140,0.08)', padding: '8px 14px' }}>
-              <button
-                type="button"
-                onClick={onOpenCreate}
-                style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  color: '#0A7E8C', fontSize: '0.75rem', fontWeight: 700,
-                  fontFamily: 'inherit', padding: 0, display: 'flex', alignItems: 'center', gap: 5,
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-                Crear tema nuevo
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── EDIT / CREATE VIEW ── */}
-        {(view === 'edit' || view === 'create') && (
-          <div style={{ padding: '14px' }}>
-            {/* Back */}
-            <button
-              type="button"
-              onClick={() => { setEditTopicName(''); setEditTopicColor('#0A7E8C'); onClose() }}
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: '#5a7478', fontSize: '0.7rem', fontWeight: 600,
-                fontFamily: 'inherit', padding: 0, marginBottom: 10,
-                display: 'flex', alignItems: 'center', gap: 4,
-              }}
-            >
-              ← Volver
-            </button>
-            <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5a7478', marginBottom: 8 }}>
-              {view === 'create' ? 'Nuevo tema' : 'Editar tema'}
-            </div>
-            <input
-              type="text"
-              placeholder="Nombre del tema…"
-              value={editTopicName}
-              onChange={(e) => setEditTopicName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') { e.preventDefault(); onSaveTopic() }
-                if (e.key === 'Escape') { onClose() }
-              }}
-              autoFocus
-              style={{
-                width: '100%', border: 'none',
-                borderBottom: '1.5px solid rgba(10,126,140,0.2)',
-                background: 'transparent', fontSize: '0.875rem',
-                fontWeight: 600, outline: 'none', color: '#1A1A2E',
-                fontFamily: 'inherit', padding: '2px 0', marginBottom: 10,
-                boxSizing: 'border-box',
-              }}
-            />
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              {TOPIC_COLORS.map((c) => (
-                <button
-                  key={c.value}
-                  type="button"
-                  onClick={() => setEditTopicColor(c.value)}
-                  title={c.label}
-                  style={{
-                    width: 20, height: 20, borderRadius: '50%',
-                    background: c.value, border: 'none', cursor: 'pointer',
-                    outline: editTopicColor === c.value ? `2.5px solid ${c.value}` : '2.5px solid transparent',
-                    outlineOffset: 2,
-                    transform: editTopicColor === c.value ? 'scale(1.2)' : 'scale(1)',
-                    transition: 'transform 0.15s',
-                    flexShrink: 0,
-                  }}
-                />
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <button
-                type="button"
-                onClick={onSaveTopic}
-                disabled={editTopicLoading || !editTopicName.trim()}
-                style={{
-                  background: '#0A7E8C', color: 'white', border: 'none',
-                  borderRadius: '0.5rem', padding: '6px 16px',
-                  fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  opacity: (editTopicLoading || !editTopicName.trim()) ? 0.5 : 1,
-                }}
-              >
-                {editTopicLoading ? '…' : view === 'create' ? 'Crear' : 'Guardar'}
-              </button>
-              {view === 'edit' && editTopic && (
-                <button
-                  type="button"
-                  onClick={onDeleteTopic}
-                  disabled={editTopicLoading}
-                  style={{
-                    background: 'rgba(186,26,26,0.07)', color: '#ba1a1a', border: 'none',
-                    borderRadius: '0.5rem', padding: '6px 14px',
-                    fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
-                    fontFamily: 'inherit', opacity: editTopicLoading ? 0.5 : 1,
-                    marginLeft: 'auto',
-                  }}
-                >
-                  Eliminar
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </>
-  )
-
-  return createPortal(panel, document.body)
-}
-
 export default function GestionPage() {
   const [id, setId] = useState<string | null>(null)
   const router  = useRouter()
 
   // ── Page data state ──────────────────────────────────────────────────────────
-  const [crisis,   setCrisis]   = useState<Crisis | null>(null)
-  const [tasks,    setTasks]    = useState<Task[]>([])
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [docs,     setDocs]     = useState<Doc[]>([])
-  const [history,  setHistory]  = useState<HistoryEvent[]>([])
-  const [loading,  setLoading]  = useState(true)
+  const [crisis,      setCrisis]      = useState<Crisis | null>(null)
+  const [tasks,       setTasks]       = useState<Task[]>([])
+  const [contacts,    setContacts]    = useState<Contact[]>([])
+  const [allContacts, setAllContacts] = useState<Contact[]>([])
+  const [docs,        setDocs]        = useState<Doc[]>([])
+  const [history,     setHistory]     = useState<HistoryEvent[]>([])
+  const [loading,     setLoading]     = useState(true)
 
   const [topics, setTopics] = useState<Topic[]>([])
-  const [topicDropdown, setTopicDropdown] = useState<{
-    open:       boolean
-    context:    'view' | 'add'
-    view:       'list' | 'edit' | 'create'
-    editTopic:  Topic | null
-    anchorRect: DOMRect | null
-  }>({ open: false, context: 'view', view: 'list', editTopic: null, anchorRect: null })
-  const [editTopicName,    setEditTopicName]    = useState('')
-  const [editTopicColor,   setEditTopicColor]   = useState('#0A7E8C')
-  const [editTopicLoading, setEditTopicLoading] = useState(false)
-  const [addTopicId,       setAddTopicId]       = useState<string>('')
+  const [taskDocCounts, setTaskDocCounts] = useState<Map<string, number>>(new Map())
 
   // ── Sidesheet state ──────────────────────────────────────────────────────────
   const [ssMode,    setSsMode]    = useState<SSMode>(null)
-  const [completingTaskId, setCompletingTaskId] = useState<string | null>(null)
-  const [ssTask,    setSsTask]    = useState<Task | null>(null)
   const [ssLoading, setSsLoading] = useState(false)
   const [ssError,   setSsError]   = useState<string | null>(null)
-
-  // Task-add form fields
-  const [addTitle,    setAddTitle]    = useState('')
-  const [addDate,     setAddDate]     = useState('')
-  const [addTime,     setAddTime]     = useState('')
-  const [timeOpen,    setTimeOpen]    = useState(false)
-  const [addAssignee, setAddAssignee] = useState('')
-
-  // Task-view: local assignee select (to allow editing without page reload)
-  const [tvAssignee, setTvAssignee] = useState('')
 
   // Member sidesheet state
   const [ssMember,    setSsMember]    = useState<Contact | null>(null)
@@ -591,21 +316,6 @@ export default function GestionPage() {
   const [mvProximity, setMvProximity] = useState('')
   const [availableContacts, setAvailableContacts] = useState<Contact[]>([])
   const [availableLoading,  setAvailableLoading]  = useState(false)
-
-  // Doc sidesheet state
-  const [ssDoc,          setSsDoc]          = useState<Doc | null>(null)
-  const [docName,        setDocName]        = useState('')
-  const [docType,        setDocType]        = useState('estudio_medico')
-  const [docFile,        setDocFile]        = useState<File | null>(null)
-  const [isDraggingDoc,  setIsDraggingDoc]  = useState(false)
-  const fileInputRef                        = useRef<HTMLInputElement>(null)
-  const dragCounterRef                      = useRef(0)
-
-  // Doc preview modal state
-  const [docModalOpen,    setDocModalOpen]    = useState(false)
-  const [docModalUrl,     setDocModalUrl]     = useState<string | null>(null)
-  const [docModalLoading, setDocModalLoading] = useState(false)
-  const [docThumbUrl,     setDocThumbUrl]     = useState<string | null>(null)
 
   // ── Load data ────────────────────────────────────────────────────────────────
 
@@ -629,7 +339,7 @@ export default function GestionPage() {
       setId(activeCrisis.id)
       const currentId = activeCrisis.id
 
-      const [crisisRes, tasksRes, contactsRes, docsRes, historyRes, topicsRes] = await Promise.all([
+      const [crisisRes, tasksRes, contactsRes, docsRes, historyRes, topicsRes, allContactsRes] = await Promise.all([
         supabase
           .from('crises')
           .select('id, name, status, category, started_at, ai_summary')
@@ -655,6 +365,12 @@ export default function GestionPage() {
           .select('id, name, color, crisis_id')
           .eq('crisis_id', currentId)
           .order('created_at', { ascending: true }),
+        supabase
+          .from('contacts')
+          .select('id, name, role, proximity, initials, phone, email, relationship')
+          .eq('user_id', user.id)
+          .in('proximity', ['nucleo', 'ayuda'])
+          .order('sort_order', { ascending: true, nullsFirst: false }),
       ])
 
       if (crisisRes.error) console.error('Error crisis:', crisisRes.error)
@@ -680,6 +396,23 @@ export default function GestionPage() {
       setHistory((historyRes.data ?? []) as HistoryEvent[])
 
       setTopics((topicsRes.data ?? []) as Topic[])
+      setAllContacts((allContactsRes.data ?? []) as Contact[])
+
+      // Cargar conteo de documentos por tarea
+      const taskIds = (tasksRes.data ?? []).map((t: any) => t.id)
+      if (taskIds.length > 0) {
+        const { data: tdData } = await supabase
+          .from('task_documents')
+          .select('task_id')
+          .in('task_id', taskIds)
+        if (tdData) {
+          const countMap = new Map<string, number>()
+          for (const row of tdData) {
+            countMap.set(row.task_id, (countMap.get(row.task_id) ?? 0) + 1)
+          }
+          setTaskDocCounts(countMap)
+        }
+      }
 
       setLoading(false)
     }
@@ -755,38 +488,7 @@ export default function GestionPage() {
     await reloadHistory()
   }, [id, reloadHistory])
 
-  // ── Close modal on Escape ─────────────────────────────────────────────────────
-
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape' && docModalOpen) {
-        setDocModalOpen(false)
-        setDocModalUrl(null)
-      }
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [docModalOpen])
-
   // ── Sidesheet helpers ─────────────────────────────────────────────────────────
-
-  function openTaskView(t: Task) {
-    setSsTask(t)
-    setTvAssignee(encodeAssignee(t))
-    setSsError(null)
-    setSsMode('task-view')
-  }
-
-  function openTaskAdd() {
-    setAddTitle('')
-    setAddDate('')
-    setAddTime('')
-    setTimeOpen(false)
-    setAddAssignee('')
-    setAddTopicId('')
-    setSsError(null)
-    setSsMode('task-add')
-  }
 
   function openMemberView(c: Contact) {
     setSsMember(c)
@@ -805,7 +507,7 @@ export default function GestionPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setAvailableLoading(false); return }
 
-    const { data: allContacts, error } = await supabase
+    const { data: fetchedContacts, error } = await supabase
       .from('contacts')
       .select('id, name, role, proximity, initials, phone, email, relationship')
       .eq('user_id', user.id)
@@ -815,201 +517,14 @@ export default function GestionPage() {
     if (error) { setSsError(error.message); return }
 
     const inCrisis = new Set(contacts.map((c) => c.id))
-    const available = (allContacts ?? []).filter((c) => !inCrisis.has(c.id)) as Contact[]
+    const available = (fetchedContacts ?? []).filter((c) => !inCrisis.has(c.id)) as Contact[]
     setAvailableContacts(available)
   }
 
   function closeSheet() {
     setSsMode(null)
-    setSsTask(null)
     setSsMember(null)
-    setSsDoc(null)
     setSsError(null)
-    setDocModalOpen(false)
-    setDocModalUrl(null)
-    setDocThumbUrl(null)
-  }
-
-  // ── Topic dropdown handlers ───────────────────────────────────────────────────
-
-  function openTopicDropdown(e: React.MouseEvent, context: 'view' | 'add') {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    setTopicDropdown({ open: true, context, view: 'list', editTopic: null, anchorRect: rect })
-    setEditTopicName('')
-    setEditTopicColor('#0A7E8C')
-  }
-
-  function closeTopicDropdown() {
-    setTopicDropdown(prev => ({ ...prev, open: false }))
-  }
-
-  function openEditTopic(t: Topic) {
-    setEditTopicName(t.name)
-    setEditTopicColor(t.color ?? '#0A7E8C')
-    setTopicDropdown(prev => ({ ...prev, view: 'edit', editTopic: t }))
-  }
-
-  function openCreateTopic() {
-    setEditTopicName('')
-    setEditTopicColor('#0A7E8C')
-    setTopicDropdown(prev => ({ ...prev, view: 'create', editTopic: null }))
-  }
-
-  async function handleSaveTopic() {
-    if (!editTopicName.trim() || !id) return
-    setEditTopicLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setEditTopicLoading(false); return }
-
-    if (topicDropdown.view === 'create') {
-      const { data: newTopic, error } = await supabase
-        .from('topics')
-        .insert({ crisis_id: id, user_id: user.id, name: editTopicName.trim(), color: editTopicColor })
-        .select('id, name, color, crisis_id')
-        .single()
-      setEditTopicLoading(false)
-      if (error) { setSsError(error.message); return }
-      await reloadTopics()
-      // Auto-select the new topic for the triggering context
-      if (topicDropdown.context === 'add') {
-        setAddTopicId(newTopic.id)
-      } else if (topicDropdown.context === 'view' && ssTask) {
-        await supabase.from('tasks').update({ topic_id: newTopic.id }).eq('id', ssTask.id)
-        await reloadTasks()
-        setSsTask(prev => prev ? { ...prev, topic_id: newTopic.id } : prev)
-      }
-      setTopicDropdown(prev => ({ ...prev, view: 'list', editTopic: null }))
-    } else if (topicDropdown.view === 'edit' && topicDropdown.editTopic) {
-      const { error } = await supabase
-        .from('topics')
-        .update({ name: editTopicName.trim(), color: editTopicColor })
-        .eq('id', topicDropdown.editTopic.id)
-      setEditTopicLoading(false)
-      if (error) { setSsError(error.message); return }
-      await reloadTopics()
-      setTopicDropdown(prev => ({ ...prev, view: 'list', editTopic: null }))
-    }
-  }
-
-  async function handleDeleteTopic() {
-    if (!topicDropdown.editTopic) return
-    if (!window.confirm(`¿Eliminar el tema "${topicDropdown.editTopic.name}"?`)) return
-    setEditTopicLoading(true)
-    const { error } = await supabase.from('topics').delete().eq('id', topicDropdown.editTopic.id)
-    setEditTopicLoading(false)
-    if (error) { setSsError(error.message); return }
-    await reloadTopics()
-    // Clear selection if this topic was selected
-    if (topicDropdown.context === 'add' && addTopicId === topicDropdown.editTopic.id) setAddTopicId('')
-    if (topicDropdown.context === 'view' && ssTask?.topic_id === topicDropdown.editTopic.id) {
-      await supabase.from('tasks').update({ topic_id: null }).eq('id', ssTask.id)
-      await reloadTasks()
-      setSsTask(prev => prev ? { ...prev, topic_id: null } : prev)
-    }
-    setTopicDropdown(prev => ({ ...prev, view: 'list', editTopic: null }))
-  }
-
-  async function handleToggleTopicOnTask(topicId: string) {
-    if (topicDropdown.context === 'add') {
-      setAddTopicId(topicId)
-      closeTopicDropdown()
-    } else if (topicDropdown.context === 'view' && ssTask) {
-      // '' means "Sin tema" → always set null; otherwise toggle
-      const newId = topicId === ''
-        ? null
-        : ssTask.topic_id === topicId ? null : topicId
-      const { error } = await supabase.from('tasks').update({ topic_id: newId }).eq('id', ssTask.id)
-      if (error) { setSsError(error.message); return }
-      await reloadTasks()
-      setSsTask(prev => prev ? { ...prev, topic_id: newId } : prev)
-      closeTopicDropdown()
-    }
-  }
-
-  // ── Task view actions ─────────────────────────────────────────────────────────
-
-  async function handleAssigneeChange(val: string) {
-    if (!ssTask) return
-    setTvAssignee(val)
-    const fields = decodeAssignee(val)
-    const { error } = await supabase.from('tasks').update(fields).eq('id', ssTask.id)
-    if (error) { setSsError(error.message); return }
-    await reloadTasks()
-
-    let assigneeName: string | null = null
-    if (val === 'yo') {
-      assigneeName = 'Yo'
-    } else if (val.startsWith('c:')) {
-      const c = contactById.get(val.slice(2))
-      assigneeName = c?.name ?? null
-    }
-    if (assigneeName) {
-      await logHistory('Tarea reasignada', `${ssTask.title} → ${assigneeName}`, 'actualizacion_general')
-    }
-  }
-
-  async function handleToggleStatus() {
-    if (!ssTask || ssLoading) return
-    setSsLoading(true)
-    setSsError(null)
-    const newStatus = ssTask.status === 'completada' ? 'pendiente' : 'completada'
-    const { error } = await supabase.from('tasks').update({ status: newStatus }).eq('id', ssTask.id)
-    setSsLoading(false)
-    if (error) { setSsError(error.message); return }
-
-    if (newStatus === 'completada') {
-      // 1. Cerrar el sidesheet
-      closeSheet()
-      // 2. Disparar animación en la tarea
-      setCompletingTaskId(ssTask.id)
-      // 3. Después de la animación, recargar tareas
-      setTimeout(async () => {
-        setCompletingTaskId(null)
-        await reloadTasks()
-        await logHistory('Tarea completada', ssTask.title, 'tarea_completada')
-      }, 900)
-    } else {
-      await reloadTasks()
-      closeSheet()
-    }
-  }
-
-  async function handleDelete() {
-    if (!ssTask) return
-    if (!window.confirm(`¿Eliminar la tarea "${ssTask.title}"?`)) return
-    setSsLoading(true)
-    setSsError(null)
-    const { error } = await supabase.from('tasks').delete().eq('id', ssTask.id)
-    setSsLoading(false)
-    if (error) { setSsError(error.message); return }
-    await reloadTasks()
-    closeSheet()
-  }
-
-  // ── Task add action ───────────────────────────────────────────────────────────
-
-  async function handleAddTask(e: React.FormEvent) {
-    e.preventDefault()
-    if (!addTitle.trim() || ssLoading) return
-    setSsLoading(true)
-    setSsError(null)
-    const title          = addTitle.trim()
-    const assigneeFields = decodeAssignee(addAssignee)
-    const dateStr        = parseDate(addDate)
-    const dueDate        = dateStr && addTime ? `${dateStr}T${addTime}:00` : dateStr
-    const { error } = await supabase.from('tasks').insert({
-      crisis_id: id,
-      title,
-      due_date:  dueDate,
-      status:    'pendiente',
-      topic_id:  addTopicId || null,
-      ...assigneeFields,
-    })
-    setSsLoading(false)
-    if (error) { setSsError(error.message); return }
-    await reloadTasks()
-    await logHistory('Tarea agregada', title, 'tarea_agregada')
-    closeSheet()
   }
 
   // ── Member view actions ───────────────────────────────────────────────────────
@@ -1063,132 +578,6 @@ export default function GestionPage() {
     closeSheet()
   }
 
-  // ── Doc view / add actions ────────────────────────────────────────────────────
-
-  async function openDocView(d: Doc) {
-    setSsDoc(d)
-    setSsError(null)
-    setDocThumbUrl(null)
-    setSsMode('doc-view')
-    const mime = d.file_mime_type ?? ''
-    if (mime.startsWith('image/') || mime === 'application/pdf') {
-      const { data } = await supabase.storage.from('docs').createSignedUrl(d.storage_path, 3600)
-      if (data?.signedUrl) setDocThumbUrl(data.signedUrl)
-    }
-  }
-
-  function openDocAdd() {
-    setDocName('')
-    setDocType('estudio_medico')
-    setDocFile(null)
-    setSsError(null)
-    setSsMode('doc-add')
-  }
-
-  function handleFileSelect(file: File) {
-    if (file.size > 10 * 1024 * 1024) {
-      setSsError('El archivo supera el límite de 10 MB')
-      return
-    }
-    setSsError(null)
-    setDocFile(file)
-  }
-
-  async function handleDocDownload(urlOverride?: string) {
-    if (!ssDoc) return
-    let url = urlOverride ?? null
-    if (!url) {
-      setSsLoading(true)
-      setSsError(null)
-      const { data, error } = await supabase.storage.from('docs').createSignedUrl(
-        ssDoc.storage_path, 3600,
-        { download: ssDoc.original_filename ?? ssDoc.name },
-      )
-      setSsLoading(false)
-      if (error || !data?.signedUrl) {
-        setSsError('No se pudo generar el link de descarga')
-        return
-      }
-      url = data.signedUrl
-    }
-    const a = document.createElement('a')
-    a.href = url
-    a.download = ssDoc.original_filename ?? ssDoc.name
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-  }
-
-  async function handleDocOpen() {
-    if (!ssDoc) return
-    if (docThumbUrl) {
-      setDocModalUrl(docThumbUrl)
-      setDocModalOpen(true)
-      return
-    }
-    setDocModalLoading(true)
-    setSsError(null)
-    const { data, error } = await supabase.storage.from('docs').createSignedUrl(ssDoc.storage_path, 3600)
-    setDocModalLoading(false)
-    if (error || !data?.signedUrl) {
-      setSsError('No se pudo generar la vista previa')
-      return
-    }
-    setDocModalUrl(data.signedUrl)
-    setDocModalOpen(true)
-  }
-
-  async function handleDocDelete() {
-    if (!ssDoc) return
-    if (!window.confirm(`¿Eliminar el documento "${ssDoc.name}"?`)) return
-    setSsLoading(true)
-    setSsError(null)
-    const { error: storageErr } = await supabase.storage.from('docs').remove([ssDoc.storage_path])
-    if (storageErr) { setSsLoading(false); setSsError(storageErr.message); return }
-    const { error: dbErr } = await supabase.from('documents').delete().eq('id', ssDoc.id)
-    setSsLoading(false)
-    if (dbErr) { setSsError(dbErr.message); return }
-    await reloadDocs()
-    closeSheet()
-  }
-
-  async function handleAddDoc(e: React.FormEvent) {
-    e.preventDefault()
-    if (!docFile || ssLoading) return
-    setSsLoading(true)
-    setSsError(null)
-    const timestamp = Date.now()
-    const safeName  = docFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-    const path      = `${id}/${timestamp}_${safeName}`
-    const { error: uploadErr } = await supabase.storage.from('docs').upload(path, docFile)
-    if (uploadErr) {
-      setSsLoading(false)
-      setSsError(`Error al subir el archivo: ${uploadErr.message}`)
-      return
-    }
-    const { error: dbErr } = await supabase.from('documents').insert({
-      crisis_id:              id,
-      name:                   docName.trim(),
-      type:                   docType,
-      storage_path:           path,
-      original_filename:      docFile.name,
-      file_size_bytes:        docFile.size,
-      file_mime_type:         docFile.type,
-      uploaded_by_user:       true,
-      uploaded_by_contact_id: null,
-    })
-    if (dbErr) {
-      await supabase.storage.from('docs').remove([path])
-      setSsLoading(false)
-      setSsError(dbErr.message)
-      return
-    }
-    await logHistory('Documento cargado', docName.trim(), 'actualizacion_general')
-    await reloadDocs()
-    setSsLoading(false)
-    closeSheet()
-  }
-
   // ── Derived ───────────────────────────────────────────────────────────────────
 
   const contactById = new Map(contacts.map((c) => [c.id, c]))
@@ -1238,39 +627,7 @@ export default function GestionPage() {
           }
         }
         .gestion-bg { animation: heroBgDrift 30s ease-in-out infinite; }
-        @keyframes strikethrough {
-          0%   { width: 0%; opacity: 1; }
-          60%  { width: 100%; opacity: 1; }
-          100% { width: 100%; opacity: 1; }
-        }
-        @keyframes taskFadeOut {
-          0%   { opacity: 1; transform: translateX(0);    max-height: 80px; }
-          100% { opacity: 0; transform: translateX(-12px); max-height: 0;   padding: 0; }
-        }
       `}</style>
-
-      {/* ══════════════════════════════════════════════════════════════════════
-          TOPIC DROPDOWN PORTAL
-      ══════════════════════════════════════════════════════════════════════ */}
-
-      {topicDropdown.open && (
-        <TopicDropdownPortal
-          topics={topics}
-          selectedId={topicDropdown.context === 'view' ? (ssTask?.topic_id ?? '') : addTopicId}
-          topicDropdown={topicDropdown}
-          editTopicName={editTopicName}
-          setEditTopicName={setEditTopicName}
-          editTopicColor={editTopicColor}
-          setEditTopicColor={setEditTopicColor}
-          editTopicLoading={editTopicLoading}
-          onClose={closeTopicDropdown}
-          onToggleTopic={handleToggleTopicOnTask}
-          onOpenEdit={openEditTopic}
-          onOpenCreate={openCreateTopic}
-          onSaveTopic={handleSaveTopic}
-          onDeleteTopic={handleDeleteTopic}
-        />
-      )}
 
       {/* ══════════════════════════════════════════════════════════════════════
           SIDESHEET OVERLAY + PANEL
@@ -1318,12 +675,8 @@ export default function GestionPage() {
             fontSize: '0.7rem', fontWeight: 700,
             letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5a7478',
           }}>
-            {ssMode === 'task-view'     ? 'Tarea'
-             : ssMode === 'task-add'    ? 'Nueva tarea'
-             : ssMode === 'member-view' ? 'Miembro del círculo'
+            {ssMode === 'member-view' ? 'Miembro del círculo'
              : ssMode === 'member-add'  ? 'Agregar al círculo'
-             : ssMode === 'doc-view'    ? 'Documento'
-             : ssMode === 'doc-add'     ? 'Cargar documento'
              : ''}
           </span>
           <button
@@ -1340,391 +693,6 @@ export default function GestionPage() {
             ✕
           </button>
         </div>
-
-        {/* ── TASK VIEW ── */}
-        {ssMode === 'task-view' && ssTask && (() => {
-          const isDone = ssTask.status === 'completada'
-          return (
-            <div style={{ padding: '0 24px 40px', flex: 1 }}>
-              {/* Hero */}
-              <div style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center',
-                textAlign: 'center', padding: '24px 0 20px',
-                borderBottom: '1px solid rgba(10,126,140,0.12)', marginBottom: 24,
-              }}>
-                <div style={{
-                  width: 80, height: 80, borderRadius: '50%',
-                  background: isDone ? 'rgba(90,116,120,0.25)' : 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: isDone ? 'none' : '0 8px 40px rgba(10,126,140,0.16)',
-                  marginBottom: 14,
-                }}>
-                  <IconTaskAlt done={isDone} />
-                </div>
-                <div style={{
-                  fontSize: '1.5rem', fontWeight: 800,
-                  letterSpacing: '-0.02em', marginBottom: 8, color: '#1A1A2E',
-                }}>
-                  {ssTask.title}
-                </div>
-                {isDone ? (
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', borderRadius: 9999,
-                    padding: '3px 11px', fontSize: '0.7rem', fontWeight: 700,
-                    letterSpacing: '0.05em', textTransform: 'uppercase',
-                    background: 'rgba(90,116,120,0.10)', color: '#5a7478',
-                  }}>Completada</span>
-                ) : (
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', borderRadius: 9999,
-                    padding: '3px 11px', fontSize: '0.7rem', fontWeight: 700,
-                    letterSpacing: '0.05em', textTransform: 'uppercase',
-                    background: 'rgba(46,205,167,0.14)', color: '#0a6e5a',
-                  }}>Pendiente</span>
-                )}
-              </div>
-
-              {/* Detail card */}
-              <div style={{ marginBottom: 24 }}>
-                <p style={{
-                  fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
-                  textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
-                }}>Detalle</p>
-                <Card style={{ padding: 0, borderRadius: '1rem' }}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '13px 20px', borderBottom: '1px solid rgba(10,126,140,0.12)', gap: 12,
-                  }}>
-                    <span style={{
-                      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                      textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-                    }}>Asignado a</span>
-                    <select
-                      value={tvAssignee}
-                      onChange={(e) => handleAssigneeChange(e.target.value)}
-                      style={SS_SELECT_STYLE}
-                    >
-                      <option value="">Sin asignar</option>
-                      <option value="yo">Yo</option>
-                      {contacts.map((c) => (
-                        <option key={c.id} value={`c:${c.id}`}>{c.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '13px 20px', gap: 12,
-                  }}>
-                    <span style={{
-                      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                      textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-                    }}>Fecha</span>
-                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1A1A2E', flex: 1 }}>
-                      {ssTask.due_date ? fmtLongDate(ssTask.due_date) : 'Sin fecha'}
-                    </span>
-                  </div>
-
-                  <div style={{
-                    display: 'flex', alignItems: 'center',
-                    padding: '13px 20px',
-                    borderTop: '1px solid rgba(10,126,140,0.12)', gap: 12,
-                  }}>
-                    <span style={{
-                      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                      textTransform: 'uppercase', color: '#5a7478',
-                      minWidth: 80, flexShrink: 0,
-                    }}>Tema</span>
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      {(() => {
-                        const t = topics.find(x => x.id === ssTask.topic_id)
-                        return t ? (
-                          <span style={{
-                            padding: '3px 10px', borderRadius: 9999,
-                            background: `${t.color ?? '#0A7E8C'}18`,
-                            color: t.color ?? '#0A7E8C',
-                            fontSize: '0.72rem', fontWeight: 700,
-                            border: `1.5px solid ${t.color ?? '#0A7E8C'}40`,
-                          }}>{t.name}</span>
-                        ) : (
-                          <span style={{ fontSize: '0.8rem', color: '#9ab4b8', fontWeight: 500 }}>Sin tema</span>
-                        )
-                      })()}
-                      <button
-                        type="button"
-                        onClick={(e) => openTopicDropdown(e, 'view')}
-                        style={{
-                          padding: 0, background: 'none', border: 'none',
-                          color: '#0A7E8C', fontSize: '0.8125rem',
-                          fontWeight: 600, cursor: 'pointer',
-                          fontFamily: 'inherit',
-                          textDecoration: 'underline',
-                          textUnderlineOffset: 3,
-                        }}
-                      >
-                        {ssTask.topic_id ? 'Cambiar' : 'Agregar'}
-                      </button>
-                    </div>
-                  </div>
-                </Card>
-              </div>
-
-              {ssError && (
-                <p style={{
-                  fontSize: '0.7rem', color: '#ba1a1a', fontWeight: 600,
-                  marginBottom: 16, padding: '10px 14px',
-                  background: 'rgba(186,26,26,0.06)', borderRadius: '0.6rem',
-                }}>
-                  {ssError}
-                </p>
-              )}
-
-              <div style={{ marginBottom: 24 }}>
-                <button
-                  onClick={handleToggleStatus}
-                  disabled={ssLoading}
-                  style={{
-                    width: '100%', padding: '14px', borderRadius: 9999,
-                    border: 'none', cursor: ssLoading ? 'not-allowed' : 'pointer',
-                    fontWeight: 700, fontSize: '0.875rem', transition: 'filter 0.15s',
-                    background: isDone
-                      ? 'rgba(10,126,140,0.12)'
-                      : 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                    color: isDone ? '#0A7E8C' : 'white',
-                    opacity: ssLoading ? 0.6 : 1,
-                  }}
-                >
-                  {ssLoading ? 'Procesando…' : isDone ? 'Reabrir tarea' : 'Marcar como completada'}
-                </button>
-              </div>
-
-              <div>
-                <p style={{
-                  fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
-                  textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
-                }}>Acciones</p>
-                <Card style={{ padding: 0, borderRadius: '1rem' }}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '13px 20px', gap: 12,
-                  }}>
-                    <span style={{ fontSize: '0.875rem', color: '#5a7478', flex: 1 }}>
-                      Eliminar esta tarea
-                    </span>
-                    <button
-                      onClick={handleDelete}
-                      disabled={ssLoading}
-                      style={{
-                        background: 'rgba(186,26,26,0.06)', color: '#ba1a1a',
-                        border: 'none', borderRadius: '0.6rem',
-                        padding: '7px 16px', fontSize: '0.875rem', fontWeight: 700,
-                        cursor: ssLoading ? 'not-allowed' : 'pointer', opacity: ssLoading ? 0.6 : 1,
-                        transition: 'filter 0.15s',
-                      }}
-                    >
-                      Eliminar
-                    </button>
-                  </div>
-                </Card>
-              </div>
-            </div>
-          )
-        })()}
-
-        {/* ── TASK ADD ── */}
-        {ssMode === 'task-add' && (
-          <div style={{ padding: '0 24px 40px', flex: 1 }}>
-            <div style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              textAlign: 'center', padding: '24px 0 20px',
-              borderBottom: '1px solid rgba(10,126,140,0.12)', marginBottom: 24,
-            }}>
-              <div style={{
-                width: 72, height: 72, borderRadius: '50%',
-                background: 'rgba(61,199,166,0.08)',
-                border: '2px dashed rgba(61,199,166,0.45)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                marginBottom: 14,
-              }}>
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0A7E8C"
-                  strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="9 11 12 14 22 4" />
-                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-                </svg>
-              </div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#1A1A2E' }}>
-                Nueva tarea
-              </div>
-            </div>
-
-            <form onSubmit={handleAddTask}>
-              <p style={{
-                fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
-                textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
-              }}>Datos</p>
-              <Card style={{ padding: 0, borderRadius: '1rem', marginBottom: 24 }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center',
-                  padding: '13px 20px', borderBottom: '1px solid rgba(10,126,140,0.12)', gap: 12,
-                }}>
-                  <span style={{
-                    fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                    textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-                  }}>Tarea</span>
-                  <input
-                    type="text" required placeholder="Describí la tarea…"
-                    value={addTitle} onChange={(e) => setAddTitle(e.target.value)}
-                    style={{ ...SS_INPUT_STYLE }}
-                  />
-                </div>
-                <div style={{
-                  display: 'flex', alignItems: 'center',
-                  padding: '13px 20px', borderBottom: '1px solid rgba(10,126,140,0.12)', gap: 12,
-                }}>
-                  <span style={{
-                    fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                    textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-                  }}>Fecha</span>
-                  <input
-                    type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)}
-                    style={{ ...SS_INPUT_STYLE, fontWeight: 400, colorScheme: 'light' }}
-                  />
-                </div>
-                <div style={{
-                  display: 'flex', alignItems: 'center',
-                  padding: '13px 20px', borderBottom: '1px solid rgba(10,126,140,0.12)', gap: 12,
-                  position: 'relative',
-                }}>
-                  <span style={{
-                    fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                    textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-                  }}>Horario</span>
-                  <div style={{ flex: 1, position: 'relative' }}>
-                    <input
-                      type="text" placeholder="HH:MM" value={addTime}
-                      onChange={(e) => { setAddTime(e.target.value); setTimeOpen(true) }}
-                      onFocus={() => setTimeOpen(true)}
-                      onBlur={() => setTimeout(() => setTimeOpen(false), 150)}
-                      style={{ ...SS_INPUT_STYLE, fontWeight: 400 }}
-                    />
-                    {timeOpen && (
-                      <div style={{
-                        position: 'absolute', top: 'calc(100% + 6px)', left: -20, right: -20,
-                        maxHeight: 220, overflowY: 'auto', background: '#FFFFFF',
-                        borderRadius: '1rem', boxShadow: '0 8px 32px rgba(10,126,140,0.18)',
-                        border: '1px solid rgba(10,126,140,0.10)', zIndex: 400,
-                      }}>
-                        {TIME_OPTIONS.filter(t => !addTime || t.startsWith(addTime)).map((t, i, arr) => (
-                          <div
-                            key={t}
-                            onMouseDown={() => { setAddTime(t); setTimeOpen(false) }}
-                            style={{
-                              padding: '10px 20px', fontSize: '0.875rem',
-                              fontWeight: addTime === t ? 700 : 400,
-                              color: addTime === t ? '#0A7E8C' : '#1A1A2E',
-                              background: addTime === t ? 'rgba(10,126,140,0.07)' : 'transparent',
-                              cursor: 'pointer',
-                              borderBottom: i < arr.length - 1 ? '1px solid rgba(10,126,140,0.06)' : 'none',
-                              transition: 'background 0.1s',
-                            }}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(61,199,166,0.10)' }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = addTime === t ? 'rgba(10,126,140,0.07)' : 'transparent'
-                            }}
-                          >
-                            {t}
-                          </div>
-                        ))}
-                        {TIME_OPTIONS.filter(t => !addTime || t.startsWith(addTime)).length === 0 && (
-                          <div style={{ padding: '14px 20px', fontSize: '0.875rem', color: '#5a7478', textAlign: 'center' }}>
-                            Sin resultados
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', padding: '13px 20px', gap: 12 }}>
-                  <span style={{
-                    fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                    textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-                  }}>Asignado</span>
-                  <select value={addAssignee} onChange={(e) => setAddAssignee(e.target.value)} style={SS_SELECT_STYLE}>
-                    <option value="">— Sin asignar —</option>
-                    <option value="yo">Yo</option>
-                    {contacts.map((c) => (
-                      <option key={c.id} value={`c:${c.id}`}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </Card>
-
-              <Card style={{ padding: 0, borderRadius: '1rem', marginBottom: 24, marginTop: 0 }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center',
-                  padding: '13px 20px', gap: 12,
-                }}>
-                  <span style={{
-                    fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                    textTransform: 'uppercase', color: '#5a7478', minWidth: 80, flexShrink: 0,
-                  }}>Tema</span>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    {(() => {
-                      const t = topics.find(x => x.id === addTopicId)
-                      return t ? (
-                        <span style={{
-                          padding: '3px 10px', borderRadius: 9999,
-                          background: `${t.color ?? '#0A7E8C'}18`,
-                          color: t.color ?? '#0A7E8C',
-                          fontSize: '0.72rem', fontWeight: 700,
-                          border: `1.5px solid ${t.color ?? '#0A7E8C'}40`,
-                        }}>{t.name}</span>
-                      ) : null
-                    })()}
-                    <button
-                      type="button"
-                      onClick={(e) => openTopicDropdown(e, 'add')}
-                      style={{
-                        padding: 0, background: 'none', border: 'none',
-                        color: '#0A7E8C', fontSize: '0.8125rem',
-                        fontWeight: 600, cursor: 'pointer',
-                        fontFamily: 'inherit',
-                        textDecoration: 'underline',
-                        textUnderlineOffset: 3,
-                      }}
-                    >
-                      {addTopicId ? 'Cambiar' : 'Agregar'}
-                    </button>
-                  </div>
-                </div>
-              </Card>
-
-              {ssError && (
-                <p style={{
-                  fontSize: '0.7rem', color: '#ba1a1a', fontWeight: 600,
-                  marginBottom: 16, padding: '10px 14px',
-                  background: 'rgba(186,26,26,0.06)', borderRadius: '0.6rem',
-                }}>
-                  {ssError}
-                </p>
-              )}
-
-              <button
-                type="submit" disabled={ssLoading || !addTitle.trim()}
-                style={{
-                  width: '100%', padding: '14px', borderRadius: 9999,
-                  border: 'none', cursor: ssLoading ? 'not-allowed' : 'pointer',
-                  fontWeight: 700, fontSize: '0.875rem',
-                  background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                  color: 'white',
-                  opacity: (ssLoading || !addTitle.trim()) ? 0.6 : 1,
-                  transition: 'filter 0.15s',
-                }}
-              >
-                {ssLoading ? 'Guardando…' : 'Agregar tarea'}
-              </button>
-            </form>
-          </div>
-        )}
 
         {/* ── MEMBER VIEW ── */}
         {ssMode === 'member-view' && ssMember && (() => {
@@ -1999,339 +967,6 @@ export default function GestionPage() {
           </div>
         )}
 
-        {/* ── DOC VIEW ── */}
-        {ssMode === 'doc-view' && ssDoc && (() => {
-          const uploader = ssDoc.uploaded_by_user
-            ? 'Vos'
-            : ssDoc.uploaded_by_contact_id
-              ? contactById.get(ssDoc.uploaded_by_contact_id)?.name ?? '—'
-              : '—'
-          return (
-            <div style={{ padding: '0 24px 40px', flex: 1 }}>
-              <div style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center',
-                textAlign: 'center', padding: '24px 0 20px',
-                borderBottom: '1px solid rgba(10,126,140,0.12)', marginBottom: 24,
-              }}>
-                <div style={{
-                  width: 80, height: 80, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 8px 40px rgba(10,126,140,0.16)', marginBottom: 14,
-                }}>
-                  <IconDoc />
-                </div>
-                <div style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 8, color: '#1A1A2E' }}>
-                  {ssDoc.name}
-                </div>
-                <span style={{ fontSize: '0.7rem', color: '#5a7478' }}>
-                  {DOC_TYPE_LABELS[ssDoc.type ?? ''] ?? 'Documento'} · {fmtLongDate(ssDoc.created_at)}
-                </span>
-              </div>
-
-              <div style={{ marginBottom: 24 }}>
-                <p style={{
-                  fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
-                  textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
-                }}>Información</p>
-                <Card style={{ padding: 0, borderRadius: '1rem' }}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '13px 20px', borderBottom: '1px solid rgba(10,126,140,0.12)', gap: 12,
-                  }}>
-                    <span style={{
-                      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                      textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-                    }}>Tipo</span>
-                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1A1A2E', flex: 1 }}>
-                      {DOC_TYPE_LABELS[ssDoc.type ?? ''] ?? '—'}
-                    </span>
-                  </div>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '13px 20px', borderBottom: '1px solid rgba(10,126,140,0.12)', gap: 12,
-                  }}>
-                    <span style={{
-                      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                      textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-                    }}>Fecha</span>
-                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1A1A2E', flex: 1 }}>
-                      {fmtLongDate(ssDoc.created_at)}
-                    </span>
-                  </div>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '13px 20px', gap: 12,
-                  }}>
-                    <span style={{
-                      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                      textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-                    }}>Subido por</span>
-                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1A1A2E', flex: 1 }}>
-                      {uploader}
-                    </span>
-                  </div>
-                </Card>
-              </div>
-
-              {ssError && (
-                <p style={{
-                  fontSize: '0.7rem', color: '#ba1a1a', fontWeight: 600,
-                  marginBottom: 16, padding: '10px 14px',
-                  background: 'rgba(186,26,26,0.06)', borderRadius: '0.6rem',
-                }}>
-                  {ssError}
-                </p>
-              )}
-
-              <div style={{ marginBottom: 12 }}>
-                <button
-                  onClick={() => handleDocDownload()} disabled={ssLoading}
-                  style={{
-                    width: '100%', padding: '14px', borderRadius: 9999,
-                    border: 'none', cursor: ssLoading ? 'not-allowed' : 'pointer',
-                    fontWeight: 700, fontSize: '0.875rem', transition: 'filter 0.15s',
-                    background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                    color: 'white', opacity: ssLoading ? 0.6 : 1,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  }}
-                >
-                  <IconDownload />
-                  {ssLoading ? 'Procesando…' : 'Descargar'}
-                </button>
-              </div>
-
-              {(() => {
-                const mime = ssDoc.file_mime_type ?? ''
-                const isPreviewable = mime.startsWith('image/') || mime === 'application/pdf'
-                if (!isPreviewable) {
-                  return (
-                    <div style={{ marginBottom: 24 }}>
-                      <button
-                        onClick={handleDocOpen} disabled={docModalLoading || ssLoading}
-                        style={{
-                          width: '100%', padding: '13px', borderRadius: 9999,
-                          border: '1.5px solid rgba(10,126,140,0.25)',
-                          background: 'white', cursor: (docModalLoading || ssLoading) ? 'not-allowed' : 'pointer',
-                          fontWeight: 700, fontSize: '0.875rem', color: '#0A7E8C',
-                          opacity: (docModalLoading || ssLoading) ? 0.6 : 1, transition: 'background 0.15s',
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.04)' }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'white' }}
-                      >
-                        {docModalLoading ? 'Cargando…' : 'Ver'}
-                      </button>
-                    </div>
-                  )
-                }
-                return (
-                  <div style={{ marginBottom: 24 }}>
-                    <div
-                      onClick={handleDocOpen} role="button" tabIndex={0}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleDocOpen() }}
-                      style={{
-                        position: 'relative', borderRadius: '0.875rem', overflow: 'hidden',
-                        cursor: 'pointer', border: '1.5px solid rgba(10,126,140,0.18)',
-                        height: 180, background: '#f0f4f8',
-                        transition: 'box-shadow 0.2s, border-color 0.2s',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.boxShadow = '0 4px 20px rgba(10,126,140,0.18)'
-                        e.currentTarget.style.borderColor = 'rgba(10,126,140,0.38)'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.boxShadow = 'none'
-                        e.currentTarget.style.borderColor = 'rgba(10,126,140,0.18)'
-                      }}
-                    >
-                      {docThumbUrl ? (
-                        mime.startsWith('image/') ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={docThumbUrl} alt={ssDoc.name}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }}
-                          />
-                        ) : (
-                          <>
-                            <iframe
-                              src={`${docThumbUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-                              title="preview"
-                              style={{ width: '100%', height: '100%', border: 'none', display: 'block', pointerEvents: 'none' }}
-                            />
-                            <div style={{ position: 'absolute', inset: 0 }} />
-                          </>
-                        )
-                      ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#5a7478', fontSize: '0.8rem' }}>
-                          Cargando vista previa…
-                        </div>
-                      )}
-                      <div style={{
-                        position: 'absolute', bottom: 10, right: 10,
-                        background: 'rgba(10,126,140,0.82)', backdropFilter: 'blur(6px)',
-                        borderRadius: 9999, padding: '4px 12px',
-                        fontSize: '0.75rem', fontWeight: 700, color: 'white', pointerEvents: 'none',
-                      }}>
-                        Ver
-                      </div>
-                    </div>
-                  </div>
-                )
-              })()}
-
-              <div>
-                <p style={{
-                  fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
-                  textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
-                }}>Acciones</p>
-                <Card style={{ padding: 0, borderRadius: '1rem' }}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '13px 20px', gap: 12,
-                  }}>
-                    <span style={{ fontSize: '0.875rem', color: '#5a7478', flex: 1 }}>
-                      Eliminar este documento
-                    </span>
-                    <button
-                      onClick={handleDocDelete} disabled={ssLoading}
-                      style={{
-                        background: 'rgba(186,26,26,0.06)', color: '#ba1a1a',
-                        border: 'none', borderRadius: '0.6rem',
-                        padding: '7px 16px', fontSize: '0.875rem', fontWeight: 700,
-                        cursor: ssLoading ? 'not-allowed' : 'pointer',
-                        opacity: ssLoading ? 0.6 : 1, transition: 'filter 0.15s',
-                      }}
-                    >
-                      Eliminar
-                    </button>
-                  </div>
-                </Card>
-              </div>
-            </div>
-          )
-        })()}
-
-        {/* ── DOC ADD ── */}
-        {ssMode === 'doc-add' && (
-          <div style={{ padding: '0 24px 40px', flex: 1 }}>
-            <div style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              textAlign: 'center', padding: '24px 0 20px',
-              borderBottom: '1px solid rgba(10,126,140,0.12)', marginBottom: 24,
-            }}>
-              <div style={{
-                width: 72, height: 72, borderRadius: '50%',
-                background: 'rgba(61,199,166,0.08)',
-                border: '2px dashed rgba(61,199,166,0.45)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                marginBottom: 14,
-              }}>
-                <IconUpload />
-              </div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#1A1A2E' }}>
-                Cargar documento
-              </div>
-            </div>
-
-            <form onSubmit={handleAddDoc}>
-              <p style={{
-                fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
-                textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
-              }}>Documento</p>
-              <Card style={{ padding: 0, borderRadius: '1rem', marginBottom: 16 }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center',
-                  padding: '13px 20px', borderBottom: '1px solid rgba(10,126,140,0.12)', gap: 12,
-                }}>
-                  <span style={{
-                    fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                    textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-                  }}>Nombre</span>
-                  <input
-                    type="text" required placeholder="Nombre del documento…"
-                    value={docName} onChange={(e) => setDocName(e.target.value)}
-                    style={{ ...SS_INPUT_STYLE }}
-                  />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', padding: '13px 20px', gap: 12 }}>
-                  <span style={{
-                    fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                    textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-                  }}>Tipo</span>
-                  <select value={docType} onChange={(e) => setDocType(e.target.value)} style={SS_SELECT_STYLE}>
-                    {Object.entries(DOC_TYPE_LABELS).map(([val, label]) => (
-                      <option key={val} value={val}>{label}</option>
-                    ))}
-                  </select>
-                </div>
-              </Card>
-
-              <div
-                onDragEnter={(e) => { e.preventDefault(); dragCounterRef.current++; setIsDraggingDoc(true) }}
-                onDragLeave={() => { dragCounterRef.current--; if (dragCounterRef.current === 0) setIsDraggingDoc(false) }}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  dragCounterRef.current = 0
-                  setIsDraggingDoc(false)
-                  const file = e.dataTransfer.files[0]
-                  if (file) handleFileSelect(file)
-                }}
-                onClick={() => fileInputRef.current?.click()}
-                style={{
-                  border: `2px dashed ${isDraggingDoc ? 'rgba(61,199,166,0.75)' : 'rgba(61,199,166,0.35)'}`,
-                  borderRadius: '0.75rem', padding: '32px 20px',
-                  textAlign: 'center', cursor: 'pointer', marginBottom: 16,
-                  background: isDraggingDoc ? 'rgba(61,199,166,0.08)' : 'white',
-                  transform: isDraggingDoc ? 'scale(1.025)' : 'scale(1)',
-                  transition: 'transform 0.2s ease, background 0.2s ease, border-color 0.2s ease',
-                }}
-              >
-                <input
-                  ref={fileInputRef} type="file" style={{ display: 'none' }}
-                  accept=".pdf,image/*,.doc,.docx"
-                  onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileSelect(file) }}
-                />
-                <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center', color: '#0A7E8C' }}>
-                  <IconUpload />
-                </div>
-                {docFile ? (
-                  <p style={{ fontSize: '0.875rem', color: '#0A7E8C', fontWeight: 600, margin: 0 }}>
-                    {docFile.name}
-                  </p>
-                ) : (
-                  <p style={{ fontSize: '0.875rem', color: '#5a7478', margin: 0 }}>
-                    Hacé clic o arrastrá el archivo aquí
-                  </p>
-                )}
-              </div>
-
-              {ssError && (
-                <p style={{
-                  fontSize: '0.7rem', color: '#ba1a1a', fontWeight: 600,
-                  marginBottom: 16, padding: '10px 14px',
-                  background: 'rgba(186,26,26,0.06)', borderRadius: '0.6rem',
-                }}>
-                  {ssError}
-                </p>
-              )}
-
-              <button
-                type="submit" disabled={ssLoading || !docName.trim() || !docFile}
-                style={{
-                  width: '100%', padding: '14px', borderRadius: 9999,
-                  border: 'none', cursor: (ssLoading || !docName.trim() || !docFile) ? 'not-allowed' : 'pointer',
-                  fontWeight: 700, fontSize: '0.875rem',
-                  background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                  color: 'white',
-                  opacity: (ssLoading || !docName.trim() || !docFile) ? 0.6 : 1,
-                  transition: 'filter 0.15s',
-                }}
-              >
-                {ssLoading ? 'Cargando…' : 'Cargar documento'}
-              </button>
-            </form>
-          </div>
-        )}
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
@@ -2406,41 +1041,26 @@ export default function GestionPage() {
                           <div
                             key={t.id}
                             className="flex items-center cursor-pointer rounded-md"
-                            onClick={() => completingTaskId !== t.id ? openTaskView(t) : undefined}
+                            onClick={() => {
+                            router.push(`/gestion/tarea/${t.id}`)
+                          }}
                             style={{
                               gap: 14, padding: '13px 6px',
                               borderBottom: i < arr.length - 1 ? '1px solid rgba(10,126,140,0.12)' : 'none',
                               margin: '0 -6px',
                               transition: 'background 0.15s',
                               overflow: 'hidden',
-                              animation: completingTaskId === t.id
-                                ? 'taskFadeOut 0.8s ease-out 0.35s forwards'
-                                : 'none',
                             }}
-                            onMouseEnter={(e) => { if (completingTaskId !== t.id) e.currentTarget.style.background = 'rgba(61,199,166,0.07)' }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(61,199,166,0.07)' }}
                             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
                           >
                             <div className="flex-1 min-w-0">
                               <div style={{
                                 fontSize: '0.875rem',
-                                color: completingTaskId === t.id ? '#5a7478' : (isDone ? '#5a7478' : '#1A1A2E'),
+                                color: isDone ? '#5a7478' : '#1A1A2E',
                                 fontWeight: isDone ? 400 : 600,
-                                position: 'relative',
-                                display: 'inline-block',
                               }}>
                                 {t.title}
-                                {/* Línea de tachado animada */}
-                                {completingTaskId === t.id && (
-                                  <span style={{
-                                    position: 'absolute',
-                                    left: 0, top: '50%',
-                                    height: '1.5px',
-                                    background: '#5a7478',
-                                    borderRadius: 2,
-                                    animation: 'strikethrough 0.35s ease-out forwards',
-                                    pointerEvents: 'none',
-                                  }} />
-                                )}
                               </div>
                               <div style={{ fontSize: '0.7rem', color: '#5a7478', marginTop: 2 }}>
                                 {t.due_date ? `Vence el ${fmtLongDate(t.due_date)}` : 'Sin fecha'}
@@ -2462,6 +1082,28 @@ export default function GestionPage() {
                                 ) : null
                               })()}
                             </div>
+                            {/* Ícono de documentos asociados */}
+                            {(taskDocCounts.get(t.id) ?? 0) > 0 && (
+                              <div style={{
+                                display: 'flex', alignItems: 'center', gap: 3,
+                                flexShrink: 0,
+                              }}>
+                                <svg width="13" height="13" viewBox="0 0 24 24"
+                                  fill="none" stroke="#5a7478" strokeWidth="1.8"
+                                  strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                  <polyline points="14 2 14 8 20 8" />
+                                </svg>
+                                {(taskDocCounts.get(t.id) ?? 0) > 1 && (
+                                  <span style={{
+                                    fontSize: '0.6rem', fontWeight: 700,
+                                    color: '#5a7478',
+                                  }}>
+                                    {taskDocCounts.get(t.id)}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                             {avInitials && (
                               <div className="rounded-full flex items-center justify-center flex-shrink-0 text-white"
                                 style={{ width: 24, height: 24, fontSize: '0.62rem', fontWeight: 700, background: avBg }}>
@@ -2480,7 +1122,8 @@ export default function GestionPage() {
 
                   <div style={{ borderTop: '1px solid rgba(10,126,140,0.12)', marginTop: 4 }}>
                     <button
-                      type="button" onClick={openTaskAdd}
+                      type="button"
+                      onClick={() => router.push('/gestion/tarea/nueva')}
                       className="flex items-center gap-3 w-full bg-transparent border-0 text-left cursor-pointer"
                       style={{ padding: '12px 0' }}
                     >
@@ -2524,7 +1167,7 @@ export default function GestionPage() {
                             : ''
                         return (
                           <div key={d.id} className="flex items-center cursor-pointer"
-                            onClick={() => openDocView(d)}
+                            onClick={() => router.push(`/gestion/documento/${d.id}`)}
                             style={{ gap: 12, padding: '10px 12px', background: 'rgba(10,126,140,0.04)', borderRadius: '0.6rem', transition: 'background 0.15s' }}
                             onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(61,199,166,0.07)' }}
                             onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.04)' }}
@@ -2551,7 +1194,7 @@ export default function GestionPage() {
                     </p>
                   )}
                   <div style={{ borderTop: '1px solid rgba(10,126,140,0.12)', marginTop: 4 }}>
-                    <button type="button" onClick={openDocAdd}
+                    <button type="button" onClick={() => router.push('/gestion/documento/nuevo')}
                       className="flex items-center gap-3 w-full bg-transparent border-0 text-left cursor-pointer"
                       style={{ padding: '12px 0' }}>
                       <div className="rounded-full flex items-center justify-center flex-shrink-0"
@@ -2611,113 +1254,6 @@ export default function GestionPage() {
         </main>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          DOC PREVIEW MODAL
-      ══════════════════════════════════════════════════════════════════════ */}
-      {docModalOpen && ssDoc && (
-        <>
-          {/* Backdrop */}
-          <div
-            onClick={() => { setDocModalOpen(false); setDocModalUrl(null) }}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 300 }}
-          />
-
-          {/* Modal */}
-          <div
-            style={{
-              position: 'fixed', top: '50%', left: '50%',
-              transform: 'translate(-50%, -50%)',
-              zIndex: 301, width: 'min(92vw, 860px)', maxHeight: '90vh',
-              background: '#fff', borderRadius: '1.25rem',
-              boxShadow: '0 24px 80px rgba(0,0,0,0.30)',
-              display: 'flex', flexDirection: 'column', overflow: 'hidden',
-            }}
-          >
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '16px 20px', borderBottom: '1px solid rgba(10,126,140,0.12)', flexShrink: 0,
-            }}>
-              <span style={{
-                fontSize: '0.875rem', fontWeight: 700, color: '#1A1A2E',
-                maxWidth: 'calc(100% - 40px)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
-                {ssDoc.name}
-              </span>
-              <button
-                onClick={() => { setDocModalOpen(false); setDocModalUrl(null) }}
-                style={{
-                  width: 36, height: 36, borderRadius: '50%',
-                  background: 'rgba(0,0,0,0.06)', border: 'none', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0, transition: 'background 0.15s',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.11)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)' }}
-              >
-                <IconClose />
-              </button>
-            </div>
-
-            <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
-              {docModalUrl ? (
-                (() => {
-                  const mime = ssDoc.file_mime_type ?? ''
-                  if (mime.startsWith('image/')) {
-                    return (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={docModalUrl} alt={ssDoc.name}
-                        style={{ display: 'block', maxWidth: '100%', maxHeight: '70vh', margin: 'auto', objectFit: 'contain', padding: 16 }}
-                      />
-                    )
-                  }
-                  if (mime === 'application/pdf' || mime === '') {
-                    return (
-                      <iframe src={docModalUrl} title={ssDoc.name}
-                        style={{ width: '100%', height: '70vh', border: 'none', display: 'block' }}
-                      />
-                    )
-                  }
-                  return (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 220, gap: 12 }}>
-                      <span style={{ fontSize: '2.5rem' }}>📄</span>
-                      <p style={{ fontSize: '0.875rem', color: '#5a7478', textAlign: 'center', padding: '0 24px' }}>
-                        No se puede previsualizar este tipo de archivo.<br />
-                        Usá el botón de descarga para abrirlo.
-                      </p>
-                    </div>
-                  )
-                })()
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: '#5a7478', fontSize: '0.875rem' }}>
-                  Cargando…
-                </div>
-              )}
-            </div>
-
-            <div style={{
-              display: 'flex', gap: 8, padding: '14px 20px',
-              borderTop: '1px solid rgba(10,126,140,0.12)',
-              flexShrink: 0, justifyContent: 'flex-end',
-            }}>
-              <button
-                onClick={() => handleDocDownload(docModalUrl ?? undefined)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '10px 22px', borderRadius: 9999,
-                  border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.875rem',
-                  background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                  color: 'white', transition: 'filter 0.15s',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.08)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.filter = 'brightness(1)' }}
-              >
-                <IconDownload />
-                Descargar
-              </button>
-            </div>
-          </div>
-        </>
-      )}
     </>
   )
 }

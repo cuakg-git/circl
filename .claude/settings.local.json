@@ -24,7 +24,11 @@
       "Bash(New-Item -ItemType Directory -Path \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\\\\app\\\\circulo\\\\nuevo\" -Force)",
       "Bash(Out-Null)",
       "Bash(Write-Host \"OK\")",
-      "Bash(mkdir -p \"/mnt/c/Users/HP/Desktop/Circl/app/circulo/nuevo\" && echo \"OK\")"
+      "Bash(mkdir -p \"/mnt/c/Users/HP/Desktop/Circl/app/circulo/nuevo\" && echo \"OK\")",
+      "Bash(node -c \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\\\\app\\\\gestion\\\\page.tsx\")",
+      "Bash(Get-Content \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\\\\app\\\\gestion\\\\tarea\\\\nueva\\\\page.tsx\")",
+      "Bash(Measure-Object -Line)",
+      "Bash(Select-Object -ExpandProperty Lines)"
     ]
   }
 }
