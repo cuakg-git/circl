@@ -633,7 +633,12 @@ export default function TareaDetailPage() {
       setContacts((contactsRes.data ?? []) as Contact[])
       setTopics((topicsRes.data ?? []) as Topic[])
       setHistory((historyRes.data ?? []) as HistoryEvent[])
-      setTaskDocs((taskDocsRes.data ?? []) as TaskDoc[])
+      const rawTaskDocs = (taskDocsRes.data ?? []).map((row: any) => ({
+        id:          row.id,
+        document_id: row.document_id,
+        doc:         Array.isArray(row.doc) ? row.doc[0] : row.doc,
+      })) as TaskDoc[]
+      setTaskDocs(rawTaskDocs)
       setAllDocs((allDocsRes.data ?? []) as Doc[])
       setLoading(false)
 
