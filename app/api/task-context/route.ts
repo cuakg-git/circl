@@ -140,7 +140,7 @@ export async function POST(request: Request) {
     // 1. Cargar la tarea
     const { data: task, error: taskError } = await supabase
       .from('tasks')
-      .select('id, title, description, status, due_date, assigned_contact_id, assigned_to_user, topic_id, crisis_id')
+      .select('id, title, description, status, due_date, assigned_contact_id, assigned_to_user, topic_id, crisis_id, context')
       .eq('id', task_id)
       .maybeSingle()
 
