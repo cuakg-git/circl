@@ -697,7 +697,14 @@ export default function TareaDetailPage() {
       .select('id, document_id, doc:documents(id, name, type, created_at, storage_path, original_filename, file_mime_type)')
       .eq('task_id', taskId)
       .order('created_at', { ascending: false })
-    if (data) setTaskDocs(data as TaskDoc[])
+    if (data) {
+      const rawTaskDocs = data.map((row: any) => ({
+        id:          row.id,
+        document_id: row.document_id,
+        doc:         Array.isArray(row.doc) ? row.doc[0] : row.doc,
+      })) as TaskDoc[]
+      setTaskDocs(rawTaskDocs)
+    }
   }
 
   async function handleLinkDoc(docId: string) {
