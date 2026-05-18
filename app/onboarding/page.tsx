@@ -8,14 +8,8 @@ import { supabase } from '@/lib/supabase'
 
 const AGENT_ENDPOINT = process.env.NEXT_PUBLIC_AGENT_ENDPOINT as string
 
-// Human-readable labels for the role and proximity select values
+// Human-readable labels for proximity
 // (used when building the contacts message for the agent in step 3).
-const ROLE_LABELS: Record<string, string> = {
-  acompanamiento: 'acompañamiento',
-  logistica:      'logístico',
-  prestador:      'prestador de servicios',
-}
-
 const PROXIMITY_LABELS: Record<string, string> = {
   nucleo:       'núcleo',
   ayuda:        'ayuda o puede ayudar',
@@ -36,7 +30,7 @@ const INIT_POOL = ['LA', 'CR', 'MR', 'JP', 'PG', 'RM']
 
 type RingsPhase = 'hidden' | 'growing' | 'pulsing'
 type ChatMsg    = { id: number; from: 'circl' | 'user'; text: string }
-type Contact    = { id: number; name: string; phone: string; role: string; proximity: string }
+type Contact    = { id: number; name: string; proximity: string }
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
@@ -60,7 +54,7 @@ export default function OnboardingPage() {
   // ── Form ──────────────────────────────────────────────────────────────────
   const [crisis, setCrisis]       = useState('')
   const [contacts, setContacts]   = useState<Contact[]>([
-    { id: 1, name: '', phone: '', role: '', proximity: '' },
+    { id: 1, name: '', proximity: '' },
   ])
   const nextContactId = useRef(2)
 
@@ -217,11 +211,9 @@ export default function OnboardingPage() {
     const filled = contacts.filter(c => c.name.trim())
     if (filled.length > 0) {
       const contactosTexto = filled.map(c => {
-        const rol       = c.role      ? (ROLE_LABELS[c.role]           ?? c.role)      : 'sin rol'
-        const cercania  = c.proximity ? (PROXIMITY_LABELS[c.proximity] ?? c.proximity) : 'sin especificar'
-        const telefono  = c.phone.trim() || 'no especificado'
-        return `${c.name.trim()} (rol: ${rol}, cercanía: ${cercania}, teléfono: ${telefono})`
-      }).join(', ')
+          const cercania = c.proximity ? (PROXIMITY_LABELS[c.proximity] ?? c.proximity) : 'sin especificar'
+          return `${c.name.trim()} (cercanía: ${cercania})`
+        }).join(', ')
       const mensaje = `El usuario completó el paso de círculo en el onboarding. Registrá cada persona como contacto usando crear_contacto y vincinalos a la crisis activa. Las personas son: ${contactosTexto}`
       sendToAgent(mensaje)   // intentionally not awaited
     }
@@ -254,7 +246,7 @@ export default function OnboardingPage() {
 
   function addContact() {
     const id  = nextContactId.current++
-    setContacts(prev => [...prev, { id, name: '', phone: '', role: '', proximity: '' }])
+    setContacts(prev => [...prev, { id, name: '', proximity: '' }])
   }
 
   function removeContact(id: number) {
@@ -468,7 +460,7 @@ export default function OnboardingPage() {
                 transition: 'opacity 0.5s ease, transform 0.5s ease',
               }}
             >
-              ¿Cuál es tu crisis?
+              Comenzar
             </button>
 
             {/* Skip */}
@@ -557,10 +549,10 @@ export default function OnboardingPage() {
             {step === 2 && (
               <div className="ob-step-panel">
                 <p className="text-2xl font-extrabold text-[#1A1A2E] mb-2 tracking-tight">
-                  ¿Qué está pasando?
+                  ¿Con qué situación te ayudo primero?
                 </p>
                 <p className="text-[#5a7478] mb-6 leading-relaxed" style={{ fontSize: '0.95rem' }}>
-                  Contalo con tus palabras. Voy a armar el contexto para ayudarte.
+                  Contalo con tus palabras, me va a servir para armar contexto.
                 </p>
 
                 <textarea
@@ -599,7 +591,6 @@ export default function OnboardingPage() {
                       className="rounded-2xl px-4 py-3.5"
                       style={{ background: '#FAF8F5', border: '1.5px solid rgba(10,126,140,0.12)' }}
                     >
-                      {/* Row 1: avatar + name + phone + remove */}
                       <div className="flex items-center gap-2 mb-2.5">
                         <div
                           className="flex-shrink-0 flex items-center justify-center rounded-full text-white font-bold"
@@ -617,16 +608,6 @@ export default function OnboardingPage() {
                           onFocus={e => e.currentTarget.style.borderColor = '#0A7E8C'}
                           onBlur={e  => e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)'}
                         />
-                        <input
-                          type="tel"
-                          placeholder="Teléfono"
-                          value={c.phone}
-                          onChange={e => updateContact(c.id, 'phone', e.target.value)}
-                          className="min-w-0 rounded-xl px-3 py-2 text-[#1A1A2E] text-sm outline-none transition-all"
-                          style={{ width: 130, background: 'white', border: '1.5px solid rgba(10,126,140,0.12)', fontFamily: 'inherit' }}
-                          onFocus={e => e.currentTarget.style.borderColor = '#0A7E8C'}
-                          onBlur={e  => e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)'}
-                        />
                         <button
                           type="button"
                           onClick={() => removeContact(c.id)}
@@ -640,24 +621,12 @@ export default function OnboardingPage() {
                         </button>
                       </div>
 
-                      {/* Row 2: role + proximity (indented past avatar) */}
-                      <div className="flex gap-2" style={{ paddingLeft: 44 }}>
-                        <select
-                          value={c.role}
-                          onChange={e => updateContact(c.id, 'role', e.target.value)}
-                          className="flex-1 min-w-0 rounded-xl px-3 py-2 text-[#1A1A2E] text-sm outline-none cursor-pointer"
-                          style={{ background: 'white', border: '1.5px solid rgba(10,126,140,0.12)', fontFamily: 'inherit' }}
-                          aria-label="Rol"
-                        >
-                          <option value="">¿Qué rol tiene?</option>
-                          <option value="acompanamiento">Acompañamiento</option>
-                          <option value="logistica">Logístico</option>
-                          <option value="prestador">Prestador de servicios</option>
-                        </select>
+                      {/* Row 2: solo cercanía */}
+                      <div style={{ paddingLeft: 44 }}>
                         <select
                           value={c.proximity}
                           onChange={e => updateContact(c.id, 'proximity', e.target.value)}
-                          className="flex-1 min-w-0 rounded-xl px-3 py-2 text-[#1A1A2E] text-sm outline-none cursor-pointer"
+                          className="w-full rounded-xl px-3 py-2 text-[#1A1A2E] text-sm outline-none cursor-pointer"
                           style={{ background: 'white', border: '1.5px solid rgba(10,126,140,0.12)', fontFamily: 'inherit' }}
                           aria-label="Cercanía"
                         >
