@@ -518,6 +518,29 @@ export default function TareaDetailPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
 
+  // Modal de notificación de asignación
+  const [notifyModal, setNotifyModal] = useState<{
+    open:          boolean
+    contactId:     string | null
+    contactName:   string
+    contactEmail:  string | null
+    emailInput:    string
+    sending:       boolean
+    sent:          boolean
+    error:         string | null
+    draftLoading:  boolean
+    draftBody:     string | null
+    draftSubject:  string | null
+    editingBody:   boolean
+    bodyInput:     string
+  }>({
+    open: false, contactId: null, contactName: '',
+    contactEmail: null, emailInput: '', sending: false,
+    sent: false, error: null,
+    draftLoading: false, draftBody: null, draftSubject: null,
+    editingBody: false, bodyInput: '',
+  })
+
   // Documentos asociados
   const [taskDocs,        setTaskDocs]        = useState<TaskDoc[]>([])
   const [allDocs,         setAllDocs]         = useState<Doc[]>([])
@@ -1020,6 +1043,73 @@ export default function TareaDetailPage() {
     }
     await logEvent('asignacion_cambiada', `Asignada a ${assigneeName}`)
     callTaskContext()
+
+    // Abrir modal de notificación si se asignó a un contacto
+    if (val.startsWith('c:')) {
+      const contactId = val.slice(2)
+      const c = contacts.find(c => c.id === contactId)
+      if (c) {
+        // Buscar email del contacto en Supabase
+        const { data: contactData } = await supabase
+          .from('contacts')
+          .select('email')
+          .eq('id', contactId)
+          .maybeSingle()
+        setNotifyModal({
+          open:         true,
+          contactId,
+          contactName:  c.name,
+          contactEmail: contactData?.email ?? null,
+          emailInput:   contactData?.email ?? '',
+          sending:      false,
+          sent:         false,
+          error:        null,
+          draftLoading: true,
+          draftBody:    null,
+          draftSubject: null,
+          editingBody:  false,
+          bodyInput:    '',
+        })
+
+        // Cargar draft en background
+        fetch('/api/notification-draft', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            contact_id:        contactId,
+            notification_type: 'task_assigned',
+            owner_name:        (await supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('id', userId!)
+              .maybeSingle()
+            ).data?.full_name ?? 'Tu contacto',
+            payload: {
+              task_title:       task?.title,
+              task_description: task?.description ?? null,
+            },
+          }),
+        })
+          .then(r => r.json())
+          .then(json => {
+            setNotifyModal(prev => ({
+              ...prev,
+              draftLoading: false,
+              draftBody:    json.body   ?? null,
+              draftSubject: json.subject ?? null,
+              bodyInput:    json.body   ?? '',
+              error:        json.error  ?? null,
+            }))
+          })
+          .catch(() => {
+            setNotifyModal(prev => ({
+              ...prev,
+              draftLoading: false,
+              error: 'No se pudo generar el mensaje. Podés escribirlo manualmente.',
+            }))
+          })
+      }
+    }
   }
 
   async function handleTopicChange(topicId: string) {
@@ -1045,6 +1135,57 @@ export default function TareaDetailPage() {
       'estado_cambiado',
       newStatus === 'completada' ? 'Tarea marcada como completada' : 'Tarea reabierta'
     )
+  }
+
+  async function handleSendNotification() {
+    const email = notifyModal.contactEmail ?? notifyModal.emailInput.trim()
+    if (!email) {
+      setNotifyModal(prev => ({ ...prev, error: 'Ingresá un email válido' }))
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setNotifyModal(prev => ({ ...prev, error: 'El email no es válido' }))
+      return
+    }
+
+    setNotifyModal(prev => ({ ...prev, sending: true, error: null }))
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', userId!)
+      .maybeSingle()
+    const ownerName = profile?.full_name ?? 'Tu contacto'
+
+    // Usar el body editado si existe, sino el draft original
+    const finalBody = notifyModal.bodyInput.trim() || notifyModal.draftBody || ''
+
+    const res = await fetch('/api/notify-assignee', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        task_id:          taskId,
+        contact_id:       notifyModal.contactId,
+        contact_email:    email,
+        owner_name:       ownerName,
+        task_title:       task?.title,
+        task_description: task?.description,
+        custom_body:      finalBody,
+        custom_subject:   notifyModal.draftSubject ?? undefined,
+      }),
+    })
+
+    const json = await res.json()
+
+    if (!res.ok || json.error) {
+      setNotifyModal(prev => ({
+        ...prev, sending: false,
+        error: json.error ?? 'No se pudo enviar el mail. Intentá de nuevo.',
+      }))
+      return
+    }
+
+    setNotifyModal(prev => ({ ...prev, sending: false, sent: true }))
   }
 
   async function handleDelete() {
@@ -1153,6 +1294,324 @@ export default function TareaDetailPage() {
         }
         .tarea-detail-bg { animation: heroBgDrift 30s ease-in-out infinite; }
       `}</style>
+
+      {/* ── Modal notificación de asignación ── */}
+      {notifyModal.open && (
+        <>
+          {/* Backdrop */}
+          <div
+            onClick={() => !notifyModal.sending && setNotifyModal(prev => ({ ...prev, open: false }))}
+            style={{
+              position: 'fixed', inset: 0,
+              background: 'rgba(0,0,0,0.40)',
+              zIndex: 600,
+            }}
+          />
+          {/* Modal */}
+          <div style={{
+            position: 'fixed', top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 601,
+            width: 'min(92vw, 420px)',
+            background: '#FFFFFF',
+            borderRadius: '1.5rem',
+            boxShadow: '0 24px 80px rgba(0,0,0,0.20)',
+            padding: '28px 28px 24px',
+          }}>
+            {notifyModal.sent ? (
+                /* Estado: enviado */
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{
+                    width: 56, height: 56, borderRadius: '50%',
+                    background: 'rgba(46,205,167,0.15)',
+                    display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', margin: '0 auto 16px',
+                  }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24"
+                      fill="none" stroke="#2ECDA7" strokeWidth="2.5"
+                      strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                  <p style={{
+                    fontSize: '1rem', fontWeight: 800,
+                    color: '#1A1A2E', marginBottom: 8,
+                  }}>
+                    Notificación enviada
+                  </p>
+                  <p style={{
+                    fontSize: '0.875rem', color: '#5a7478',
+                    lineHeight: 1.6, marginBottom: 24,
+                  }}>
+                    Le avisamos a {notifyModal.contactName} que tiene
+                    una nueva tarea asignada.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setNotifyModal(prev => ({ ...prev, open: false }))}
+                    style={{
+                      width: '100%', padding: '12px',
+                      background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                      color: 'white', border: 'none', borderRadius: 9999,
+                      fontWeight: 700, fontSize: '0.875rem',
+                      cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >
+                    Listo
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* Header */}
+                  <div style={{
+                    display: 'flex', alignItems: 'flex-start',
+                    justifyContent: 'space-between', marginBottom: 16,
+                  }}>
+                    <div>
+                      <p style={{
+                        fontSize: '1rem', fontWeight: 800,
+                        color: '#1A1A2E', margin: '0 0 4px',
+                      }}>
+                        ¿Notificar a {notifyModal.contactName}?
+                      </p>
+                      <p style={{
+                        fontSize: '0.8125rem', color: '#5a7478',
+                        margin: 0, lineHeight: 1.5,
+                      }}>
+                        {notifyModal.contactEmail
+                          ? `Se enviará a ${notifyModal.contactEmail}`
+                          : 'No tenemos su email todavía. Ingresalo para notificarlo.'
+                        }
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setNotifyModal(prev => ({ ...prev, open: false }))}
+                      disabled={notifyModal.sending}
+                      style={{
+                        background: 'none', border: 'none',
+                        cursor: 'pointer', color: '#5a7478',
+                        fontSize: '1.2rem', lineHeight: 1,
+                        padding: '0 0 0 12px', flexShrink: 0,
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Input email si no hay */}
+                  {!notifyModal.contactEmail && (
+                    <div style={{ marginBottom: 16 }}>
+                      <input
+                        type="email"
+                        placeholder="email@ejemplo.com"
+                        value={notifyModal.emailInput}
+                        onChange={(e) => setNotifyModal(prev => ({
+                          ...prev, emailInput: e.target.value, error: null,
+                        }))}
+                        autoFocus
+                        style={{
+                          width: '100%', padding: '10px 14px',
+                          border: '1.5px solid rgba(10,126,140,0.20)',
+                          borderRadius: '0.75rem', fontSize: '0.875rem',
+                          outline: 'none', color: '#1A1A2E',
+                          fontFamily: 'inherit', background: '#FAF8F5',
+                          boxSizing: 'border-box',
+                        }}
+                        onFocus={(e) => { e.currentTarget.style.borderColor = '#0A7E8C' }}
+                        onBlur={(e)  => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.20)' }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Mensaje generado por Mhiru */}
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'center',
+                      justifyContent: 'space-between', marginBottom: 8,
+                    }}>
+                      <p style={{
+                        fontSize: '0.7rem', fontWeight: 700,
+                        letterSpacing: '0.06em', textTransform: 'uppercase',
+                        color: '#5a7478', margin: 0,
+                      }}>
+                        Mensaje
+                      </p>
+                      {!notifyModal.draftLoading && notifyModal.draftBody && !notifyModal.editingBody && (
+                        <button
+                          type="button"
+                          onClick={() => setNotifyModal(prev => ({
+                            ...prev, editingBody: true,
+                            bodyInput: prev.draftBody ?? '',
+                          }))}
+                          style={{
+                            background: 'none', border: 'none',
+                            cursor: 'pointer', color: '#0A7E8C',
+                            fontSize: '0.75rem', fontWeight: 600,
+                            fontFamily: 'inherit', padding: 0,
+                            textDecoration: 'underline',
+                            textUnderlineOffset: 3,
+                          }}
+                        >
+                          Editar
+                        </button>
+                      )}
+                      {notifyModal.editingBody && (
+                        <button
+                          type="button"
+                          onClick={() => setNotifyModal(prev => ({
+                            ...prev, editingBody: false,
+                            bodyInput: prev.draftBody ?? '',
+                          }))}
+                          style={{
+                            background: 'none', border: 'none',
+                            cursor: 'pointer', color: '#5a7478',
+                            fontSize: '0.75rem', fontFamily: 'inherit',
+                            padding: 0,
+                          }}
+                        >
+                          Cancelar
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Skeleton mientras carga */}
+                    {notifyModal.draftLoading && (
+                      <div style={{
+                        padding: '14px 16px',
+                        background: 'rgba(10,126,140,0.04)',
+                        borderRadius: '0.75rem',
+                        border: '1px solid rgba(10,126,140,0.10)',
+                      }}>
+                        {[85, 100, 70, 90, 55].map((w, i) => (
+                          <div key={i} style={{
+                            height: 10, borderRadius: 6,
+                            marginBottom: i < 4 ? 10 : 0,
+                            width: `${w}%`,
+                            background: 'linear-gradient(90deg, rgba(10,126,140,0.08) 25%, rgba(10,126,140,0.16) 50%, rgba(10,126,140,0.08) 75%)',
+                            backgroundSize: '200% 100%',
+                            animation: 'shimmer 1.4s infinite',
+                          }} />
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Mensaje en modo lectura */}
+                    {!notifyModal.draftLoading && notifyModal.draftBody && !notifyModal.editingBody && (
+                      <div style={{
+                        padding: '14px 16px',
+                        background: 'rgba(10,126,140,0.04)',
+                        borderRadius: '0.75rem',
+                        border: '1px solid rgba(10,126,140,0.10)',
+                        fontSize: '0.875rem', color: '#1A1A2E',
+                        lineHeight: 1.65, whiteSpace: 'pre-wrap',
+                      }}>
+                        {notifyModal.draftBody}
+                      </div>
+                    )}
+
+                    {/* Mensaje en modo edición */}
+                    {notifyModal.editingBody && (
+                      <textarea
+                        value={notifyModal.bodyInput}
+                        onChange={(e) => setNotifyModal(prev => ({
+                          ...prev, bodyInput: e.target.value,
+                        }))}
+                        rows={6}
+                        autoFocus
+                        style={{
+                          width: '100%', padding: '14px 16px',
+                          border: '1.5px solid #0A7E8C',
+                          borderRadius: '0.75rem', fontSize: '0.875rem',
+                          outline: 'none', color: '#1A1A2E',
+                          fontFamily: 'inherit', lineHeight: 1.65,
+                          resize: 'vertical', background: '#FAF8F5',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    )}
+                  </div>
+
+                  {/* Animación shimmer */}
+                  <style>{`
+                    @keyframes shimmer {
+                      0%   { background-position: 200% 0 }
+                      100% { background-position: -200% 0 }
+                    }
+                  `}</style>
+
+                  {/* Error */}
+                  {notifyModal.error && (
+                    <p style={{
+                      fontSize: '0.8125rem', color: '#ba1a1a',
+                      fontWeight: 600, marginBottom: 12,
+                      padding: '8px 12px',
+                      background: 'rgba(186,26,26,0.07)',
+                      borderRadius: '0.5rem',
+                    }}>
+                      {notifyModal.error}
+                    </p>
+                  )}
+
+                  {/* Botones */}
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setNotifyModal(prev => ({ ...prev, open: false }))}
+                      disabled={notifyModal.sending}
+                      style={{
+                        flex: 1, padding: '11px 0',
+                        background: 'rgba(10,126,140,0.07)',
+                        color: '#0A7E8C', border: 'none',
+                        borderRadius: 9999, fontWeight: 700,
+                        fontSize: '0.875rem', cursor: 'pointer',
+                        fontFamily: 'inherit',
+                        opacity: notifyModal.sending ? 0.5 : 1,
+                      }}
+                    >
+                      Ahora no
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSendNotification}
+                      disabled={
+                        notifyModal.sending ||
+                        notifyModal.draftLoading ||
+                        (!notifyModal.contactEmail && !notifyModal.emailInput.trim())
+                      }
+                      style={{
+                        flex: 1, padding: '11px 0',
+                        background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                        color: 'white', border: 'none',
+                        borderRadius: 9999, fontWeight: 700,
+                        fontSize: '0.875rem',
+                        cursor: (
+                          notifyModal.sending ||
+                          notifyModal.draftLoading ||
+                          (!notifyModal.contactEmail && !notifyModal.emailInput.trim())
+                        ) ? 'not-allowed' : 'pointer',
+                        fontFamily: 'inherit',
+                        opacity: (
+                          notifyModal.sending ||
+                          notifyModal.draftLoading ||
+                          (!notifyModal.contactEmail && !notifyModal.emailInput.trim())
+                        ) ? 0.6 : 1,
+                        transition: 'filter 0.15s',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!notifyModal.sending && !notifyModal.draftLoading)
+                          e.currentTarget.style.filter = 'brightness(1.08)'
+                      }}
+                      onMouseLeave={(e) => { e.currentTarget.style.filter = 'brightness(1)' }}
+                    >
+                      {notifyModal.sending ? 'Enviando…' : 'Notificar'}
+                    </button>
+                  </div>
+                </>
+              )}
+          </div>
+        </>
+      )}
 
       {/* Dropdowns */}
       {assigneeDropdown.open && (
