@@ -219,7 +219,7 @@ function TopicDropdownPortal({
               <span style={{
                 fontSize: '0.75rem', fontWeight: 700,
                 color: '#1A1A2E', letterSpacing: '0.04em',
-              }}>Temas</span>
+              }}>Etiquetas</span>
               <button onClick={onClose} style={{
                 background: 'none', border: 'none', cursor: 'pointer',
                 color: '#5a7478', fontSize: '1rem', lineHeight: 1, padding: 2,

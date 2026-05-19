@@ -106,7 +106,7 @@ const EVENT_LABELS: Record<string, string> = {
   tarea_creada:        'Tarea creada',
   estado_cambiado:     'Estado actualizado',
   asignacion_cambiada: 'Asignación cambiada',
-  tema_cambiado:       'Tema cambiado',
+  tema_cambiado:       'Etiqueta cambiada',
   contexto_actualizado:'Descripción actualizada',
 }
 
@@ -255,7 +255,7 @@ function TopicDropdownPortal({
               padding: '12px 14px 10px',
               borderBottom: '1px solid rgba(10,126,140,0.10)',
             }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1A1A2E' }}>Temas</span>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1A1A2E' }}>Etiquetas</span>
               <button onClick={onClose} style={{
                 background: 'none', border: 'none', cursor: 'pointer',
                 color: '#5a7478', fontSize: '1rem', lineHeight: 1,
@@ -1118,7 +1118,7 @@ export default function TareaDetailPage() {
       .from('tasks').update({ topic_id: topicId || null }).eq('id', taskId)
     if (error) { setError(error.message); return }
     const topic = topics.find(t => t.id === topicId)
-    await logEvent('tema_cambiado', topic ? `Tema: ${topic.name}` : 'Tema removido')
+    await logEvent('tema_cambiado', topic ? `Etiqueta: ${topic.name}` : 'Etiqueta removida')
     callTaskContext()
   }
 
@@ -2212,7 +2212,7 @@ export default function TareaDetailPage() {
                   </div>
                 )}
 
-                {/* Tema */}
+                {/* Etiqueta */}
                 <div style={{
                   display: 'flex', alignItems: 'center',
                   padding: '16px 20px', gap: 12,
@@ -2221,7 +2221,7 @@ export default function TareaDetailPage() {
                     fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
                     textTransform: 'uppercase', color: '#5a7478',
                     minWidth: 80, flexShrink: 0,
-                  }}>Tema</span>
+                  }}>Etiqueta</span>
                   <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
                     {selectedTopic && (
                       <span style={{
@@ -2251,7 +2251,7 @@ export default function TareaDetailPage() {
                   </div>
                 </div>
 
-                {/* Temas sugeridos */}
+                {/* Etiquetas sugeridas */}
                 {suggestedTopics.length > 0 && !topicVal && (
                   <div style={{
                     padding: '10px 20px 14px',
@@ -2262,7 +2262,7 @@ export default function TareaDetailPage() {
                       letterSpacing: '0.06em', textTransform: 'uppercase',
                       color: '#0A7E8C', marginBottom: 8,
                     }}>
-                      Temas sugeridos
+                      Etiquetas sugeridas
                     </p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       {suggestedTopics.map((name) => {
