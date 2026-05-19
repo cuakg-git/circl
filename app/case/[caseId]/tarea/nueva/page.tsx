@@ -461,7 +461,7 @@ export default function NuevaTareaPage() {
   const [userId,  setUserId]  = useState<string | null>(null)
   const [crisisId, setCrisisId] = useState<string | null>(null)
   const [contacts, setContacts] = useState<Contact[]>([])
-  const [topics,   setTopics]   = useState<Topic[]>([])
+  const [labels,   setLabels]   = useState<Topic[]>([])
   const [loading,  setLoading]  = useState(true)
   const [saving,   setSaving]   = useState(false)
   const [error,    setError]    = useState<string | null>(null)
@@ -517,16 +517,16 @@ export default function NuevaTareaPage() {
       setUserId(user.id)
 
       const { data: crisis } = await supabase
-        .from('crises')
+        .from('cases')
         .select('id')
         .eq('user_id', user.id)
         .eq('status', 'activa')
         .maybeSingle()
 
-      if (!crisis) { router.replace('/gestion'); return }
+      if (!crisis) { router.replace('/case'); return }
       setCrisisId(crisis.id)
 
-      const [contactsRes, topicsRes, docsRes] = await Promise.all([
+      const [contactsRes, labelsRes, docsRes] = await Promise.all([
         supabase
           .from('contacts')
           .select('id, name, initials')
@@ -534,19 +534,19 @@ export default function NuevaTareaPage() {
           .in('proximity', ['nucleo', 'ayuda'])
           .order('sort_order', { ascending: true, nullsFirst: false }),
         supabase
-          .from('topics')
+          .from('labels')
           .select('id, name, color')
-          .eq('crisis_id', crisis.id)
+          .eq('case_id', crisis.id)
           .order('created_at', { ascending: true }),
         supabase
           .from('documents')
           .select('id, name, type, created_at')
-          .eq('crisis_id', crisis.id)
+          .eq('case_id', crisis.id)
           .order('created_at', { ascending: false }),
       ])
 
       setContacts((contactsRes.data ?? []) as Contact[])
-      setTopics((topicsRes.data ?? []) as Topic[])
+      setLabels((labelsRes.data ?? []) as Topic[])
       setAllDocs((docsRes.data ?? []) as Doc[])
       setLoading(false)
     }
@@ -580,9 +580,9 @@ export default function NuevaTareaPage() {
 
     if (topicDropdown.view === 'create') {
       const { data: newTopic, error } = await supabase
-        .from('topics')
+        .from('labels')
         .insert({
-          crisis_id: crisisId,
+          case_id:   crisisId,
           user_id:   userId,
           name:      editTopicName.trim(),
           color:     editTopicColor,
@@ -591,16 +591,16 @@ export default function NuevaTareaPage() {
         .single()
       setEditTopicLoading(false)
       if (error) { setError(error.message); return }
-      setTopics(prev => [...prev, newTopic as Topic])
+      setLabels(prev => [...prev, newTopic as Topic])
       setTopicId(newTopic.id)
     } else if (topicDropdown.view === 'edit' && topicDropdown.editTopic) {
       const { error } = await supabase
-        .from('topics')
+        .from('labels')
         .update({ name: editTopicName.trim(), color: editTopicColor })
         .eq('id', topicDropdown.editTopic.id)
       setEditTopicLoading(false)
       if (error) { setError(error.message); return }
-      setTopics(prev => prev.map(t =>
+      setLabels(prev => prev.map(t =>
         t.id === topicDropdown.editTopic!.id
           ? { ...t, name: editTopicName.trim(), color: editTopicColor }
           : t
@@ -615,13 +615,13 @@ export default function NuevaTareaPage() {
     if (!topicDropdown.editTopic) return
     setEditTopicLoading(true)
     const { error } = await supabase
-      .from('topics')
+      .from('labels')
       .delete()
       .eq('id', topicDropdown.editTopic.id)
     setEditTopicLoading(false)
     if (error) { setError(error.message); return }
     const deletedId = topicDropdown.editTopic.id
-    setTopics(prev => prev.filter(t => t.id !== deletedId))
+    setLabels(prev => prev.filter(t => t.id !== deletedId))
     if (topicId === deletedId) setTopicId('')
     setTopicDropdown(prev => ({ ...prev, view: 'list', editTopic: null }))
   }
@@ -644,14 +644,14 @@ export default function NuevaTareaPage() {
     const { data: inserted, error: insertErr } = await supabase
       .from('tasks')
       .insert({
-        crisis_id:           crisisId,
+        case_id:             crisisId,
         title:               title.trim(),
         description:         description.trim() || null,
         due_date:            date || null,
         status:              'pendiente',
         assigned_to_user:    assignedToUser,
         assigned_contact_id: assignedContactId,
-        topic_id:            topicId || null,
+        label_id:            topicId || null,
       })
       .select('id')
       .single()
@@ -675,7 +675,7 @@ export default function NuevaTareaPage() {
     // Registrar en task_history
     await supabase.from('task_history').insert({
       task_id:     inserted.id,
-      crisis_id:   crisisId,
+      case_id:     crisisId,
       user_id:     userId,
       event_type:  'tarea_creada',
       description: `Tarea "${title.trim()}" creada`,
@@ -688,7 +688,7 @@ export default function NuevaTareaPage() {
       body:    JSON.stringify({ task_id: inserted.id, user_id: userId }),
     }).catch((e) => console.error('[nueva-tarea] task-context error:', e))
 
-    router.replace(`/gestion/tarea/${inserted.id}`)
+    router.replace(`/case/${crisisId}/tarea/${inserted.id}`)
   }
 
   // ── Helpers display ──────────────────────────────────────────────────────────
@@ -711,7 +711,7 @@ export default function NuevaTareaPage() {
   }
 
   const assigneeDisplay = getAssigneeDisplay()
-  const selectedTopic   = topics.find(t => t.id === topicId)
+  const selectedTopic   = labels.find(t => t.id === topicId)
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -753,7 +753,7 @@ export default function NuevaTareaPage() {
       )}
       {topicDropdown.open && (
         <TopicDropdownPortal
-          topics={topics}
+          topics={labels}
           selectedId={topicId}
           anchorRect={topicDropdown.anchorRect}
           view={topicDropdown.view}
@@ -788,11 +788,11 @@ export default function NuevaTareaPage() {
 
           {/* Breadcrumb */}
           <nav style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Link href="/gestion" style={{
+            <Link href={`/case/${crisisId}`} style={{
               fontSize: '0.8125rem', color: '#0A7E8C', fontWeight: 600,
               textDecoration: 'none',
             }}>
-              Gestión
+              Caso
             </Link>
             <span style={{ color: '#5a7478', fontSize: '0.8125rem' }}>→</span>
             <span style={{ fontSize: '0.8125rem', color: '#5a7478', fontWeight: 500 }}>

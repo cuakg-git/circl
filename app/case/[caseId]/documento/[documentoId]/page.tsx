@@ -20,7 +20,7 @@ type Doc = {
   uploaded_by_user:       boolean | null
   uploaded_by_contact_id: string | null
   description:            string | null
-  crisis_id:              string
+  case_id:                string
 }
 
 type TaskSummary = {
@@ -64,9 +64,11 @@ function formatBytes(bytes: number | null) {
 export default function DocumentoDetailPage() {
   const router  = useRouter()
   const params  = useParams()
-  const docId   = params.id as string
+  const { caseId, documentoId } = params as { caseId: string; documentoId: string }
+  const docId   = documentoId
 
   const [loading,       setLoading]       = useState(true)
+  const [crisisId,      setCrisisId]      = useState<string | null>(null)
   const [doc,           setDoc]           = useState<Doc | null>(null)
   const [contacts,      setContacts]      = useState<Contact[]>([])
   const [linkedTasks,   setLinkedTasks]   = useState<TaskSummary[]>([])
@@ -90,25 +92,26 @@ export default function DocumentoDetailPage() {
       if (userErr || !user) { router.replace('/login'); return }
 
       const { data: crisis } = await supabase
-        .from('crises')
+        .from('cases')
         .select('id')
         .eq('user_id', user.id)
         .eq('status', 'activa')
         .maybeSingle()
 
-      if (!crisis) { router.replace('/gestion'); return }
+      if (!crisis) { router.replace('/case'); return }
+      setCrisisId(crisis.id)
 
       const [docRes, contactsRes, taskDocsRes, allTasksRes] = await Promise.all([
         supabase
           .from('documents')
-          .select('id, name, type, created_at, storage_path, original_filename, file_size_bytes, file_mime_type, uploaded_by_user, uploaded_by_contact_id, description, crisis_id')
+          .select('id, name, type, created_at, storage_path, original_filename, file_size_bytes, file_mime_type, uploaded_by_user, uploaded_by_contact_id, description, case_id')
           .eq('id', docId)
-          .eq('crisis_id', crisis.id)
+          .eq('case_id', crisis.id)
           .maybeSingle(),
         supabase
-          .from('crisis_contacts')
+          .from('case_contacts')
           .select('contact:contacts(id, name)')
-          .eq('crisis_id', crisis.id),
+          .eq('case_id', crisis.id),
         supabase
           .from('task_documents')
           .select('task_id')
@@ -116,12 +119,12 @@ export default function DocumentoDetailPage() {
         supabase
           .from('tasks')
           .select('id, title')
-          .eq('crisis_id', crisis.id)
+          .eq('case_id', crisis.id)
           .eq('status', 'pendiente')
           .order('due_date', { ascending: true, nullsFirst: false }),
       ])
 
-      if (!docRes.data) { router.replace('/gestion'); return }
+      if (!docRes.data) { router.replace('/case'); return }
 
       const d = docRes.data as Doc
       setDoc(d)
@@ -212,7 +215,7 @@ export default function DocumentoDetailPage() {
       .eq('id', docId)
     setDeleteLoading(false)
     if (dbErr) { setError(dbErr.message); return }
-    router.replace('/gestion')
+    router.replace('/case')
   }
 
   async function handleLinkTask(taskId: string) {
@@ -380,11 +383,11 @@ export default function DocumentoDetailPage() {
 
           {/* Breadcrumb */}
           <nav style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Link href="/gestion" style={{
+            <Link href={`/case/${crisisId}`} style={{
               fontSize: '0.8125rem', color: '#0A7E8C', fontWeight: 600,
               textDecoration: 'none',
             }}>
-              Gestión
+              Caso
             </Link>
             <span style={{ color: '#5a7478', fontSize: '0.8125rem' }}>→</span>
             <span style={{ fontSize: '0.8125rem', color: '#5a7478', fontWeight: 500 }}>
@@ -638,7 +641,7 @@ export default function DocumentoDetailPage() {
                             <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
                           </svg>
                           <Link
-                            href={`/gestion/tarea/${t.id}`}
+                            href={`/case/${crisisId}/tarea/${t.id}`}
                             style={{
                               flex: 1, fontSize: '0.875rem', fontWeight: 600,
                               color: '#1A1A2E', textDecoration: 'none',

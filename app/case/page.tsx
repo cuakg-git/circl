@@ -9,7 +9,7 @@ import { SkeletonStyles, SkeletonText, SkeletonCard, SkeletonBase } from '@/comp
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Crisis = {
+type Case = {
   id:         string
   name:       string
   status:     string
@@ -17,7 +17,7 @@ type Crisis = {
   started_at: string | null
 }
 
-type CrisisWithProgress = Crisis & {
+type CaseWithProgress = Case & {
   totalTasks: number
   doneTasks:  number
 }
@@ -59,12 +59,12 @@ function IconChevronRight() {
 
 // ── Crisis Card ────────────────────────────────────────────────────────────────
 
-function CrisisCard({ c, isActive }: { c: CrisisWithProgress; isActive: boolean }) {
+function CaseCard({ c, isActive }: { c: CaseWithProgress; isActive: boolean }) {
   const days = daysSince(c.started_at)
 
   return (
     <Link
-      href={`/crisis/${c.id}`}
+      href={`/case/${c.id}`}
       className="block no-underline transition-all"
       style={{
         background:    '#FFFFFF',
@@ -147,9 +147,9 @@ function CrisisCard({ c, isActive }: { c: CrisisWithProgress; isActive: boolean 
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
-export default function CrisisListPage() {
+export default function CaseListPage() {
   const router = useRouter()
-  const [crises,  setCrises]  = useState<CrisisWithProgress[]>([])
+  const [cases,   setCases]   = useState<CaseWithProgress[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -157,43 +157,43 @@ export default function CrisisListPage() {
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError || !user) { router.replace('/login'); return }
 
-      const { data: crisesData, error: crisesError } = await supabase
-        .from('crises')
+      const { data: casesData, error: casesError } = await supabase
+        .from('cases')
         .select('id, name, status, category, started_at')
         .eq('user_id', user.id)
         .order('started_at', { ascending: false })
 
-      if (crisesError) console.error('Error crises:', crisesError)
+      if (casesError) console.error('Error cases:', casesError)
 
-      const list = (crisesData ?? []) as Crisis[]
+      const list = (casesData ?? []) as Case[]
 
-      // Fetch tasks counts in parallel for each crisis
+      // Fetch tasks counts in parallel for each case
       const withProgress = await Promise.all(
         list.map(async (c) => {
           const [{ count: total }, { count: done }] = await Promise.all([
             supabase
               .from('tasks')
               .select('id', { count: 'exact', head: true })
-              .eq('crisis_id', c.id),
+              .eq('case_id', c.id),
             supabase
               .from('tasks')
               .select('id', { count: 'exact', head: true })
-              .eq('crisis_id', c.id)
+              .eq('case_id', c.id)
               .eq('status', 'completada'),
           ])
           return { ...c, totalTasks: total ?? 0, doneTasks: done ?? 0 }
         }),
       )
 
-      setCrises(withProgress)
+      setCases(withProgress)
       setLoading(false)
     }
 
     load()
   }, [router])
 
-  const active   = crises.filter((c) => c.status === 'activa')
-  const resolved = crises.filter((c) => c.status !== 'activa')
+  const active   = cases.filter((c) => c.status === 'activa')
+  const resolved = cases.filter((c) => c.status !== 'activa')
 
   return (
     <>
@@ -250,7 +250,7 @@ export default function CrisisListPage() {
               className="font-extrabold text-[#1A1A2E]"
               style={{ fontSize: '2rem', letterSpacing: '-0.03em', lineHeight: 1.15 }}
             >
-              Crisis
+              Temas
             </h1>
             <p className="text-[#5a7478] mt-1.5" style={{ fontSize: '1rem' }}>
               Registros de situaciones activas y resueltas.
@@ -287,7 +287,7 @@ export default function CrisisListPage() {
           )}
 
           {/* ── Empty state ─────────────────────────────────────────────── */}
-          {!loading && crises.length === 0 && (
+          {!loading && cases.length === 0 && (
             <div className="flex justify-center">
               <div
                 className="w-full text-center"
@@ -313,7 +313,7 @@ export default function CrisisListPage() {
                 </div>
 
                 <p className="font-bold text-[#1A1A2E]" style={{ fontSize: '1rem', marginBottom: 8 }}>
-                  No hay crisis registradas
+                  No hay temas registrados
                 </p>
                 <p className="text-[0.875rem] text-[#5a7478] leading-relaxed" style={{ marginBottom: 24 }}>
                   Hablá con el agente para registrar tu primera situación.
@@ -344,10 +344,41 @@ export default function CrisisListPage() {
                 Activas
               </p>
               {active.map((c) => (
-                <CrisisCard key={c.id} c={c} isActive={true} />
+                <CaseCard key={c.id} c={c} isActive={true} />
               ))}
             </>
           )}
+
+          {/* ── Add theme button ────────────────────────────────────────── */}
+          <div style={{ marginTop: 24 }}>
+            <button
+              disabled
+              style={{
+                width: '100%',
+                padding: '14px',
+                borderRadius: 9999,
+                border: '1.5px dashed rgba(10,126,140,0.25)',
+                background: 'transparent',
+                color: '#5a7478',
+                fontWeight: 700,
+                fontSize: '0.875rem',
+                cursor: 'not-allowed',
+                opacity: 0.5,
+              }}
+            >
+              + Agregar tema
+            </button>
+            <p style={{
+              textAlign: 'center',
+              fontSize: '0.75rem',
+              color: '#5a7478',
+              marginTop: 8,
+              lineHeight: 1.5,
+              fontStyle: 'italic'
+            }}>
+              Durante la beta, cada usuario trabaja con un solo tema activo.
+            </p>
+          </div>
 
           {/* ── Resolved section ────────────────────────────────────────── */}
           {resolved.length > 0 && (
@@ -364,7 +395,7 @@ export default function CrisisListPage() {
                 Resueltas
               </p>
               {resolved.map((c) => (
-                <CrisisCard key={c.id} c={c} isActive={false} />
+                <CaseCard key={c.id} c={c} isActive={false} />
               ))}
             </>
           )}

@@ -53,9 +53,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    // 1. Cargar crisis activa
+    // 1. Cargar caso activo
     const { data: crisis } = await supabase
-      .from('crises')
+      .from('cases')
       .select('id, name, description, category, ai_summary, ai_next_step')
       .eq('user_id', user_id)
       .eq('status', 'activa')
@@ -67,9 +67,9 @@ export async function POST(request: Request) {
 
     // 2. Cargar contactos del círculo con su context_summary
     const { data: crisisContacts } = await supabase
-      .from('crisis_contacts')
+      .from('case_contacts')
       .select('contact:contacts(name, relationship, role, proximity, context_summary)')
-      .eq('crisis_id', crisis.id)
+      .eq('case_id', crisis.id)
 
     // 3. Cargar providers actuales del usuario
     const { data: providers } = await supabase

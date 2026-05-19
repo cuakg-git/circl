@@ -197,8 +197,8 @@ export default function ContactoDetailPage() {
       // Load crises in parallel (after setting loading=false for faster perceived load)
       setCrisesLoading(true)
       const { data: crisesData, error: crisesErr } = await supabase
-        .from('crisis_contacts')
-        .select('crisis:crises(id, name, status, started_at)')
+        .from('case_contacts')
+        .select('crisis:cases(id, name, status, started_at)')
         .eq('contact_id', contactId)
 
       setCrisesLoading(false)

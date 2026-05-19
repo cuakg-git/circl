@@ -16,7 +16,7 @@ type Task = {
   due_date:            string | null
   assigned_contact_id: string | null
   assigned_to_user:    boolean | null
-  topic_id:            string | null
+  label_id:            string | null
   context:             string | null
   created_at:          string
 }
@@ -478,13 +478,14 @@ function TopicDropdownPortal({
 export default function TareaDetailPage() {
   const router  = useRouter()
   const params  = useParams()
-  const taskId  = params.id as string
+  const { caseId, tareaId } = params as { caseId: string; tareaId: string }
+  const taskId  = tareaId
 
   const [loading,  setLoading]  = useState(true)
   const [saving,   setSaving]   = useState(false)
   const [task,     setTask]     = useState<Task | null>(null)
   const [contacts, setContacts] = useState<Contact[]>([])
-  const [topics,   setTopics]   = useState<Topic[]>([])
+  const [labels,   setLabels]   = useState<Topic[]>([])
   const [history,  setHistory]  = useState<HistoryEvent[]>([])
   const [userId,   setUserId]   = useState<string | null>(null)
   const [crisisId, setCrisisId] = useState<string | null>(null)
@@ -585,21 +586,21 @@ export default function TareaDetailPage() {
       setUserId(user.id)
 
       const { data: crisis } = await supabase
-        .from('crises')
+        .from('cases')
         .select('id')
         .eq('user_id', user.id)
         .eq('status', 'activa')
         .maybeSingle()
 
-      if (!crisis) { router.replace('/gestion'); return }
+      if (!crisis) { router.replace('/case'); return }
       setCrisisId(crisis.id)
 
-      const [taskRes, contactsRes, topicsRes, historyRes, taskDocsRes, allDocsRes] = await Promise.all([
+      const [taskRes, contactsRes, labelsRes, historyRes, taskDocsRes, allDocsRes] = await Promise.all([
         supabase
           .from('tasks')
-          .select('id, title, description, status, due_date, assigned_contact_id, assigned_to_user, topic_id, context, created_at')
+          .select('id, title, description, status, due_date, assigned_contact_id, assigned_to_user, label_id, context, created_at')
           .eq('id', taskId)
-          .eq('crisis_id', crisis.id)
+          .eq('case_id', crisis.id)
           .maybeSingle(),
         supabase
           .from('contacts')
@@ -608,9 +609,9 @@ export default function TareaDetailPage() {
           .in('proximity', ['nucleo', 'ayuda'])
           .order('sort_order', { ascending: true, nullsFirst: false }),
         supabase
-          .from('topics')
+          .from('labels')
           .select('id, name, color')
-          .eq('crisis_id', crisis.id)
+          .eq('case_id', crisis.id)
           .order('created_at', { ascending: true }),
         supabase
           .from('task_history')
@@ -625,11 +626,11 @@ export default function TareaDetailPage() {
         supabase
           .from('documents')
           .select('id, name, type, created_at, storage_path, original_filename, file_mime_type')
-          .eq('crisis_id', crisis.id)
+          .eq('case_id', crisis.id)
           .order('created_at', { ascending: false }),
       ])
 
-      if (!taskRes.data) { router.replace('/gestion'); return }
+      if (!taskRes.data) { router.replace('/case'); return }
 
       const t = taskRes.data as Task
       setTask(t)
@@ -652,9 +653,9 @@ export default function TareaDetailPage() {
       else if (t.assigned_contact_id) setAssigneeVal(`c:${t.assigned_contact_id}`)
       else setAssigneeVal('')
 
-      setTopicVal(t.topic_id ?? '')
+      setTopicVal(t.label_id ?? '')
       setContacts((contactsRes.data ?? []) as Contact[])
-      setTopics((topicsRes.data ?? []) as Topic[])
+      setLabels((labelsRes.data ?? []) as Topic[])
       setHistory((historyRes.data ?? []) as HistoryEvent[])
       const rawTaskDocs = (taskDocsRes.data ?? []).map((row: any) => ({
         id:          row.id,
@@ -778,7 +779,7 @@ export default function TareaDetailPage() {
     const { data: newDoc, error: dbErr } = await supabase
       .from('documents')
       .insert({
-        crisis_id:              crisisId,
+        case_id:                crisisId,
         name:                   uploadName.trim(),
         type:                   uploadType,
         storage_path:           path,
@@ -816,7 +817,7 @@ export default function TareaDetailPage() {
     const { data: freshDocs } = await supabase
       .from('documents')
       .select('id, name, type, created_at, storage_path, original_filename, file_mime_type')
-      .eq('crisis_id', crisisId)
+      .eq('case_id', crisisId)
       .order('created_at', { ascending: false })
     if (freshDocs) setAllDocs(freshDocs as Doc[])
 
@@ -970,7 +971,7 @@ export default function TareaDetailPage() {
     if (!userId || !crisisId) return
     await supabase.from('task_history').insert({
       task_id:     taskId,
-      crisis_id:   crisisId,
+      case_id:     crisisId,
       user_id:     userId,
       event_type:  eventType,
       description,
@@ -1115,9 +1116,9 @@ export default function TareaDetailPage() {
   async function handleTopicChange(topicId: string) {
     setTopicVal(topicId)
     const { error } = await supabase
-      .from('tasks').update({ topic_id: topicId || null }).eq('id', taskId)
+      .from('tasks').update({ label_id: topicId || null }).eq('id', taskId)
     if (error) { setError(error.message); return }
-    const topic = topics.find(t => t.id === topicId)
+    const topic = labels.find(t => t.id === topicId)
     await logEvent('tema_cambiado', topic ? `Etiqueta: ${topic.name}` : 'Etiqueta removida')
     callTaskContext()
   }
@@ -1193,7 +1194,7 @@ export default function TareaDetailPage() {
     const { error } = await supabase.from('tasks').delete().eq('id', taskId)
     setDeleteLoading(false)
     if (error) { setError(error.message); return }
-    router.replace('/gestion')
+    router.replace('/case')
   }
 
   // ── Topic handlers ────────────────────────────────────────────────────────────
@@ -1204,21 +1205,21 @@ export default function TareaDetailPage() {
 
     if (topicDropdown.view === 'create') {
       const { data: newTopic, error } = await supabase
-        .from('topics')
-        .insert({ crisis_id: crisisId, user_id: userId, name: editTopicName.trim(), color: editTopicColor })
+        .from('labels')
+        .insert({ case_id: crisisId, user_id: userId, name: editTopicName.trim(), color: editTopicColor })
         .select('id, name, color').single()
       setEditTopicLoading(false)
       if (error) { setError(error.message); return }
-      setTopics(prev => [...prev, newTopic as Topic])
+      setLabels(prev => [...prev, newTopic as Topic])
       await handleTopicChange(newTopic.id)
     } else if (topicDropdown.view === 'edit' && topicDropdown.editTopic) {
       const { error } = await supabase
-        .from('topics')
+        .from('labels')
         .update({ name: editTopicName.trim(), color: editTopicColor })
         .eq('id', topicDropdown.editTopic.id)
       setEditTopicLoading(false)
       if (error) { setError(error.message); return }
-      setTopics(prev => prev.map(t =>
+      setLabels(prev => prev.map(t =>
         t.id === topicDropdown.editTopic!.id
           ? { ...t, name: editTopicName.trim(), color: editTopicColor } : t
       ))
@@ -1231,14 +1232,14 @@ export default function TareaDetailPage() {
   async function handleDeleteTopic() {
     if (!topicDropdown.editTopic) return
     setEditTopicLoading(true)
-    const { error } = await supabase.from('topics').delete().eq('id', topicDropdown.editTopic.id)
+    const { error } = await supabase.from('labels').delete().eq('id', topicDropdown.editTopic.id)
     setEditTopicLoading(false)
     if (error) { setError(error.message); return }
     const deletedId = topicDropdown.editTopic.id
-    setTopics(prev => prev.filter(t => t.id !== deletedId))
+    setLabels(prev => prev.filter(t => t.id !== deletedId))
     if (topicVal === deletedId) {
       setTopicVal('')
-      await supabase.from('tasks').update({ topic_id: null }).eq('id', taskId)
+      await supabase.from('tasks').update({ label_id: null }).eq('id', taskId)
     }
     setTopicDropdown(prev => ({ ...prev, view: 'list', editTopic: null }))
   }
@@ -1246,7 +1247,7 @@ export default function TareaDetailPage() {
   // ── Computed ──────────────────────────────────────────────────────────────────
 
   const isDone        = task?.status === 'completada'
-  const selectedTopic = topics.find(t => t.id === topicVal)
+  const selectedTopic = labels.find(t => t.id === topicVal)
 
   function getAssigneeDisplay() {
     if (!assigneeVal) return null
@@ -1625,7 +1626,7 @@ export default function TareaDetailPage() {
       )}
       {topicDropdown.open && (
         <TopicDropdownPortal
-          topics={topics}
+          topics={labels}
           selectedId={topicVal}
           anchorRect={topicDropdown.anchorRect}
           view={topicDropdown.view}
@@ -1664,11 +1665,11 @@ export default function TareaDetailPage() {
 
           {/* Breadcrumb */}
           <nav style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Link href="/gestion" style={{
+            <Link href={`/case/${crisisId}`} style={{
               fontSize: '0.8125rem', color: '#0A7E8C', fontWeight: 600,
               textDecoration: 'none',
             }}>
-              Gestión
+              Caso
             </Link>
             <span style={{ color: '#5a7478', fontSize: '0.8125rem' }}>→</span>
             <span style={{ fontSize: '0.8125rem', color: '#5a7478', fontWeight: 500 }}>
@@ -2266,7 +2267,7 @@ export default function TareaDetailPage() {
                     </p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       {suggestedTopics.map((name) => {
-                        const topic = topics.find(t =>
+                        const topic = labels.find(t =>
                           t.name.toLowerCase() === name.toLowerCase()
                         )
                         if (!topic) return null

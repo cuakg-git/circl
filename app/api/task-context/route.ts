@@ -140,31 +140,31 @@ export async function POST(request: Request) {
     // 1. Cargar la tarea
     const { data: task, error: taskError } = await supabase
       .from('tasks')
-      .select('id, title, description, status, due_date, assigned_contact_id, assigned_to_user, topic_id, crisis_id, context')
+      .select('id, title, description, status, due_date, assigned_contact_id, assigned_to_user, label_id, case_id, context')
       .eq('id', task_id)
       .maybeSingle()
 
     if (taskError) throw taskError
     if (!task) return Response.json({ error: 'Tarea no encontrada' }, { status: 404 })
 
-    // 2. Cargar crisis activa
+    // 2. Cargar caso activo
     const { data: crisis } = await supabase
-      .from('crises')
+      .from('cases')
       .select('id, name, category, ai_summary, ai_next_step')
-      .eq('id', task.crisis_id)
+      .eq('id', task.case_id)
       .maybeSingle()
 
     // 3. Cargar contactos del círculo con context_summary
     const { data: crisisContacts } = await supabase
-      .from('crisis_contacts')
+      .from('case_contacts')
       .select('contact:contacts(id, name, role, proximity, context_summary)')
-      .eq('crisis_id', task.crisis_id)
+      .eq('case_id', task.case_id)
 
-    // 4. Cargar temas existentes de la crisis
-    const { data: topics } = await supabase
-      .from('topics')
+    // 4. Cargar etiquetas existentes del caso
+    const { data: labels } = await supabase
+      .from('labels')
       .select('id, name')
-      .eq('crisis_id', task.crisis_id)
+      .eq('case_id', task.case_id)
       .order('created_at', { ascending: true })
 
     // 5. Resolver nombre del asignado actual
@@ -180,9 +180,9 @@ export async function POST(request: Request) {
 
     // 6. Resolver nombre del tema actual
     let topicName = 'sin tema'
-    if (task.topic_id) {
-      const assignedTopic = (topics ?? []).find((t: any) => t.id === task.topic_id)
-      if (assignedTopic) topicName = assignedTopic.name
+    if (task.label_id) {
+      const assignedLabel = (labels ?? []).find((t: any) => t.id === task.label_id)
+      if (assignedLabel) topicName = assignedLabel.name
     }
 
     // 7. Construir lista de contactos
@@ -195,8 +195,8 @@ export async function POST(request: Request) {
       .filter(Boolean)
       .join('\n')
 
-    // 8. Construir lista de temas
-    const topicsList = (topics ?? [])
+    // 8. Construir lista de etiquetas
+    const labelsList = (labels ?? [])
       .map((t: any) => `- ${t.name}`)
       .join('\n')
 
@@ -231,7 +231,7 @@ ${contactsList || '    (sin contactos en el círculo)'}
   </circulo_de_apoyo>
 
   <temas_existentes>
-${topicsList || '    (sin temas creados)'}
+${labelsList || '    (sin temas creados)'}
   </temas_existentes>
 </contexto>
 ${chatHistoryXml}

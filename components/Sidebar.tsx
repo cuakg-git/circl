@@ -12,10 +12,7 @@ import { supabase } from '@/lib/supabase'
 function IconGrid() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3"    y="3"    width="7.5" height="7.5" rx="1.5" />
-      <rect x="13.5" y="3"    width="7.5" height="7.5" rx="1.5" />
-      <rect x="3"    y="13.5" width="7.5" height="7.5" rx="1.5" />
-      <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5" />
+      <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
     </svg>
   )
 }
@@ -23,10 +20,9 @@ function IconGrid() {
 function IconGroup() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="10" r="3" />
+      <path d="M6.5 20a5.5 5.5 0 0 1 11 0" />
     </svg>
   )
 }
@@ -34,9 +30,8 @@ function IconGroup() {
 function IconWarning() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-      <line x1="12" y1="9"  x2="12"   y2="13" />
-      <line x1="12" y1="17" x2="12.01" y2="17" />
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
     </svg>
   )
 }
@@ -126,16 +121,14 @@ function HablarNavButton({ pathname }: { pathname: string }) {
 const SIDEBAR_NAV = [
   { label: 'Inicio',   href: '/dashboard', Icon: IconGrid    },
   { label: 'Círculo',  href: '/circulo',   Icon: IconGroup   },
-  { label: 'Gestión',  href: '/gestion',   Icon: IconGestion },
-  // { label: 'Crisis',  href: '/crisis',    Icon: IconWarning },
+  { label: 'Temas',    href: '/case',      Icon: IconWarning },
   { label: 'Hablar',   href: '/chat',      Icon: IconChat    },
 ]
 
 // Mobile order: Inicio · Gestión · Hablar (center, elevated) · Círculo · Perfil
 const BOTTOM_NAV = [
   { label: 'Inicio',   href: '/dashboard', Icon: IconGrid,    center: false },
-  { label: 'Gestión',  href: '/gestion',   Icon: IconGestion, center: false },
-  // { label: 'Crisis',  href: '/crisis',    Icon: IconWarning, center: false },
+  { label: 'Temas',    href: '/case',      Icon: IconWarning, center: false },
   { label: 'Hablar',   href: '/chat',      Icon: IconChat,    center: true  },
   { label: 'Círculo',  href: '/circulo',   Icon: IconGroup,   center: false },
   { label: 'Perfil',   href: '/profile',   Icon: IconPerson,  center: false },

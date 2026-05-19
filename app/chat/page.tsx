@@ -119,7 +119,7 @@ export default function ChatPage() {
       setUserId(user.id)
 
       const { data: crisisData } = await supabase
-        .from('crises')
+        .from('cases')
         .select('id, name')
         .eq('user_id', user.id)
         .eq('status', 'activa')
@@ -132,7 +132,7 @@ export default function ChatPage() {
         .from('conversations')
         .select('id')
         .eq('user_id', user.id)
-        .is('crisis_id', null)
+        .is('case_id', null)
         .order('created_at', { ascending: true })
         .limit(1)
         .maybeSingle()
@@ -344,7 +344,7 @@ export default function ChatPage() {
                     Hablar con Mhiru
                   </h4>
                   <p className="text-[0.7rem] text-[#5a7478] mt-px">
-                    {crisis ? `Crisis activa: ${crisis.name}` : ''}
+                    {crisis ? `Tema activo: ${crisis.name}` : ''}
                   </p>
                 </div>
               </div>

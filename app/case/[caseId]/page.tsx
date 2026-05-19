@@ -28,7 +28,7 @@ type Task = {
   due_date:            string | null
   assigned_contact_id: string | null
   assigned_to_user:    boolean | null
-  topic_id:            string | null
+  label_id:            string | null
 }
 
 type TaskDocCount = {
@@ -37,10 +37,10 @@ type TaskDocCount = {
 }
 
 type Topic = {
-  id:        string
-  name:      string
-  color:     string | null
-  crisis_id: string
+  id:      string
+  name:    string
+  color:   string | null
+  case_id: string
 }
 
 type Contact = {
@@ -302,7 +302,7 @@ export default function GestionPage() {
   const [history,     setHistory]     = useState<HistoryEvent[]>([])
   const [loading,     setLoading]     = useState(true)
 
-  const [topics, setTopics] = useState<Topic[]>([])
+  const [labels, setLabels] = useState<Topic[]>([])
   const [taskDocCounts, setTaskDocCounts] = useState<Map<string, number>>(new Map())
 
   // ── Sidesheet state ──────────────────────────────────────────────────────────
@@ -325,7 +325,7 @@ export default function GestionPage() {
       if (userError || !user) { router.replace('/login'); return }
 
       const { data: activeCrisis, error: activeCrisisError } = await supabase
-        .from('crises')
+        .from('cases')
         .select('id')
         .eq('user_id', user.id)
         .eq('status', 'activa')
@@ -339,31 +339,31 @@ export default function GestionPage() {
       setId(activeCrisis.id)
       const currentId = activeCrisis.id
 
-      const [crisisRes, tasksRes, contactsRes, docsRes, historyRes, topicsRes, allContactsRes] = await Promise.all([
+      const [crisisRes, tasksRes, contactsRes, docsRes, historyRes, labelsRes, allContactsRes] = await Promise.all([
         supabase
-          .from('crises')
+          .from('cases')
           .select('id, name, status, category, started_at, ai_summary')
           .eq('id', currentId).eq('user_id', user.id).maybeSingle(),
         supabase
           .from('tasks')
-          .select('id, title, status, due_date, assigned_contact_id, assigned_to_user, topic_id')
-          .eq('crisis_id', currentId).order('due_date', { ascending: true, nullsFirst: false }),
+          .select('id, title, status, due_date, assigned_contact_id, assigned_to_user, label_id')
+          .eq('case_id', currentId).order('due_date', { ascending: true, nullsFirst: false }),
         supabase
-          .from('crisis_contacts')
+          .from('case_contacts')
           .select('contact:contacts(id, name, role, proximity, initials, phone, email, relationship)')
-          .eq('crisis_id', currentId),
+          .eq('case_id', currentId),
         supabase
           .from('documents')
           .select('id, name, type, created_at, storage_path, original_filename, file_size_bytes, file_mime_type, uploaded_by_user, uploaded_by_contact_id')
-          .eq('crisis_id', currentId).order('created_at', { ascending: false }),
+          .eq('case_id', currentId).order('created_at', { ascending: false }),
         supabase
-          .from('crisis_history')
+          .from('case_history')
           .select('id, title, description, occurred_at')
-          .eq('crisis_id', currentId).order('occurred_at', { ascending: false }),
+          .eq('case_id', currentId).order('occurred_at', { ascending: false }),
         supabase
-          .from('topics')
-          .select('id, name, color, crisis_id')
-          .eq('crisis_id', currentId)
+          .from('labels')
+          .select('id, name, color, case_id')
+          .eq('case_id', currentId)
           .order('created_at', { ascending: true }),
         supabase
           .from('contacts')
@@ -374,7 +374,7 @@ export default function GestionPage() {
       ])
 
       if (crisisRes.error) console.error('Error crisis:', crisisRes.error)
-      if (!crisisRes.data) { router.replace('/crisis'); return }
+      if (!crisisRes.data) { router.replace('/case'); return }
       setCrisis(crisisRes.data)
 
       if (tasksRes.error) console.error('Error tasks:', tasksRes.error)
@@ -395,7 +395,7 @@ export default function GestionPage() {
       if (historyRes.error) console.error('Error history:', historyRes.error)
       setHistory((historyRes.data ?? []) as HistoryEvent[])
 
-      setTopics((topicsRes.data ?? []) as Topic[])
+      setLabels((labelsRes.data ?? []) as Topic[])
       setAllContacts((allContactsRes.data ?? []) as Contact[])
 
       // Cargar conteo de documentos por tarea
@@ -424,8 +424,8 @@ export default function GestionPage() {
   const reloadTasks = useCallback(async () => {
     const { data } = await supabase
       .from('tasks')
-      .select('id, title, status, due_date, assigned_contact_id, assigned_to_user, topic_id')
-      .eq('crisis_id', id)
+      .select('id, title, status, due_date, assigned_contact_id, assigned_to_user, label_id')
+      .eq('case_id', id)
       .eq('status', 'pendiente')
       .order('due_date', { ascending: true, nullsFirst: false })
     if (data) setTasks(data as Task[])
@@ -433,9 +433,9 @@ export default function GestionPage() {
 
   const reloadContacts = useCallback(async () => {
     const { data } = await supabase
-      .from('crisis_contacts')
+      .from('case_contacts')
       .select('contact:contacts(id, name, role, proximity, initials, phone, email, relationship)')
-      .eq('crisis_id', id)
+      .eq('case_id', id)
     if (!data) return
     const ccRows = data as { contact: Contact | Contact[] | null }[]
     const dedup  = new Map<string, Contact>()
@@ -448,34 +448,34 @@ export default function GestionPage() {
 
   const reloadHistory = useCallback(async () => {
     const { data } = await supabase
-      .from('crisis_history')
+      .from('case_history')
       .select('id, title, description, occurred_at')
-      .eq('crisis_id', id)
+      .eq('case_id', id)
       .order('occurred_at', { ascending: false })
     if (data) setHistory(data as HistoryEvent[])
   }, [id])
 
-  const reloadTopics = useCallback(async () => {
+  const reloadLabels = useCallback(async () => {
     const { data } = await supabase
-      .from('topics')
-      .select('id, name, color, crisis_id')
-      .eq('crisis_id', id)
+      .from('labels')
+      .select('id, name, color, case_id')
+      .eq('case_id', id)
       .order('created_at', { ascending: true })
-    if (data) setTopics(data as Topic[])
+    if (data) setLabels(data as Topic[])
   }, [id])
 
   const reloadDocs = useCallback(async () => {
     const { data } = await supabase
       .from('documents')
       .select('id, name, type, created_at, storage_path, original_filename, file_size_bytes, file_mime_type, uploaded_by_user, uploaded_by_contact_id')
-      .eq('crisis_id', id)
+      .eq('case_id', id)
       .order('created_at', { ascending: false })
     if (data) setDocs(data as Doc[])
   }, [id])
 
   const logHistory = useCallback(async (title: string, description: string | null, eventType: string) => {
-    const { error } = await supabase.from('crisis_history').insert({
-      crisis_id:   id,
+    const { error } = await supabase.from('case_history').insert({
+      case_id:     id,
       title,
       description,
       event_type:  eventType,
@@ -549,13 +549,13 @@ export default function GestionPage() {
 
   async function handleRemoveMember() {
     if (!ssMember) return
-    if (!window.confirm(`¿Quitar a ${ssMember.name.split(' ')[0]} de esta crisis?`)) return
+    if (!window.confirm(`¿Quitar a ${ssMember.name.split(' ')[0]} de este tema?`)) return
     setSsLoading(true)
     setSsError(null)
     const { error } = await supabase
-      .from('crisis_contacts')
+      .from('case_contacts')
       .delete()
-      .eq('crisis_id', id)
+      .eq('case_id', id)
       .eq('contact_id', ssMember.id)
     setSsLoading(false)
     if (error) { setSsError(error.message); return }
@@ -570,8 +570,8 @@ export default function GestionPage() {
     setSsLoading(true)
     setSsError(null)
     const { error } = await supabase
-      .from('crisis_contacts')
-      .insert({ crisis_id: id, contact_id: c.id })
+      .from('case_contacts')
+      .insert({ case_id: id, contact_id: c.id })
     setSsLoading(false)
     if (error) { setSsError(error.message); return }
     await reloadContacts()
@@ -840,7 +840,7 @@ export default function GestionPage() {
                     padding: '13px 20px', gap: 12,
                   }}>
                     <span style={{ fontSize: '0.875rem', color: '#5a7478', flex: 1 }}>
-                      Quitar a {ssMember.name.split(' ')[0]} de esta crisis
+                      Quitar a {ssMember.name.split(' ')[0]} de este tema
                     </span>
                     <button
                       onClick={handleRemoveMember} disabled={ssLoading}
@@ -902,7 +902,7 @@ export default function GestionPage() {
             {!availableLoading && availableContacts.length === 0 && (
               <Card style={{ padding: 24, textAlign: 'center' }}>
                 <p style={{ fontSize: '0.875rem', color: '#5a7478', lineHeight: 1.6 }}>
-                  Todos tus contactos ya están en esta crisis.<br />
+                  Todos tus contactos ya están en este tema.<br />
                   Podés agregar nuevos hablando con el agente.
                 </p>
               </Card>
@@ -984,7 +984,7 @@ export default function GestionPage() {
             <div className="flex justify-center" style={{ marginTop: 80 }}>
               <div style={{ textAlign: 'center', maxWidth: 400 }}>
                 <p className="font-bold text-[#1A1A2E]" style={{ fontSize: '1rem', marginBottom: 8 }}>
-                  No hay ninguna crisis activa
+                  No hay ningún tema activo
                 </p>
                 <p style={{ fontSize: '0.875rem', color: '#5a7478', marginBottom: 24 }}>
                   Hablá con el agente para registrar tu situación.
@@ -1042,7 +1042,7 @@ export default function GestionPage() {
                             key={t.id}
                             className="flex items-center cursor-pointer rounded-md"
                             onClick={() => {
-                            router.push(`/gestion/tarea/${t.id}`)
+                            router.push(`/case/${id}/tarea/${t.id}`)
                           }}
                             style={{
                               gap: 14, padding: '13px 6px',
@@ -1065,8 +1065,8 @@ export default function GestionPage() {
                               <div style={{ fontSize: '0.7rem', color: '#5a7478', marginTop: 2 }}>
                                 {t.due_date ? `Vence el ${fmtLongDate(t.due_date)}` : 'Sin fecha'}
                               </div>
-                              {t.topic_id && (() => {
-                                const topic = topics.find(tp => tp.id === t.topic_id)
+                              {t.label_id && (() => {
+                                const topic = labels.find(tp => tp.id === t.label_id)
                                 return topic ? (
                                   <span style={{
                                     display: 'inline-flex', alignItems: 'center',
@@ -1123,7 +1123,7 @@ export default function GestionPage() {
                   <div style={{ borderTop: '1px solid rgba(10,126,140,0.12)', marginTop: 4 }}>
                     <button
                       type="button"
-                      onClick={() => router.push('/gestion/tarea/nueva')}
+                      onClick={() => router.push(`/case/${id}/tarea/nueva`)}
                       className="flex items-center gap-3 w-full bg-transparent border-0 text-left cursor-pointer"
                       style={{ padding: '12px 0' }}
                     >
@@ -1139,7 +1139,7 @@ export default function GestionPage() {
                 </Card>
                 <div style={{ marginTop: 12, textAlign: 'right' }}>
                   <Link
-                    href="/gestion/finalizadas"
+                    href={`/case/${id}/finalizadas`}
                     style={{
                       fontSize: '0.75rem', fontWeight: 600,
                       color: '#5a7478', textDecoration: 'none',
@@ -1167,7 +1167,7 @@ export default function GestionPage() {
                             : ''
                         return (
                           <div key={d.id} className="flex items-center cursor-pointer"
-                            onClick={() => router.push(`/gestion/documento/${d.id}`)}
+                            onClick={() => router.push(`/case/${id}/documento/${d.id}`)}
                             style={{ gap: 12, padding: '10px 12px', background: 'rgba(10,126,140,0.04)', borderRadius: '0.6rem', transition: 'background 0.15s' }}
                             onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(61,199,166,0.07)' }}
                             onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.04)' }}
@@ -1194,7 +1194,7 @@ export default function GestionPage() {
                     </p>
                   )}
                   <div style={{ borderTop: '1px solid rgba(10,126,140,0.12)', marginTop: 4 }}>
-                    <button type="button" onClick={() => router.push('/gestion/documento/nuevo')}
+                    <button type="button" onClick={() => router.push(`/case/${id}/documento/nuevo`)}
                       className="flex items-center gap-3 w-full bg-transparent border-0 text-left cursor-pointer"
                       style={{ padding: '12px 0' }}>
                       <div className="rounded-full flex items-center justify-center flex-shrink-0"

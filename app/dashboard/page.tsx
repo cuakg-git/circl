@@ -201,7 +201,7 @@ export default function DashboardPage() {
       if (userError || !user) { router.replace('/login'); return }
 
       const { data: activeCrisis, error: activeCrisisError } = await supabase
-        .from('crises')
+        .from('cases')
         .select('id')
         .eq('user_id', user.id)
         .eq('status', 'activa')
@@ -217,25 +217,25 @@ export default function DashboardPage() {
 
       const [crisisRes, contactsRes, historyRes] = await Promise.all([
         supabase
-          .from('crises')
+          .from('cases')
           .select('id, name, status, category, started_at, ai_summary')
           .eq('id', currentId).eq('user_id', user.id).maybeSingle(),
         supabase
-          .from('crisis_contacts')
+          .from('case_contacts')
           .select('contact:contacts(id, name, role, proximity, initials, phone, email, relationship)')
-          .eq('crisis_id', currentId),
+          .eq('case_id', currentId),
         supabase
-          .from('crisis_history')
+          .from('case_history')
           .select('id, title, description, occurred_at')
-          .eq('crisis_id', currentId).order('occurred_at', { ascending: false }),
+          .eq('case_id', currentId).order('occurred_at', { ascending: false }),
       ])
 
       if (crisisRes.error) console.error('Error crisis:', crisisRes.error)
-      if (!crisisRes.data) { router.replace('/crisis'); return }
+      if (!crisisRes.data) { router.replace('/case'); return }
       setCrisis(crisisRes.data)
 
       if (contactsRes.error) console.error('Error contacts:', contactsRes.error)
-      // crisis_contacts may have duplicate rows for the same contact_id;
+      // case_contacts may have duplicate rows for the same contact_id;
       // dedupe by contact id before storing
       const ccRows = (contactsRes.data ?? []) as { contact: Contact | Contact[] | null }[]
       const dedup  = new Map<string, Contact>()
@@ -257,9 +257,9 @@ export default function DashboardPage() {
 
   const reloadContacts = useCallback(async () => {
     const { data } = await supabase
-      .from('crisis_contacts')
+      .from('case_contacts')
       .select('contact:contacts(id, name, role, proximity, initials, phone, email, relationship)')
-      .eq('crisis_id', id)
+      .eq('case_id', id)
     if (!data) return
     const ccRows = data as { contact: Contact | Contact[] | null }[]
     const dedup  = new Map<string, Contact>()
@@ -272,17 +272,17 @@ export default function DashboardPage() {
 
   const reloadHistory = useCallback(async () => {
     const { data } = await supabase
-      .from('crisis_history')
+      .from('case_history')
       .select('id, title, description, occurred_at')
-      .eq('crisis_id', id)
+      .eq('case_id', id)
       .order('occurred_at', { ascending: false })
     if (data) setHistory(data as HistoryEvent[])
   }, [id])
 
-  // Best-effort write to crisis_history; never blocks the UI on failure
+  // Best-effort write to case_history; never blocks the UI on failure
   const logHistory = useCallback(async (title: string, description: string | null, eventType: string) => {
-    const { error } = await supabase.from('crisis_history').insert({
-      crisis_id:   id,
+    const { error } = await supabase.from('case_history').insert({
+      case_id:     id,
       title,
       description,
       event_type:  eventType,
@@ -356,13 +356,13 @@ export default function DashboardPage() {
 
   async function handleRemoveMember() {
     if (!ssMember) return
-    if (!window.confirm(`Â¿Quitar a ${ssMember.name.split(' ')[0]} de esta crisis?`)) return
+    if (!window.confirm(`Â¿Quitar a ${ssMember.name.split(' ')[0]} de este tema?`)) return
     setSsLoading(true)
     setSsError(null)
     const { error } = await supabase
-      .from('crisis_contacts')
+      .from('case_contacts')
       .delete()
-      .eq('crisis_id', id)
+      .eq('case_id', id)
       .eq('contact_id', ssMember.id)
     setSsLoading(false)
     if (error) { setSsError(error.message); return }
@@ -377,8 +377,8 @@ export default function DashboardPage() {
     setSsLoading(true)
     setSsError(null)
     const { error } = await supabase
-      .from('crisis_contacts')
-      .insert({ crisis_id: id, contact_id: c.id })
+      .from('case_contacts')
+      .insert({ case_id: id, contact_id: c.id })
     setSsLoading(false)
     if (error) { setSsError(error.message); return }
     await reloadContacts()
@@ -657,7 +657,7 @@ export default function DashboardPage() {
                     padding: '13px 20px', gap: 12,
                   }}>
                     <span style={{ fontSize: '0.875rem', color: '#5a7478', flex: 1 }}>
-                      Quitar a {ssMember.name.split(' ')[0]} de esta crisis
+                      Quitar a {ssMember.name.split(' ')[0]} de este tema
                     </span>
                     <button
                       onClick={handleRemoveMember}
@@ -727,7 +727,7 @@ export default function DashboardPage() {
             {!availableLoading && availableContacts.length === 0 && (
               <Card style={{ padding: 24, textAlign: 'center' }}>
                 <p style={{ fontSize: '0.875rem', color: '#5a7478', lineHeight: 1.6 }}>
-                  Todos tus contactos ya estÃ¡n en esta crisis.<br />
+                  Todos tus contactos ya estÃ¡n en este tema.<br />
                   PodÃ©s agregar nuevos hablando con el agente.
                 </p>
               </Card>
@@ -814,7 +814,7 @@ export default function DashboardPage() {
             <div className="flex justify-center" style={{ marginTop: 80 }}>
               <div style={{ textAlign: 'center', maxWidth: 400 }}>
                 <p className="font-bold text-[#1A1A2E]" style={{ fontSize: '1rem', marginBottom: 8 }}>
-                  No hay ninguna crisis activa
+                  No hay ningún tema activo
                 </p>
                 <p style={{ fontSize: '0.875rem', color: '#5a7478', marginBottom: 24 }}>
                   HablÃ¡ con el agente para registrar tu situaciÃ³n.

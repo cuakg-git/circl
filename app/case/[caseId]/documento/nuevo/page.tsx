@@ -35,13 +35,13 @@ export default function NuevoDocumentoPage() {
       if (error || !user) { router.replace('/login'); return }
 
       const { data: crisis } = await supabase
-        .from('crises')
+        .from('cases')
         .select('id')
         .eq('user_id', user.id)
         .eq('status', 'activa')
         .maybeSingle()
 
-      if (!crisis) { router.replace('/gestion'); return }
+      if (!crisis) { router.replace('/case'); return }
       setCrisisId(crisis.id)
       setLoading(false)
     }
@@ -84,7 +84,7 @@ export default function NuevoDocumentoPage() {
     const { data: newDoc, error: dbErr } = await supabase
       .from('documents')
       .insert({
-        crisis_id:              crisisId,
+        case_id:                crisisId,
         name:                   name.trim(),
         type:                   docType,
         storage_path:           path,
@@ -104,7 +104,7 @@ export default function NuevoDocumentoPage() {
       return
     }
 
-    router.replace(`/gestion/documento/${newDoc.id}`)
+    router.replace(`/case/${crisisId}/documento/${newDoc.id}`)
   }
 
   return (
@@ -140,11 +140,11 @@ export default function NuevoDocumentoPage() {
 
           {/* Breadcrumb */}
           <nav style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Link href="/gestion" style={{
+            <Link href={`/case/${crisisId}`} style={{
               fontSize: '0.8125rem', color: '#0A7E8C', fontWeight: 600,
               textDecoration: 'none',
             }}>
-              Gestión
+              Caso
             </Link>
             <span style={{ color: '#5a7478', fontSize: '0.8125rem' }}>→</span>
             <span style={{ fontSize: '0.8125rem', color: '#5a7478', fontWeight: 500 }}>
@@ -191,7 +191,7 @@ export default function NuevoDocumentoPage() {
                   Nuevo documento
                 </h1>
                 <p style={{ fontSize: '0.875rem', color: '#5a7478', margin: 0 }}>
-                  Subí un archivo para guardarlo en tu crisis
+                  Subí un archivo para guardarlo en tu tema
                 </p>
               </div>
 
