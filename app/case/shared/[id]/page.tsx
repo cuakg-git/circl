@@ -285,7 +285,7 @@ export default function SharedCaseDetailPage({
       if (caseRes.error || !caseRes.data) { router.replace('/case'); return }
       setSharedCase(caseRes.data)
 
-      const membersData = (membersRes.data ?? []) as SharedMember[]
+      const membersData = (membersRes.data ?? []) as unknown as SharedMember[]
       const myMemberData = membersData.find((m: any) => m.user_id === user.id) ?? null
       if (!myMemberData) { router.replace('/case'); return }
 
