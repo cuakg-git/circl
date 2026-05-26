@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function OnboardingInvitadoPage() {
+function OnboardingInvitadoPageContent() {
   const router       = useRouter()
   const searchParams = useSearchParams()
 
@@ -276,5 +276,13 @@ export default function OnboardingInvitadoPage() {
         </div>
       </div>
     </>
+  )
+}
+
+export default function OnboardingInvitadoPage() {
+  return (
+    <Suspense fallback={null}>
+      <OnboardingInvitadoPageContent />
+    </Suspense>
   )
 }
