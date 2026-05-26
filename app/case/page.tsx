@@ -22,6 +22,14 @@ type CaseWithProgress = Case & {
   doneTasks:  number
 }
 
+type SharedCase = {
+  id:           string
+  name:         string
+  status:       string
+  created_at:   string
+  member_count: number
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function daysSince(iso: string | null) {
@@ -93,35 +101,6 @@ function CaseCard({ c, isActive }: { c: CaseWithProgress; isActive: boolean }) {
           >
             {c.name}
           </h3>
-          {isActive ? (
-            <span
-              className="inline-flex items-center font-bold uppercase"
-              style={{
-                background:    'rgba(46,205,167,0.14)',
-                color:         '#0a6e5a',
-                borderRadius:  9999,
-                padding:       '3px 11px',
-                fontSize:      '0.7rem',
-                letterSpacing: '0.05em',
-              }}
-            >
-              Activa
-            </span>
-          ) : (
-            <span
-              className="inline-flex items-center font-bold uppercase"
-              style={{
-                background:    'rgba(90,116,120,0.10)',
-                color:         '#5a7478',
-                borderRadius:  9999,
-                padding:       '3px 11px',
-                fontSize:      '0.7rem',
-                letterSpacing: '0.05em',
-              }}
-            >
-              Resuelta
-            </span>
-          )}
         </div>
         <span
           className="flex-shrink-0"
@@ -145,12 +124,62 @@ function CaseCard({ c, isActive }: { c: CaseWithProgress; isActive: boolean }) {
   )
 }
 
+// ── Shared Case Card ──────────────────────────────────────────────────────────
+
+function SharedCaseCard({ sc }: { sc: SharedCase }) {
+  return (
+    <Link
+      href={`/case/shared/${sc.id}`}
+      className="block no-underline transition-all"
+      style={{
+        background:   '#FFFFFF',
+        borderRadius: '1.5rem',
+        boxShadow:    '0 4px 24px rgba(10,126,140,0.08)',
+        padding:      '24px',
+        marginBottom: 16,
+        color:        'inherit',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow = '0 8px 40px rgba(10,126,140,0.16)'
+        e.currentTarget.style.transform = 'translateY(-2px)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = '0 4px 24px rgba(10,126,140,0.08)'
+        e.currentTarget.style.transform = 'translateY(0)'
+      }}
+    >
+      {/* Header */}
+      <div className="flex justify-between items-start" style={{ marginBottom: 10 }}>
+        <div>
+          <h3
+            className="font-extrabold text-[#1A1A2E]"
+            style={{ fontSize: '1.125rem', marginBottom: 6, letterSpacing: '-0.01em' }}
+          >
+            {sc.name}
+          </h3>
+        </div>
+        <span className="flex-shrink-0" style={{ color: '#0A7E8C', marginLeft: 12 }}>
+          <IconChevronRight />
+        </span>
+      </div>
+
+      {/* Meta */}
+      <div className="text-[0.7rem] text-[#5a7478]" style={{ marginTop: 4 }}>
+        Inicio: {fmtLongDate(sc.created_at)}
+        {' · '}
+        {sc.member_count} {sc.member_count === 1 ? 'miembro' : 'miembros'}
+      </div>
+    </Link>
+  )
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function CaseListPage() {
   const router = useRouter()
-  const [cases,   setCases]   = useState<CaseWithProgress[]>([])
-  const [loading, setLoading] = useState(true)
+  const [cases,       setCases]       = useState<CaseWithProgress[]>([])
+  const [sharedCases, setSharedCases] = useState<SharedCase[]>([])
+  const [loading,     setLoading]     = useState(true)
 
   useEffect(() => {
     async function load() {
@@ -186,6 +215,41 @@ export default function CaseListPage() {
       )
 
       setCases(withProgress)
+
+      // Paso 1: obtener los shared_case_ids donde el usuario es miembro activo
+      const { data: memberRows } = await supabase
+        .from('shared_case_members')
+        .select('shared_case_id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+
+      const sharedCaseIds = (memberRows ?? []).map((r: any) => r.shared_case_id)
+
+      // Paso 2: si hay IDs, obtener los casos directamente
+      if (sharedCaseIds.length === 0) {
+        setSharedCases([])
+        setLoading(false)
+        return
+      }
+
+      const { data: sharedData } = await supabase
+        .from('shared_cases')
+        .select('id, name, status, created_at')
+        .in('id', sharedCaseIds)
+
+      // Paso 3: member counts
+      const sharedWithCounts = await Promise.all(
+        (sharedData ?? []).map(async (sc: any) => {
+          const { count } = await supabase
+            .from('shared_case_members')
+            .select('id', { count: 'exact', head: true })
+            .eq('shared_case_id', sc.id)
+            .eq('status', 'active')
+          return { ...sc, member_count: count ?? 0 } as SharedCase
+        })
+      )
+
+      setSharedCases(sharedWithCounts)
       setLoading(false)
     }
 
@@ -277,107 +341,170 @@ export default function CaseListPage() {
                 <SkeletonBase width="100%" height={6} style={{ borderRadius: 9999 }} />
               </SkeletonCard>
 
-              <SkeletonCard>
+              <SkeletonCard style={{ marginBottom: 16 }}>
                 <SkeletonText width="50%" className="mb-3" />
                 <SkeletonBase width={64} height={20} style={{ borderRadius: 9999, marginBottom: 14 }} />
                 <SkeletonText width="65%" className="mb-4" />
                 <SkeletonBase width="100%" height={6} style={{ borderRadius: 9999 }} />
               </SkeletonCard>
+
+              {/* Shared cases skeleton */}
+              <SkeletonText width={100} className="mb-4" style={{ marginTop: 40 }} />
+              <SkeletonCard>
+                <SkeletonText width="60%" className="mb-3" />
+                <SkeletonBase width={80} height={20} style={{ borderRadius: 9999, marginBottom: 14 }} />
+                <SkeletonText width="55%" />
+              </SkeletonCard>
             </div>
           )}
 
-          {/* ── Empty state ─────────────────────────────────────────────── */}
-          {!loading && cases.length === 0 && (
-            <div className="flex justify-center">
-              <div
-                className="w-full text-center"
-                style={{
-                  maxWidth:   520,
-                  border:     '1.5px dashed rgba(61,199,166,0.35)',
-                  background: 'transparent',
-                  borderRadius: '1.5rem',
-                  padding:    '40px 24px',
-                }}
-              >
-                <div
-                  className="rounded-full flex items-center justify-center mx-auto"
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+            gap: 24,
+            alignItems: 'start',
+          }}>
+            {/* ── Propios column ──────────────────────────────────────────── */}
+            <div>
+              {/* ── Propios section ──────────────────────────────────────────── */}
+              <>
+                <p
+                  className="font-bold uppercase text-[#5a7478]"
                   style={{
-                    width:       64,
-                    height:      64,
-                    background:  'rgba(10,126,140,0.07)',
-                    border:      '1.5px dashed rgba(61,199,166,0.35)',
+                    fontSize: '0.875rem',
+                    letterSpacing: '0.1em',
                     marginBottom: 16,
                   }}
                 >
-                  <IconWarning />
-                </div>
-
-                <p className="font-bold text-[#1A1A2E]" style={{ fontSize: '1rem', marginBottom: 8 }}>
-                  No hay temas registrados
+                  Propios
                 </p>
-                <p className="text-[0.875rem] text-[#5a7478] leading-relaxed" style={{ marginBottom: 24 }}>
-                  Hablá con el agente para registrar tu primera situación.
-                </p>
+                {active.length > 0 ? (
+                  active.map((c) => (
+                    <CaseCard key={c.id} c={c} isActive={true} />
+                  ))
+                ) : !loading ? (
+                  <div style={{
+                    border: '1.5px dashed rgba(61,199,166,0.35)',
+                    borderRadius: '1.5rem',
+                    padding: '28px 24px',
+                    textAlign: 'center',
+                    background: 'transparent',
+                    marginBottom: 16,
+                  }}>
+                    <p className="font-bold text-[#1A1A2E]"
+                      style={{ fontSize: '0.875rem', marginBottom: 6 }}>
+                      No tenés temas propios todavía
+                    </p>
+                    <p style={{ fontSize: '0.75rem', color: '#5a7478', lineHeight: 1.6 }}>
+                      Acá verás todos los temas tuyos que tengas.
+                    </p>
+                  </div>
+                ) : null}
+              </>
 
+              {/* ── Add theme button ────────────────────────────────────────── */}
+              <div style={{ marginTop: 16 }}>
                 <Link
-                  href="/chat"
-                  className="inline-block bg-[#0A7E8C] text-white font-bold rounded-full transition-all hover:brightness-110 active:scale-[0.97]"
-                  style={{ padding: '12px 28px', fontSize: '0.875rem' }}
+                  href="/case/shared/nueva?tipo=propio"
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '14px',
+                    borderRadius: 9999,
+                    border: '1.5px dashed rgba(10,126,140,0.40)',
+                    background: 'transparent',
+                    color: '#0A7E8C',
+                    fontWeight: 700,
+                    fontSize: '0.875rem',
+                    cursor: 'pointer',
+                    textDecoration: 'none',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    const el = e.currentTarget as HTMLAnchorElement
+                    el.style.background = 'rgba(10,126,140,0.06)'
+                    el.style.borderColor = 'rgba(10,126,140,0.65)'
+                  }}
+                  onMouseLeave={(e) => {
+                    const el = e.currentTarget as HTMLAnchorElement
+                    el.style.background = 'transparent'
+                    el.style.borderColor = 'rgba(10,126,140,0.40)'
+                  }}
                 >
-                  Hablar con el agente
+                  + Agregar tema propio
                 </Link>
               </div>
             </div>
-          )}
 
-          {/* ── Active section ──────────────────────────────────────────── */}
-          {active.length > 0 && (
-            <>
-              <p
-                className="font-bold uppercase text-[#5a7478]"
-                style={{
-                  fontSize:      '0.875rem',
-                  letterSpacing: '0.1em',
-                  marginBottom:  16,
-                }}
-              >
-                Activas
-              </p>
-              {active.map((c) => (
-                <CaseCard key={c.id} c={c} isActive={true} />
-              ))}
-            </>
-          )}
+            {/* ── Shared column ────────────────────────────────────────────── */}
+            <div>
+              {/* ── Shared section ───────────────────────────────────────────── */}
+              {!loading && (
+                <>
+                  <p
+                    className="font-bold uppercase text-[#5a7478]"
+                    style={{
+                      fontSize:      '0.875rem',
+                      letterSpacing: '0.1em',
+                      marginBottom:  16,
+                    }}
+                  >
+                    Compartidos
+                  </p>
+                  {sharedCases.length > 0 ? (
+                    sharedCases.map((sc) => (
+                      <SharedCaseCard key={sc.id} sc={sc} />
+                    ))
+                  ) : (
+                    <div style={{
+                      border: '1.5px dashed rgba(61,199,166,0.35)',
+                      borderRadius: '1.5rem',
+                      padding:      '28px 24px',
+                      textAlign:    'center',
+                      background:   'transparent',
+                    }}>
+                      <p className="font-bold text-[#1A1A2E]" style={{ fontSize: '0.875rem', marginBottom: 6 }}>
+                        No tenés temas compartidos todavía
+                      </p>
+                      <p style={{ fontSize: '0.75rem', color: '#5a7478', lineHeight: 1.6 }}>
+                        Cuando crees o te inviten a un tema compartido, vas a verlo acá.
+                      </p>
+                    </div>
+                  )}
 
-          {/* ── Add theme button ────────────────────────────────────────── */}
-          <div style={{ marginTop: 24 }}>
-            <button
-              disabled
-              style={{
-                width: '100%',
-                padding: '14px',
-                borderRadius: 9999,
-                border: '1.5px dashed rgba(10,126,140,0.25)',
-                background: 'transparent',
-                color: '#5a7478',
-                fontWeight: 700,
-                fontSize: '0.875rem',
-                cursor: 'not-allowed',
-                opacity: 0.5,
-              }}
-            >
-              + Agregar tema
-            </button>
-            <p style={{
-              textAlign: 'center',
-              fontSize: '0.75rem',
-              color: '#5a7478',
-              marginTop: 8,
-              lineHeight: 1.5,
-              fontStyle: 'italic'
-            }}>
-              Durante la beta, cada usuario trabaja con un solo tema activo.
-            </p>
+                  <div style={{ marginTop: 16 }}>
+                    <Link
+                      href="/case/shared/nueva?tipo=compartido"
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        padding: '14px',
+                        borderRadius: 9999,
+                        border: '1.5px dashed rgba(10,126,140,0.40)',
+                        background: 'transparent',
+                        color: '#0A7E8C',
+                        fontWeight: 700,
+                        fontSize: '0.875rem',
+                        textAlign: 'center',
+                        textDecoration: 'none',
+                        transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(10,126,140,0.06)'
+                        e.currentTarget.style.borderColor = 'rgba(10,126,140,0.65)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent'
+                        e.currentTarget.style.borderColor = 'rgba(10,126,140,0.40)'
+                      }}
+                    >
+                      + Agregar tema compartido
+                    </Link>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           {/* ── Resolved section ────────────────────────────────────────── */}

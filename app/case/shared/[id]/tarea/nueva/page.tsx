@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
@@ -13,23 +13,6 @@ type Contact = {
   name:     string
   initials: string | null
 }
-
-type Topic = {
-  id:    string
-  name:  string
-  color: string | null
-}
-
-// ── Constants ──────────────────────────────────────────────────────────────────
-
-const TOPIC_COLORS = [
-  { value: '#0A7E8C', label: 'Teal' },
-  { value: '#2ECDA7', label: 'Mint' },
-  { value: '#8FA44A', label: 'Verde' },
-  { value: '#E8913A', label: 'Naranja' },
-  { value: '#4BAAB5', label: 'Celeste' },
-  { value: '#7B8FA6', label: 'Gris azul' },
-]
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -154,322 +137,26 @@ function AssigneeDropdownPortal({
   )
 }
 
-// ── Componente TopicDropdownPortal ─────────────────────────────────────────────
-
-function TopicDropdownPortal({
-  topics,
-  selectedId,
-  anchorRect,
-  view,
-  editTopic,
-  editTopicName,
-  setEditTopicName,
-  editTopicColor,
-  setEditTopicColor,
-  editTopicLoading,
-  onToggleTopic,
-  onOpenEdit,
-  onOpenCreate,
-  onBack,
-  onSave,
-  onDelete,
-  onClose,
-}: {
-  topics:            Topic[]
-  selectedId:        string
-  anchorRect:        DOMRect | null
-  view:              'list' | 'edit' | 'create'
-  editTopic:         Topic | null
-  editTopicName:     string
-  setEditTopicName:  (v: string) => void
-  editTopicColor:    string
-  setEditTopicColor: (v: string) => void
-  editTopicLoading:  boolean
-  onToggleTopic:     (id: string) => void
-  onOpenEdit:        (t: Topic) => void
-  onOpenCreate:      () => void
-  onBack:            () => void
-  onSave:            () => void
-  onDelete:          () => void
-  onClose:           () => void
-}) {
-  if (!anchorRect) return null
-
-  const top  = Math.min(anchorRect.bottom + 8, window.innerHeight - 320)
-  const left = Math.max(8, Math.min(anchorRect.left, window.innerWidth - 280))
-
-  return (
-    <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 500 }} />
-      <div style={{
-        position: 'fixed', top, left, width: 268,
-        background: '#FFFFFF', borderRadius: '0.875rem',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
-        zIndex: 501, overflow: 'hidden',
-      }}>
-
-        {view === 'list' && (
-          <>
-            <div style={{
-              display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '12px 14px 10px',
-              borderBottom: '1px solid rgba(10,126,140,0.10)',
-            }}>
-              <span style={{
-                fontSize: '0.75rem', fontWeight: 700,
-                color: '#1A1A2E', letterSpacing: '0.04em',
-              }}>Etiquetas</span>
-              <button onClick={onClose} style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: '#5a7478', fontSize: '1rem', lineHeight: 1, padding: 2,
-              }}>✕</button>
-            </div>
-            <div style={{ padding: '8px 10px', maxHeight: 240, overflowY: 'auto' }}>
-              {topics.length === 0 && (
-                <p style={{
-                  fontSize: '0.75rem', color: '#5a7478',
-                  fontStyle: 'italic', padding: '6px 4px',
-                }}>No hay temas creados todavía.</p>
-              )}
-              {topics.map((t) => {
-                const isSelected = selectedId === t.id
-                return (
-                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <button
-                      type="button"
-                      onClick={() => onToggleTopic(t.id)}
-                      style={{
-                        flex: 1, display: 'flex', alignItems: 'center',
-                        gap: 8, padding: '8px 10px',
-                        background: t.color ?? '#0A7E8C',
-                        border: 'none', borderRadius: '0.5rem',
-                        cursor: 'pointer', textAlign: 'left',
-                        opacity: isSelected ? 1 : 0.75,
-                        transition: 'opacity 0.15s',
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.opacity = '1' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.opacity = isSelected ? '1' : '0.75' }}
-                    >
-                      <div style={{
-                        width: 16, height: 16, borderRadius: '0.25rem',
-                        background: isSelected
-                          ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.25)',
-                        display: 'flex', alignItems: 'center',
-                        justifyContent: 'center', flexShrink: 0,
-                      }}>
-                        {isSelected && (
-                          <svg width="10" height="10" viewBox="0 0 24 24"
-                            fill="none" stroke={t.color ?? '#0A7E8C'}
-                            strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
-                      </div>
-                      <span style={{
-                        fontSize: '0.8125rem', fontWeight: 600,
-                        color: 'white', flex: 1,
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                      }}>{t.name}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onOpenEdit(t)}
-                      style={{
-                        width: 32, height: 36, borderRadius: '0.5rem',
-                        background: 'rgba(10,126,140,0.07)',
-                        border: 'none', cursor: 'pointer', flexShrink: 0,
-                        display: 'flex', alignItems: 'center',
-                        justifyContent: 'center', color: '#5a7478',
-                        transition: 'background 0.15s',
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.14)' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.07)' }}
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" strokeWidth="2"
-                        strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                      </svg>
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-            <div style={{
-              padding: '8px 10px 12px',
-              borderTop: topics.length > 0 ? '1px solid rgba(10,126,140,0.08)' : 'none',
-            }}>
-              <button
-                type="button"
-                onClick={onOpenCreate}
-                style={{
-                  width: '100%', padding: '8px 10px',
-                  background: 'rgba(10,126,140,0.07)',
-                  border: 'none', borderRadius: '0.5rem',
-                  cursor: 'pointer', textAlign: 'center',
-                  fontSize: '0.8125rem', fontWeight: 600,
-                  color: '#0A7E8C', fontFamily: 'inherit',
-                  transition: 'background 0.15s',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.13)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.07)' }}
-              >
-                + Crear tema nuevo
-              </button>
-            </div>
-          </>
-        )}
-
-        {(view === 'edit' || view === 'create') && (
-          <>
-            <div style={{
-              display: 'flex', alignItems: 'center',
-              padding: '12px 14px 10px', gap: 8,
-              borderBottom: '1px solid rgba(10,126,140,0.10)',
-            }}>
-              <button onClick={onBack} style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: '#5a7478', padding: '0 4px 0 0', lineHeight: 1,
-              }}>
-                <svg width="16" height="16" viewBox="0 0 24 24"
-                  fill="none" stroke="currentColor" strokeWidth="2.5"
-                  strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m15 18-6-6 6-6" />
-                </svg>
-              </button>
-              <span style={{
-                flex: 1, fontSize: '0.75rem', fontWeight: 700,
-                color: '#1A1A2E', letterSpacing: '0.04em', textAlign: 'center',
-              }}>
-                {view === 'create' ? 'Crear tema' : 'Editar tema'}
-              </span>
-              <button onClick={onClose} style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: '#5a7478', fontSize: '1rem', lineHeight: 1, padding: 2,
-              }}>✕</button>
-            </div>
-            <div style={{ padding: '12px 14px 16px' }}>
-              <div style={{
-                width: '100%', height: 36, borderRadius: '0.5rem',
-                background: editTopicColor, marginBottom: 12,
-                display: 'flex', alignItems: 'center', paddingLeft: 12,
-              }}>
-                <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'white' }}>
-                  {editTopicName || '…'}
-                </span>
-              </div>
-              <p style={{
-                fontSize: '0.7rem', fontWeight: 700, color: '#5a7478',
-                marginBottom: 6, letterSpacing: '0.06em', textTransform: 'uppercase',
-              }}>Nombre</p>
-              <input
-                type="text"
-                value={editTopicName}
-                onChange={(e) => setEditTopicName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') { e.preventDefault(); onSave() }
-                  if (e.key === 'Escape') onBack()
-                }}
-                autoFocus
-                placeholder="Nombre del tema…"
-                style={{
-                  width: '100%', padding: '8px 10px',
-                  border: '1.5px solid rgba(10,126,140,0.20)',
-                  borderRadius: '0.5rem', fontSize: '0.875rem',
-                  fontWeight: 600, outline: 'none', color: '#1A1A2E',
-                  fontFamily: 'inherit', marginBottom: 14,
-                  boxSizing: 'border-box', background: '#FAF8F5',
-                }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = '#0A7E8C' }}
-                onBlur={(e)  => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.20)' }}
-              />
-              <p style={{
-                fontSize: '0.7rem', fontWeight: 700, color: '#5a7478',
-                marginBottom: 8, letterSpacing: '0.06em', textTransform: 'uppercase',
-              }}>Color</p>
-              <div style={{
-                display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)',
-                gap: 6, marginBottom: 14,
-              }}>
-                {TOPIC_COLORS.map((c) => (
-                  <button
-                    key={c.value}
-                    type="button"
-                    onClick={() => setEditTopicColor(c.value)}
-                    title={c.label}
-                    style={{
-                      height: 28, borderRadius: '0.375rem',
-                      background: c.value, border: 'none', cursor: 'pointer',
-                      outline: editTopicColor === c.value
-                        ? `2.5px solid ${c.value}` : '2.5px solid transparent',
-                      outlineOffset: 2,
-                      transform: editTopicColor === c.value ? 'scale(1.1)' : 'scale(1)',
-                      transition: 'transform 0.15s',
-                    }}
-                  />
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={onSave}
-                disabled={editTopicLoading || !editTopicName.trim()}
-                style={{
-                  width: '100%', padding: '9px',
-                  background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                  color: 'white', border: 'none', borderRadius: '0.5rem',
-                  fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer',
-                  fontFamily: 'inherit', marginBottom: 8,
-                  opacity: (editTopicLoading || !editTopicName.trim()) ? 0.5 : 1,
-                }}
-              >
-                {editTopicLoading ? '…' : 'Guardar'}
-              </button>
-              {view === 'edit' && (
-                <button
-                  type="button"
-                  onClick={onDelete}
-                  disabled={editTopicLoading}
-                  style={{
-                    width: '100%', padding: '8px',
-                    background: 'none', color: '#ba1a1a',
-                    border: 'none', borderRadius: '0.5rem',
-                    fontSize: '0.8125rem', fontWeight: 600,
-                    cursor: 'pointer', fontFamily: 'inherit',
-                    opacity: editTopicLoading ? 0.5 : 1,
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(186,26,26,0.07)' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'none' }}
-                >
-                  Eliminar tema
-                </button>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </>
-  )
-}
-
 // ── Page ───────────────────────────────────────────────────────────────────────
 
-export default function NuevaTareaPage() {
+export default function NuevaTareaSharedPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id: sharedCaseId } = use(params)
   const router = useRouter()
 
-  const [userId,  setUserId]  = useState<string | null>(null)
-  const [crisisId, setCrisisId] = useState<string | null>(null)
+  const [userId,   setUserId]   = useState<string | null>(null)
   const [contacts, setContacts] = useState<Contact[]>([])
-  const [labels,   setLabels]   = useState<Topic[]>([])
   const [loading,  setLoading]  = useState(true)
   const [saving,   setSaving]   = useState(false)
   const [error,    setError]    = useState<string | null>(null)
 
   type Doc = {
-    id:   string
-    name: string
-    type: string | null
+    id:         string
+    name:       string
+    type:       string | null
     created_at: string
   }
 
@@ -487,26 +174,16 @@ export default function NuevaTareaPage() {
   const [time,        setTime]        = useState('')
   const [timeOpen,    setTimeOpen]    = useState(false)
   const [assignee,    setAssignee]    = useState('')
-  const [topicId,     setTopicId]     = useState('')
 
-  // Dropdowns
+  // Dropdown
   const [assigneeDropdown, setAssigneeDropdown] = useState<{
     open: boolean; anchorRect: DOMRect | null
   }>({ open: false, anchorRect: null })
 
-  const [topicDropdown, setTopicDropdown] = useState<{
-    open: boolean; view: 'list' | 'edit' | 'create'
-    editTopic: Topic | null; anchorRect: DOMRect | null
-  }>({ open: false, view: 'list', editTopic: null, anchorRect: null })
-
-  const [editTopicName,    setEditTopicName]    = useState('')
-  const [editTopicColor,   setEditTopicColor]   = useState('#0A7E8C')
-  const [editTopicLoading, setEditTopicLoading] = useState(false)
-
   // Documentos a asociar
-  const [allDocs,       setAllDocs]       = useState<Doc[]>([])
-  const [selectedDocIds,setSelectedDocIds]= useState<string[]>([])
-  const [docPickerOpen, setDocPickerOpen] = useState(false)
+  const [allDocs,        setAllDocs]        = useState<Doc[]>([])
+  const [selectedDocIds, setSelectedDocIds] = useState<string[]>([])
+  const [docPickerOpen,  setDocPickerOpen]  = useState(false)
 
   // ── Auth + load ──────────────────────────────────────────────────────────────
 
@@ -516,120 +193,30 @@ export default function NuevaTareaPage() {
       if (error || !user) { router.replace('/login'); return }
       setUserId(user.id)
 
-      const { data: crisis } = await supabase
-        .from('cases')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('status', 'activa')
-        .maybeSingle()
-
-      if (!crisis) { router.replace('/case'); return }
-      setCrisisId(crisis.id)
-
-      const [contactsRes, labelsRes, docsRes] = await Promise.all([
+      const [contactsRes, docsRes] = await Promise.all([
         supabase
           .from('contacts')
           .select('id, name, initials')
           .eq('user_id', user.id)
-          .in('proximity', ['nucleo', 'ayuda'])
           .order('sort_order', { ascending: true, nullsFirst: false }),
-        supabase
-          .from('labels')
-          .select('id, name, color')
-          .eq('case_id', crisis.id)
-          .order('created_at', { ascending: true }),
         supabase
           .from('documents')
           .select('id, name, type, created_at')
-          .eq('case_id', crisis.id)
+          .eq('shared_case_id', sharedCaseId)
           .order('created_at', { ascending: false }),
       ])
 
       setContacts((contactsRes.data ?? []) as Contact[])
-      setLabels((labelsRes.data ?? []) as Topic[])
       setAllDocs((docsRes.data ?? []) as Doc[])
       setLoading(false)
     }
     load()
-  }, [router])
-
-  // ── Assignee dropdown ────────────────────────────────────────────────────────
-
-  function openAssigneeDropdown(e: React.MouseEvent<HTMLButtonElement>) {
-    setAssigneeDropdown({ open: true, anchorRect: e.currentTarget.getBoundingClientRect() })
-  }
-
-  // ── Topic dropdown ───────────────────────────────────────────────────────────
-
-  function openTopicDropdown(e: React.MouseEvent<HTMLButtonElement>) {
-    setTopicDropdown(prev => ({
-      ...prev, open: true,
-      anchorRect: e.currentTarget.getBoundingClientRect(),
-    }))
-  }
-
-  function closeTopicDropdown() {
-    setTopicDropdown(prev => ({ ...prev, open: false }))
-    setEditTopicName('')
-    setEditTopicColor('#0A7E8C')
-  }
-
-  async function handleSaveTopic() {
-    if (!editTopicName.trim() || !crisisId || !userId) return
-    setEditTopicLoading(true)
-
-    if (topicDropdown.view === 'create') {
-      const { data: newTopic, error } = await supabase
-        .from('labels')
-        .insert({
-          case_id:   crisisId,
-          user_id:   userId,
-          name:      editTopicName.trim(),
-          color:     editTopicColor,
-        })
-        .select('id, name, color')
-        .single()
-      setEditTopicLoading(false)
-      if (error) { setError(error.message); return }
-      setLabels(prev => [...prev, newTopic as Topic])
-      setTopicId(newTopic.id)
-    } else if (topicDropdown.view === 'edit' && topicDropdown.editTopic) {
-      const { error } = await supabase
-        .from('labels')
-        .update({ name: editTopicName.trim(), color: editTopicColor })
-        .eq('id', topicDropdown.editTopic.id)
-      setEditTopicLoading(false)
-      if (error) { setError(error.message); return }
-      setLabels(prev => prev.map(t =>
-        t.id === topicDropdown.editTopic!.id
-          ? { ...t, name: editTopicName.trim(), color: editTopicColor }
-          : t
-      ))
-    }
-    setTopicDropdown(prev => ({ ...prev, view: 'list', editTopic: null }))
-    setEditTopicName('')
-    setEditTopicColor('#0A7E8C')
-  }
-
-  async function handleDeleteTopic() {
-    if (!topicDropdown.editTopic) return
-    setEditTopicLoading(true)
-    const { error } = await supabase
-      .from('labels')
-      .delete()
-      .eq('id', topicDropdown.editTopic.id)
-    setEditTopicLoading(false)
-    if (error) { setError(error.message); return }
-    const deletedId = topicDropdown.editTopic.id
-    setLabels(prev => prev.filter(t => t.id !== deletedId))
-    if (topicId === deletedId) setTopicId('')
-    setTopicDropdown(prev => ({ ...prev, view: 'list', editTopic: null }))
-  }
+  }, [router, sharedCaseId])
 
   // ── Submit ───────────────────────────────────────────────────────────────────
 
   async function handleSubmit() {
-    if (!title.trim() || !crisisId || !userId) return
+    if (!title.trim() || !userId) return
     setSaving(true)
     setError(null)
 
@@ -644,14 +231,13 @@ export default function NuevaTareaPage() {
     const { data: inserted, error: insertErr } = await supabase
       .from('tasks')
       .insert({
-        case_id:             crisisId,
+        shared_case_id:      sharedCaseId,
         title:               title.trim(),
         description:         description.trim() || null,
         due_date:            date || null,
         status:              'pendiente',
         assigned_to_user:    assignedToUser,
         assigned_contact_id: assignedContactId,
-        label_id:            topicId || null,
       })
       .select('id')
       .single()
@@ -672,23 +258,24 @@ export default function NuevaTareaPage() {
       )
     }
 
-    // Registrar en task_history
-    await supabase.from('task_history').insert({
-      task_id:     inserted.id,
-      case_id:     crisisId,
-      user_id:     userId,
-      event_type:  'tarea_agregada',
-      description: `Tarea "${title.trim()}" creada`,
+    // Registrar en shared_case_history
+    await supabase.from('shared_case_history').insert({
+      shared_case_id: sharedCaseId,
+      title:          'Tarea creada',
+      description:    `Tarea "${title.trim()}" creada`,
+      event_type:     'tarea_agregada',
+      created_by:     userId,
+      task_id:        inserted.id,
     })
 
-    // Llamar al endpoint en background (no bloquea la navegación)
+    // Llamar al endpoint en background
     fetch('/api/task-context', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ task_id: inserted.id, user_id: userId }),
-    }).catch((e) => console.error('[nueva-tarea] task-context error:', e))
+    }).catch((e) => console.error('[nueva-tarea-shared] task-context error:', e))
 
-    router.replace(`/case/${crisisId}/tarea/${inserted.id}`)
+    router.replace('/case/shared/' + sharedCaseId)
   }
 
   // ── Helpers display ──────────────────────────────────────────────────────────
@@ -702,16 +289,15 @@ export default function NuevaTareaPage() {
     if (assignee.startsWith('c:')) {
       const c = contacts.find(c => `c:${c.id}` === assignee)
       if (c) return {
-        label: c.name,
+        label:    c.name,
         initials: (c.initials ?? initialsFrom(c.name)).slice(0, 2),
-        bg: 'linear-gradient(135deg, #f4ab66, #E8913A)',
+        bg:       'linear-gradient(135deg, #f4ab66, #E8913A)',
       }
     }
     return null
   }
 
   const assigneeDisplay = getAssigneeDisplay()
-  const selectedTopic   = labels.find(t => t.id === topicId)
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -738,10 +324,10 @@ export default function NuevaTareaPage() {
               #f0f4f8;
           }
         }
-        .nueva-tarea-bg { animation: heroBgDrift 30s ease-in-out infinite; }
+        .nueva-tarea-shared-bg { animation: heroBgDrift 30s ease-in-out infinite; }
       `}</style>
 
-      {/* Dropdowns */}
+      {/* Dropdown */}
       {assigneeDropdown.open && (
         <AssigneeDropdownPortal
           contacts={contacts}
@@ -751,48 +337,19 @@ export default function NuevaTareaPage() {
           onClose={() => setAssigneeDropdown({ open: false, anchorRect: null })}
         />
       )}
-      {topicDropdown.open && (
-        <TopicDropdownPortal
-          topics={labels}
-          selectedId={topicId}
-          anchorRect={topicDropdown.anchorRect}
-          view={topicDropdown.view}
-          editTopic={topicDropdown.editTopic}
-          editTopicName={editTopicName}
-          setEditTopicName={setEditTopicName}
-          editTopicColor={editTopicColor}
-          setEditTopicColor={setEditTopicColor}
-          editTopicLoading={editTopicLoading}
-          onToggleTopic={(id) => setTopicId(prev => prev === id ? '' : id)}
-          onOpenEdit={(t) => {
-            setEditTopicName(t.name)
-            setEditTopicColor(t.color ?? '#0A7E8C')
-            setTopicDropdown(prev => ({ ...prev, view: 'edit', editTopic: t }))
-          }}
-          onOpenCreate={() => {
-            setEditTopicName('')
-            setEditTopicColor('#0A7E8C')
-            setTopicDropdown(prev => ({ ...prev, view: 'create', editTopic: null }))
-          }}
-          onBack={() => setTopicDropdown(prev => ({ ...prev, view: 'list', editTopic: null }))}
-          onSave={handleSaveTopic}
-          onDelete={handleDeleteTopic}
-          onClose={closeTopicDropdown}
-        />
-      )}
 
-      <div className="nueva-tarea-bg flex min-h-screen">
+      <div className="nueva-tarea-shared-bg flex min-h-screen">
         <Sidebar />
 
         <main className="flex-1 ml-0 md:ml-[240px] min-h-screen px-5 py-8 pb-28 md:px-10 md:py-10 md:pb-10">
 
           {/* Breadcrumb */}
           <nav style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Link href={`/case/${crisisId}`} style={{
+            <Link href={`/case/shared/${sharedCaseId}`} style={{
               fontSize: '0.8125rem', color: '#0A7E8C', fontWeight: 600,
               textDecoration: 'none',
             }}>
-              Caso
+              Tema compartido
             </Link>
             <span style={{ color: '#5a7478', fontSize: '0.8125rem' }}>→</span>
             <span style={{ fontSize: '0.8125rem', color: '#5a7478', fontWeight: 500 }}>
@@ -948,6 +505,7 @@ export default function NuevaTareaPage() {
                 <div style={{
                   display: 'flex', alignItems: 'center',
                   padding: '16px 20px', gap: 12,
+                  borderBottom: '1px solid rgba(10,126,140,0.08)',
                   position: 'relative',
                 }}>
                   <span style={{
@@ -1011,6 +569,46 @@ export default function NuevaTareaPage() {
                     )}
                   </div>
                 </div>
+
+                {/* Asignado */}
+                <div style={{
+                  display: 'flex', alignItems: 'center',
+                  padding: '16px 20px', gap: 12,
+                }}>
+                  <span style={{
+                    fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
+                    textTransform: 'uppercase', color: '#5a7478',
+                    minWidth: 80, flexShrink: 0,
+                  }}>Asignado</span>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {assigneeDisplay && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{
+                          width: 24, height: 24, borderRadius: '50%',
+                          background: assigneeDisplay.bg, flexShrink: 0,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '0.6rem', fontWeight: 700, color: 'white',
+                        }}>{assigneeDisplay.initials}</div>
+                        <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1A1A2E' }}>
+                          {assigneeDisplay.label}
+                        </span>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => setAssigneeDropdown({
+                        open: true, anchorRect: e.currentTarget.getBoundingClientRect(),
+                      })}
+                      style={{
+                        padding: 0, background: 'none', border: 'none',
+                        color: '#0A7E8C', fontSize: '0.8125rem', fontWeight: 600,
+                        cursor: 'pointer', fontFamily: 'inherit',
+                        textDecoration: 'underline', textUnderlineOffset: 3,
+                      }}>
+                      {assignee ? 'Cambiar' : 'Asignar'}
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Documentos */}
@@ -1026,7 +624,6 @@ export default function NuevaTareaPage() {
                     boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
                     marginBottom: 24, overflow: 'hidden',
                   }}>
-                    {/* Docs seleccionados */}
                     {selectedDocIds.length > 0 && (
                       <div style={{ padding: '12px 20px 4px' }}>
                         {selectedDocIds.map(docId => {
@@ -1080,7 +677,6 @@ export default function NuevaTareaPage() {
                       </div>
                     )}
 
-                    {/* Picker */}
                     {docPickerOpen && (
                       <div style={{ padding: '12px 20px 14px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1138,7 +734,6 @@ export default function NuevaTareaPage() {
                       </div>
                     )}
 
-                    {/* Botón */}
                     {!docPickerOpen && (
                       <div style={{
                         padding: '10px 20px 14px',

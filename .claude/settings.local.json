@@ -29,7 +29,10 @@
       "Bash(Get-Content \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\\\\app\\\\gestion\\\\tarea\\\\nueva\\\\page.tsx\")",
       "Bash(Measure-Object -Line)",
       "Bash(Select-Object -ExpandProperty Lines)",
-      "Bash(cd /c/Users/HP/Desktop/Circl/app/case && find . -type d -name \"[id]\" | sort)"
+      "Bash(cd /c/Users/HP/Desktop/Circl/app/case && find . -type d -name \"[id]\" | sort)",
+      "Bash(dir \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\\\\app\\\\api\")",
+      "Bash(curl -s http://localhost:3000/api/health)",
+      "Bash(grep -n \"setAvailableLoading\" \"C:\\\\\\\\Users\\\\\\\\HP\\\\\\\\Desktop\\\\\\\\Circl\\\\\\\\app\\\\\\\\dashboard\\\\\\\\page.tsx\")"
     ]
   }
 }

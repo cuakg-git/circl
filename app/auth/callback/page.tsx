@@ -30,88 +30,127 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     async function handleCallback() {
-      // Read both search params and hash fragment (handle both PKCE + implicit)
+      console.log('[CALLBACK] start', window.location.href)
       const searchParams = new URLSearchParams(window.location.search)
       const hashParams   = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+      console.log('[CALLBACK] code:', searchParams.get('code'))
+      console.log('[CALLBACK] type:', searchParams.get('type'))
+      console.log('[CALLBACK] error:', searchParams.get('error'))
 
-      // ── Error from Supabase ──────────────────────────────────────────────────
+      // Error from Supabase
       const supabaseError = searchParams.get('error') ?? hashParams.get('error')
       if (supabaseError) {
-        const desc = searchParams.get('error_description') ?? hashParams.get('error_description') ?? supabaseError
-        router.replace(`/login?error=${encodeURIComponent(desc)}`)
+        const desc = searchParams.get('error_description')
+          ?? hashParams.get('error_description')
+          ?? supabaseError
+        window.location.href = `/login?error=${encodeURIComponent(desc)}`
         return
       }
 
-      // ── Determine flow type ──────────────────────────────────────────────────
-      // type is 'signup' | 'recovery' | 'magiclink' | 'invite' | null
       const type = searchParams.get('type') ?? hashParams.get('type')
       const code = searchParams.get('code')
 
-      // ── PKCE flow: exchange the one-time code for a session ──────────────────
+      // PKCE flow — exchange code ONCE
       if (code) {
-        const { error: exchError } = await supabase.auth.exchangeCodeForSession(code)
+        console.log('[CALLBACK] exchanging code...')
+        const { data, error: exchError } = await supabase.auth.exchangeCodeForSession(code)
+        console.log('[CALLBACK] exchange result:', { data, error: exchError })
         if (exchError) {
-          router.replace('/login?error=verification_failed')
+          console.log('[CALLBACK] exchange failed:', exchError.message)
+          window.location.href = '/login?error=verification_failed'
           return
+        }
+      } else if (window.location.hash.includes('access_token')) {
+        console.log('[CALLBACK] implicit flow detected, getting session...')
+        const { data: sessionData, error: sessionErr } = await supabase.auth.getSession()
+        console.log('[CALLBACK] getSession result:', { session: sessionData?.session, error: sessionErr })
+        await new Promise(resolve => setTimeout(resolve, 200))
+      }
+
+      // Recovery flow
+      if (type === 'recovery') {
+        window.location.href = '/reset-password'
+        return
+      }
+
+      // Get user after session is established
+      console.log('[CALLBACK] getting user...')
+      const { data: { user }, error: userErr } = await supabase.auth.getUser()
+      console.log('[CALLBACK] user result:', { user, error: userErr })
+      if (!user) {
+        console.log('[CALLBACK] NO USER, redirecting to /login?error=no_user')
+        window.location.href = '/login?error=no_user'
+        return
+      }
+
+      console.log('[CALLBACK] fetching profile...')
+      const { data: profile, error: profileErr } = await supabase
+        .from('profiles')
+        .select('id, avatar_url, onboarding_completed')
+        .eq('id', user.id)
+        .single()
+      console.log('[CALLBACK] profile result:', { profile, error: profileErr })
+
+      // Sync Google avatar
+      if (!profile?.avatar_url) {
+        const googleAvatar = user?.user_metadata?.avatar_url
+        const googleName   = user?.user_metadata?.full_name
+          ?? user?.user_metadata?.name
+        if (googleAvatar) {
+          await supabase
+            .from('profiles')
+            .update({
+              avatar_url: googleAvatar,
+              ...(googleName ? { display_name: googleName } : {}),
+            })
+            .eq('id', user.id)
         }
       }
-      // Implicit flow: hash contains access_token — Supabase JS auto-handles it.
-      // No explicit action needed; getSession() would now return the session.
 
-      // ── Route to the correct destination ────────────────────────────────────
-      if (type === 'recovery') {
-        // Password-reset flow → let the user set a new password
-        router.replace('/reset-password')
-      } else {
-        // Wait for Supabase to process either the code or the hash token
-        if (code) {
-          const { error: exchError } = await supabase.auth.exchangeCodeForSession(code)
-          if (exchError) {
-            router.replace('/login?error=verification_failed')
-            return
-          }
-        } else if (window.location.hash.includes('access_token')) {
-          // Implicit flow: wait for Supabase to detect and set the session
-          // getSession() triggers the detection
-          await supabase.auth.getSession()
-          // Small delay to ensure session is persisted
-          await new Promise(resolve => setTimeout(resolve, 200))
-        }
+      // Check for invite token
+      const inviteToken = searchParams.get('invite')
 
-        // Now safely read the user
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-          router.replace('/login?error=no_user')
-          return
-        }
-
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id, avatar_url')
-          .eq('id', user.id)
-          .single()
-
-        // Sync Google avatar if available and profile doesn't have one yet
-        if (!profile?.avatar_url) {
-          const googleAvatar = user?.user_metadata?.avatar_url
-          const googleName = user?.user_metadata?.full_name ?? user?.user_metadata?.name
-
-          if (googleAvatar) {
-            await supabase
-              .from('profiles')
-              .update({
-                avatar_url: googleAvatar,
-                ...(googleName ? { display_name: googleName } : {}),
-              })
-              .eq('id', user.id)
-          }
-        }
-
-        if (profile) {
-          router.replace('/dashboard')
+      if (inviteToken) {
+        console.log('[CALLBACK] invite token found:', inviteToken)
+        if (!profile?.onboarding_completed) {
+          console.log('[CALLBACK] redirecting to /onboarding/invitado')
+          window.location.href = `/onboarding/invitado?token=${inviteToken}`
         } else {
-          router.replace('/onboarding')
+          console.log('[CALLBACK] user already onboarded, accepting invitation...')
+          try {
+            const { data: { session } } = await supabase.auth.getSession()
+            const accessToken = session?.access_token ?? ''
+            const res = await fetch(`/api/invitacion/${inviteToken}`, {
+              method:  'POST',
+              headers: {
+                'Content-Type':  'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+              },
+            })
+            const data = await res.json()
+            console.log('[CALLBACK] invitation response:', { ok: res.ok, data })
+            if (res.ok && data.shared_case_id) {
+              console.log('[CALLBACK] redirecting to /case/shared/' + data.shared_case_id)
+              window.location.href = `/case/shared/${data.shared_case_id}`
+            } else {
+              console.log('[CALLBACK] invitation failed or no shared_case_id, redirecting to /dashboard')
+              window.location.href = '/dashboard'
+            }
+          } catch (err) {
+            console.log('[CALLBACK] exception accepting invitation:', err)
+            window.location.href = '/dashboard'
+          }
         }
+        return
+      }
+
+      // No invite token
+      if (!profile?.onboarding_completed) {
+        console.log('[CALLBACK] redirecting to /onboarding (no profile or onboarding incomplete)')
+        window.location.href = '/onboarding'
+      } else {
+        console.log('[CALLBACK] redirecting to /dashboard')
+        window.location.href = '/dashboard'
       }
     }
 

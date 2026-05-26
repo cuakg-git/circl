@@ -15,6 +15,7 @@ const NOTIFICATION_CONTEXTS: Record<string, string> = {
   help_request: 'Se le está pidiendo ayuda general en el contexto de una situación familiar difícil.',
   help_request_specific: 'Se le está pidiendo ayuda con un tema específico relacionado con su rol o expertise.',
   crisis_update: 'Se le está informando sobre una actualización importante en la situación familiar.',
+  shared_case_invite: 'Se le está invitando a sumarse a un tema compartido en Mhiru para coordinar el cuidado en conjunto.',
 }
 
 export async function POST(req: NextRequest) {
@@ -26,22 +27,39 @@ export async function POST(req: NextRequest) {
       owner_name,
     } = await req.json()
 
-    if (!contact_id || !notification_type || !owner_name) {
+    if (!notification_type || !owner_name) {
       return Response.json(
-        { error: 'contact_id, notification_type y owner_name son requeridos' },
+        { error: 'notification_type y owner_name son requeridos' },
         { status: 400 }
       )
     }
 
     // 1. Leer datos del contacto
-    const { data: contact, error: contactErr } = await supabase
-      .from('contacts')
-      .select('name, proximity, role, relationship, context_summary, context_description')
-      .eq('id', contact_id)
-      .maybeSingle()
+    let contact: any
 
-    if (contactErr || !contact) {
-      return Response.json({ error: 'Contacto no encontrado' }, { status: 404 })
+    if (contact_id) {
+      // Si contact_id existe, mantener el flujo actual
+      const { data: dbContact, error: contactErr } = await supabase
+        .from('contacts')
+        .select('name, proximity, role, relationship, context_summary, context_description')
+        .eq('id', contact_id)
+        .maybeSingle()
+
+      if (contactErr || !dbContact) {
+        return Response.json({ error: 'Contacto no encontrado' }, { status: 404 })
+      }
+
+      contact = dbContact
+    } else {
+      // Si contact_id NO existe, usar valores por default
+      contact = {
+        name: payload?.recipient_name ?? 'la persona invitada',
+        proximity: null,
+        role: null,
+        relationship: null,
+        context_summary: null,
+        context_description: null,
+      }
     }
 
     // 2. Construir contexto del payload
@@ -122,7 +140,8 @@ Reglas de tono:
 - NO incluyas ningún saludo de cierre ni firma. El mail termina con el contenido, sin "Muchas gracias", sin "El equipo de Mhiru", sin ningún tipo de despedida.
 - El subject debe ser claro y concreto, máximo 8 palabras.
 - NUNCA incluyas markdown, code fences, ni texto fuera del JSON.
-- Escribí SIEMPRE en primera persona del singular (yo, me, te escribo). NUNCA uses primera persona del plural (nosotros, nos, te escribimos, agredeceríamos). El mensaje lo manda una persona, no un equipo.`,
+- Escribí SIEMPRE en primera persona del singular (yo, me, te escribo). NUNCA uses primera persona del plural (nosotros, nos, te escribimos, agredeceríamos). El mensaje lo manda una persona, no un equipo.
+- Si no tenés contexto de la persona (campos null), usá el tono institucional de Mhiru: cálido pero concreto, cercano sin ser íntimo, nunca frío ni corporativo.`,
       messages: [{ role: 'user', content: userMessage }],
     })
 

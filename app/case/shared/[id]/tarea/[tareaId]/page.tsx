@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { use, useEffect, useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
 import { supabase } from '@/lib/supabase'
@@ -16,7 +16,6 @@ type Task = {
   due_date:            string | null
   assigned_contact_id: string | null
   assigned_to_user:    boolean | null
-  label_id:            string | null
   context:             string | null
   created_at:          string
 }
@@ -25,12 +24,6 @@ type Contact = {
   id:       string
   name:     string
   initials: string | null
-}
-
-type Topic = {
-  id:    string
-  name:  string
-  color: string | null
 }
 
 type Doc = {
@@ -52,8 +45,9 @@ type TaskDoc = {
 type HistoryEvent = {
   id:          string
   event_type:  string
+  title:       string | null
   description: string | null
-  occurred_at: string
+  created_at:  string
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -66,15 +60,6 @@ const DOC_TYPE_LABELS: Record<string, string> = {
 }
 
 const DOC_TYPE_OPTIONS = Object.entries(DOC_TYPE_LABELS)
-
-const TOPIC_COLORS = [
-  { value: '#0A7E8C', label: 'Teal' },
-  { value: '#2ECDA7', label: 'Mint' },
-  { value: '#8FA44A', label: 'Verde' },
-  { value: '#E8913A', label: 'Naranja' },
-  { value: '#4BAAB5', label: 'Celeste' },
-  { value: '#7B8FA6', label: 'Gris azul' },
-]
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -93,12 +78,8 @@ function fmtDate(iso: string | null) {
 
 function fmtDateTime(iso: string) {
   const d = new Date(iso)
-  const date = d.toLocaleDateString('es-AR', {
-    day: 'numeric', month: 'long',
-  })
-  const time = d.toLocaleTimeString('es-AR', {
-    hour: '2-digit', minute: '2-digit',
-  })
+  const date = d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long' })
+  const time = d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
   return `${date.charAt(0).toUpperCase() + date.slice(1)} · ${time}`
 }
 
@@ -106,7 +87,6 @@ const EVENT_LABELS: Record<string, string> = {
   tarea_creada:        'Tarea creada',
   estado_cambiado:     'Estado actualizado',
   asignacion_cambiada: 'Asignación cambiada',
-  tema_cambiado:       'Etiqueta cambiada',
   contexto_actualizado:'Descripción actualizada',
 }
 
@@ -217,304 +197,39 @@ function AssigneeDropdownPortal({
   )
 }
 
-// ── Componente TopicDropdownPortal ─────────────────────────────────────────────
-
-function TopicDropdownPortal({
-  topics, selectedId, anchorRect, view, editTopic,
-  editTopicName, setEditTopicName, editTopicColor, setEditTopicColor,
-  editTopicLoading, onToggleTopic, onOpenEdit, onOpenCreate,
-  onBack, onSave, onDelete, onClose,
-}: {
-  topics: Topic[]; selectedId: string; anchorRect: DOMRect | null
-  view: 'list' | 'edit' | 'create'; editTopic: Topic | null
-  editTopicName: string; setEditTopicName: (v: string) => void
-  editTopicColor: string; setEditTopicColor: (v: string) => void
-  editTopicLoading: boolean
-  onToggleTopic: (id: string) => void; onOpenEdit: (t: Topic) => void
-  onOpenCreate: () => void; onBack: () => void
-  onSave: () => void; onDelete: () => void; onClose: () => void
-}) {
-  if (!anchorRect) return null
-  const top  = Math.min(anchorRect.bottom + 8, window.innerHeight - 320)
-  const left = Math.max(8, Math.min(anchorRect.left, window.innerWidth - 280))
-
-  return (
-    <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 500 }} />
-      <div style={{
-        position: 'fixed', top, left, width: 268,
-        background: '#FFFFFF', borderRadius: '0.875rem',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
-        zIndex: 501, overflow: 'hidden',
-      }}>
-        {view === 'list' && (
-          <>
-            <div style={{
-              display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '12px 14px 10px',
-              borderBottom: '1px solid rgba(10,126,140,0.10)',
-            }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1A1A2E' }}>Etiquetas</span>
-              <button onClick={onClose} style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: '#5a7478', fontSize: '1rem', lineHeight: 1,
-              }}>✕</button>
-            </div>
-            <div style={{ padding: '8px 10px', maxHeight: 240, overflowY: 'auto' }}>
-              {topics.length === 0 && (
-                <p style={{ fontSize: '0.75rem', color: '#5a7478', fontStyle: 'italic', padding: '6px 4px' }}>
-                  No hay temas creados todavía.
-                </p>
-              )}
-              {topics.map((t) => {
-                const isSelected = selectedId === t.id
-                return (
-                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <button
-                      type="button"
-                      onClick={() => onToggleTopic(t.id)}
-                      style={{
-                        flex: 1, display: 'flex', alignItems: 'center', gap: 8,
-                        padding: '8px 10px', background: t.color ?? '#0A7E8C',
-                        border: 'none', borderRadius: '0.5rem', cursor: 'pointer',
-                        opacity: isSelected ? 1 : 0.75, transition: 'opacity 0.15s',
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.opacity = '1' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.opacity = isSelected ? '1' : '0.75' }}
-                    >
-                      <div style={{
-                        width: 16, height: 16, borderRadius: '0.25rem',
-                        background: isSelected ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.25)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                      }}>
-                        {isSelected && (
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
-                            stroke={t.color ?? '#0A7E8C'} strokeWidth="3.5"
-                            strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
-                      </div>
-                      <span style={{
-                        fontSize: '0.8125rem', fontWeight: 600, color: 'white',
-                        flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                      }}>{t.name}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onOpenEdit(t)}
-                      style={{
-                        width: 32, height: 36, borderRadius: '0.5rem',
-                        background: 'rgba(10,126,140,0.07)', border: 'none',
-                        cursor: 'pointer', flexShrink: 0,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: '#5a7478', transition: 'background 0.15s',
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.14)' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.07)' }}
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" strokeWidth="2"
-                        strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                      </svg>
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-            <div style={{
-              padding: '8px 10px 12px',
-              borderTop: topics.length > 0 ? '1px solid rgba(10,126,140,0.08)' : 'none',
-            }}>
-              <button
-                type="button" onClick={onOpenCreate}
-                style={{
-                  width: '100%', padding: '8px 10px',
-                  background: 'rgba(10,126,140,0.07)',
-                  border: 'none', borderRadius: '0.5rem', cursor: 'pointer',
-                  textAlign: 'center', fontSize: '0.8125rem', fontWeight: 600,
-                  color: '#0A7E8C', fontFamily: 'inherit', transition: 'background 0.15s',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.13)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.07)' }}
-              >
-                + Crear tema nuevo
-              </button>
-            </div>
-          </>
-        )}
-
-        {(view === 'edit' || view === 'create') && (
-          <>
-            <div style={{
-              display: 'flex', alignItems: 'center',
-              padding: '12px 14px 10px', gap: 8,
-              borderBottom: '1px solid rgba(10,126,140,0.10)',
-            }}>
-              <button onClick={onBack} style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: '#5a7478', padding: '0 4px 0 0', lineHeight: 1,
-              }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" strokeWidth="2.5"
-                  strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m15 18-6-6 6-6" />
-                </svg>
-              </button>
-              <span style={{
-                flex: 1, fontSize: '0.75rem', fontWeight: 700,
-                color: '#1A1A2E', textAlign: 'center',
-              }}>
-                {view === 'create' ? 'Crear tema' : 'Editar tema'}
-              </span>
-              <button onClick={onClose} style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: '#5a7478', fontSize: '1rem', lineHeight: 1,
-              }}>✕</button>
-            </div>
-            <div style={{ padding: '12px 14px 16px' }}>
-              <div style={{
-                width: '100%', height: 36, borderRadius: '0.5rem',
-                background: editTopicColor, marginBottom: 12,
-                display: 'flex', alignItems: 'center', paddingLeft: 12,
-              }}>
-                <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'white' }}>
-                  {editTopicName || '…'}
-                </span>
-              </div>
-              <p style={{
-                fontSize: '0.7rem', fontWeight: 700, color: '#5a7478',
-                marginBottom: 6, letterSpacing: '0.06em', textTransform: 'uppercase',
-              }}>Nombre</p>
-              <input
-                type="text" value={editTopicName}
-                onChange={(e) => setEditTopicName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') { e.preventDefault(); onSave() }
-                  if (e.key === 'Escape') onBack()
-                }}
-                autoFocus placeholder="Nombre del tema…"
-                style={{
-                  width: '100%', padding: '8px 10px',
-                  border: '1.5px solid rgba(10,126,140,0.20)',
-                  borderRadius: '0.5rem', fontSize: '0.875rem',
-                  fontWeight: 600, outline: 'none', color: '#1A1A2E',
-                  fontFamily: 'inherit', marginBottom: 14,
-                  boxSizing: 'border-box', background: '#FAF8F5',
-                }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = '#0A7E8C' }}
-                onBlur={(e)  => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.20)' }}
-              />
-              <p style={{
-                fontSize: '0.7rem', fontWeight: 700, color: '#5a7478',
-                marginBottom: 8, letterSpacing: '0.06em', textTransform: 'uppercase',
-              }}>Color</p>
-              <div style={{
-                display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)',
-                gap: 6, marginBottom: 14,
-              }}>
-                {TOPIC_COLORS.map((c) => (
-                  <button
-                    key={c.value} type="button"
-                    onClick={() => setEditTopicColor(c.value)}
-                    title={c.label}
-                    style={{
-                      height: 28, borderRadius: '0.375rem',
-                      background: c.value, border: 'none', cursor: 'pointer',
-                      outline: editTopicColor === c.value
-                        ? `2.5px solid ${c.value}` : '2.5px solid transparent',
-                      outlineOffset: 2,
-                      transform: editTopicColor === c.value ? 'scale(1.1)' : 'scale(1)',
-                      transition: 'transform 0.15s',
-                    }}
-                  />
-                ))}
-              </div>
-              <button
-                type="button" onClick={onSave}
-                disabled={editTopicLoading || !editTopicName.trim()}
-                style={{
-                  width: '100%', padding: '9px',
-                  background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                  color: 'white', border: 'none', borderRadius: '0.5rem',
-                  fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer',
-                  fontFamily: 'inherit', marginBottom: 8,
-                  opacity: (editTopicLoading || !editTopicName.trim()) ? 0.5 : 1,
-                }}
-              >
-                {editTopicLoading ? '…' : 'Guardar'}
-              </button>
-              {view === 'edit' && (
-                <button
-                  type="button" onClick={onDelete}
-                  disabled={editTopicLoading}
-                  style={{
-                    width: '100%', padding: '8px',
-                    background: 'none', color: '#ba1a1a',
-                    border: 'none', borderRadius: '0.5rem',
-                    fontSize: '0.8125rem', fontWeight: 600,
-                    cursor: 'pointer', fontFamily: 'inherit',
-                    opacity: editTopicLoading ? 0.5 : 1,
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(186,26,26,0.07)' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'none' }}
-                >
-                  Eliminar tema
-                </button>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </>
-  )
-}
-
 // ── Page ───────────────────────────────────────────────────────────────────────
 
-export default function TareaDetailPage() {
-  const router  = useRouter()
-  const params  = useParams()
-  const { caseId, tareaId } = params as { caseId: string; tareaId: string }
-  const taskId  = tareaId
+export default function TareaDetailSharedPage({
+  params,
+}: {
+  params: Promise<{ id: string; tareaId: string }>
+}) {
+  const { id: sharedCaseId, tareaId } = use(params)
+  const router = useRouter()
+  const taskId = tareaId
 
   const [loading,  setLoading]  = useState(true)
   const [saving,   setSaving]   = useState(false)
   const [task,     setTask]     = useState<Task | null>(null)
   const [contacts, setContacts] = useState<Contact[]>([])
-  const [labels,   setLabels]   = useState<Topic[]>([])
   const [history,  setHistory]  = useState<HistoryEvent[]>([])
-  const [userId,   setUserId]   = useState<string | null>(null)
-  const [crisisId,  setCrisisId]  = useState<string | null>(null)
-  const [caseName,  setCaseName]  = useState<string>('')
-  const [error,    setError]    = useState<string | null>(null)
+  const [userId,          setUserId]          = useState<string | null>(null)
+  const [error,           setError]           = useState<string | null>(null)
+  const [sharedCaseName,  setSharedCaseName]  = useState<string>('')
 
   // Edición inline
-  const [editingTitle, setEditingTitle]   = useState(false)
-  const [titleVal,     setTitleVal]       = useState('')
-  const [editingDesc,  setEditingDesc]    = useState(false)
-  const [descVal,      setDescVal]        = useState('')
-  const [editingDate,  setEditingDate]    = useState(false)
-  const [dateVal,      setDateVal]        = useState('')
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleVal,     setTitleVal]     = useState('')
+  const [editingDesc,  setEditingDesc]  = useState(false)
+  const [descVal,      setDescVal]      = useState('')
+  const [editingDate,  setEditingDate]  = useState(false)
+  const [dateVal,      setDateVal]      = useState('')
 
-  // Dropdowns
+  // Dropdown asignado
   const [assigneeVal, setAssigneeVal] = useState('')
   const [assigneeDropdown, setAssigneeDropdown] = useState<{
     open: boolean; anchorRect: DOMRect | null
   }>({ open: false, anchorRect: null })
-
-  const [topicVal, setTopicVal] = useState('')
-  const [topicDropdown, setTopicDropdown] = useState<{
-    open: boolean; view: 'list' | 'edit' | 'create'
-    editTopic: Topic | null; anchorRect: DOMRect | null
-  }>({ open: false, view: 'list', editTopic: null, anchorRect: null })
-
-  const [editTopicName,    setEditTopicName]    = useState('')
-  const [editTopicColor,   setEditTopicColor]   = useState('#0A7E8C')
-  const [editTopicLoading, setEditTopicLoading] = useState(false)
 
   // Delete
   const [deleteConfirm, setDeleteConfirm] = useState(false)
@@ -544,29 +259,27 @@ export default function TareaDetailPage() {
   })
 
   // Documentos asociados
-  const [taskDocs,        setTaskDocs]        = useState<TaskDoc[]>([])
-  const [allDocs,         setAllDocs]         = useState<Doc[]>([])
-  const [docPickerOpen,   setDocPickerOpen]   = useState(false)
-  const [docLinkLoading,  setDocLinkLoading]  = useState(false)
-  const [docUnlinkLoading,setDocUnlinkLoading]= useState<string | null>(null)
+  const [taskDocs,         setTaskDocs]         = useState<TaskDoc[]>([])
+  const [allDocs,          setAllDocs]          = useState<Doc[]>([])
+  const [docPickerOpen,    setDocPickerOpen]    = useState(false)
+  const [docLinkLoading,   setDocLinkLoading]   = useState(false)
+  const [docUnlinkLoading, setDocUnlinkLoading] = useState<string | null>(null)
 
   // Upload de documento nuevo
-  const [docUploadOpen,   setDocUploadOpen]   = useState(false)
-  const [uploadName,      setUploadName]      = useState('')
-  const [uploadType,      setUploadType]      = useState('estudio_medico')
-  const [uploadFile,      setUploadFile]      = useState<File | null>(null)
-  const [uploadLoading,   setUploadLoading]   = useState(false)
-  const [isDragging,      setIsDragging]      = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [docUploadOpen,  setDocUploadOpen]  = useState(false)
+  const [uploadName,     setUploadName]     = useState('')
+  const [uploadType,     setUploadType]     = useState('estudio_medico')
+  const [uploadFile,     setUploadFile]     = useState<File | null>(null)
+  const [uploadLoading,  setUploadLoading]  = useState(false)
+  const [isDragging,     setIsDragging]     = useState(false)
+  const fileInputRef   = useRef<HTMLInputElement>(null)
   const dragCounterRef = useRef(0)
 
   // Contexto y sugerencias
   const [taskContext,       setTaskContext]       = useState<string | null>(null)
-  const [contextLoading,    setContextLoading]    = useState(false)
   const [suggestedAssignee, setSuggestedAssignee] = useState<{
     name: string; reason: string
   } | null>(null)
-  const [suggestedTopics,   setSuggestedTopics]   = useState<string[]>([])
 
   // Minichat
   const [chatMessages,    setChatMessages]    = useState<
@@ -586,40 +299,30 @@ export default function TareaDetailPage() {
       if (error || !user) { router.replace('/login'); return }
       setUserId(user.id)
 
-      const { data: crisis } = await supabase
-        .from('cases')
-        .select('id, name')
-        .eq('user_id', user.id)
-        .eq('status', 'activa')
+      const { data: sharedCaseData } = await supabase
+        .from('shared_cases')
+        .select('name')
+        .eq('id', sharedCaseId)
         .maybeSingle()
+      if (sharedCaseData) setSharedCaseName(sharedCaseData.name)
 
-      if (!crisis) { router.replace('/case'); return }
-      setCrisisId(crisis.id)
-      if (crisis.name) setCaseName(crisis.name)
-
-      const [taskRes, contactsRes, labelsRes, historyRes, taskDocsRes, allDocsRes] = await Promise.all([
+      const [taskRes, contactsRes, historyRes, taskDocsRes, allDocsRes] = await Promise.all([
         supabase
           .from('tasks')
-          .select('id, title, description, status, due_date, assigned_contact_id, assigned_to_user, label_id, context, created_at')
+          .select('id, title, description, status, due_date, assigned_contact_id, assigned_to_user, context, created_at')
           .eq('id', taskId)
-          .eq('case_id', crisis.id)
+          .eq('shared_case_id', sharedCaseId)
           .maybeSingle(),
         supabase
           .from('contacts')
           .select('id, name, initials')
           .eq('user_id', user.id)
-          .in('proximity', ['nucleo', 'ayuda'])
           .order('sort_order', { ascending: true, nullsFirst: false }),
         supabase
-          .from('labels')
-          .select('id, name, color')
-          .eq('case_id', crisis.id)
-          .order('created_at', { ascending: true }),
-        supabase
-          .from('task_history')
-          .select('id, event_type, description, occurred_at')
-          .eq('task_id', taskId)
-          .order('occurred_at', { ascending: false }),
+          .from('shared_case_history')
+          .select('id, event_type, title, description, created_at')
+          .eq('shared_case_id', sharedCaseId)
+          .order('created_at', { ascending: false }),
         supabase
           .from('task_documents')
           .select('id, document_id, doc:documents(id, name, type, created_at, storage_path, original_filename, file_mime_type)')
@@ -628,36 +331,28 @@ export default function TareaDetailPage() {
         supabase
           .from('documents')
           .select('id, name, type, created_at, storage_path, original_filename, file_mime_type')
-          .eq('case_id', crisis.id)
+          .eq('shared_case_id', sharedCaseId)
           .order('created_at', { ascending: false }),
       ])
 
-      if (!taskRes.data) { router.replace('/case'); return }
+      if (!taskRes.data) { router.replace(`/case/shared/${sharedCaseId}`); return }
 
       const t = taskRes.data as Task
       setTask(t)
       setTaskContext(t.context ?? null)
 
-      // Inicializar minichat con pregunta inicial
       setChatQuestion('Hay alguna novedad con esta tarea')
-      setChatSuggestions([
-        'Todo sigue igual',
-        'Cambió la fecha',
-        'Ya la hice',
-      ])
+      setChatSuggestions(['Todo sigue igual', 'Cambió la fecha', 'Ya la hice'])
 
       setTitleVal(t.title)
       setDescVal(t.description ?? '')
       setDateVal(t.due_date ?? '')
 
-      // Encode assignee
       if (t.assigned_to_user) setAssigneeVal('yo')
       else if (t.assigned_contact_id) setAssigneeVal(`c:${t.assigned_contact_id}`)
       else setAssigneeVal('')
 
-      setTopicVal(t.label_id ?? '')
       setContacts((contactsRes.data ?? []) as Contact[])
-      setLabels((labelsRes.data ?? []) as Topic[])
       setHistory((historyRes.data ?? []) as HistoryEvent[])
       const rawTaskDocs = (taskDocsRes.data ?? []).map((row: any) => ({
         id:          row.id,
@@ -669,7 +364,6 @@ export default function TareaDetailPage() {
       setLoading(false)
 
       if (t.context) {
-        // Tarea con contexto ya generado: pedir solo sugerencias (modo liviano)
         fetch('/api/task-context', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -682,11 +376,9 @@ export default function TareaDetailPage() {
           .then(r => r.json())
           .then(json => {
             if (json.suggested_assignee) setSuggestedAssignee(json.suggested_assignee)
-            if (json.suggested_topics?.length > 0) setSuggestedTopics(json.suggested_topics)
           })
-          .catch(e => console.error('[tarea-detail] suggestions error:', e))
+          .catch(e => console.error('[tarea-shared-detail] suggestions error:', e))
       } else {
-        // Tarea sin contexto: generarlo completo
         fetch('/api/task-context', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -696,19 +388,18 @@ export default function TareaDetailPage() {
           .then(json => {
             if (json.context)            setTaskContext(json.context)
             if (json.suggested_assignee) setSuggestedAssignee(json.suggested_assignee)
-            if (json.suggested_topics?.length > 0) setSuggestedTopics(json.suggested_topics)
             if (json.next_question) {
               setChatQuestion(json.next_question)
               setChatSuggestions(json.suggestions ?? [])
             }
           })
-          .catch(e => console.error('[tarea-detail] init context error:', e))
+          .catch(e => console.error('[tarea-shared-detail] init context error:', e))
       }
     }
     load()
-  }, [router, taskId])
+  }, [router, taskId, sharedCaseId])
 
-  // ── Reload history ────────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────────
 
   function fmtShortDate(iso: string | null) {
     if (!iso) return ''
@@ -724,13 +415,47 @@ export default function TareaDetailPage() {
       .eq('task_id', taskId)
       .order('created_at', { ascending: false })
     if (data) {
-      const rawTaskDocs = data.map((row: any) => ({
+      setTaskDocs(data.map((row: any) => ({
         id:          row.id,
         document_id: row.document_id,
         doc:         Array.isArray(row.doc) ? row.doc[0] : row.doc,
-      })) as TaskDoc[]
-      setTaskDocs(rawTaskDocs)
+      })) as TaskDoc[])
     }
+  }
+
+  async function reloadHistory() {
+    const { data } = await supabase
+      .from('shared_case_history')
+      .select('id, event_type, title, description, created_at')
+      .eq('shared_case_id', sharedCaseId)
+      .order('created_at', { ascending: false })
+    if (data) setHistory(data as HistoryEvent[])
+  }
+
+  async function logEvent(eventType: string, description: string) {
+    if (!userId) return
+    await supabase.from('shared_case_history').insert({
+      shared_case_id: sharedCaseId,
+      title:          EVENT_LABELS[eventType] ?? eventType,
+      description,
+      event_type:     eventType,
+      created_by:     userId,
+    })
+    await reloadHistory()
+  }
+
+  async function logSharedHistory(description: string, taskId?: string) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    await supabase.from('shared_case_history').insert({
+      shared_case_id: sharedCaseId,
+      title:          'Tarea actualizada',
+      description,
+      event_type:     'actualizacion_general',
+      created_by:     user.id,
+      task_id:        taskId ?? null,
+      occurred_at:    new Date().toISOString(),
+    })
   }
 
   async function handleLinkDoc(docId: string) {
@@ -758,14 +483,13 @@ export default function TareaDetailPage() {
   }
 
   async function handleUploadNewDoc() {
-    if (!uploadFile || !uploadName.trim() || !crisisId || uploadLoading) return
+    if (!uploadFile || !uploadName.trim() || uploadLoading) return
     setUploadLoading(true)
     setError(null)
 
-    // 1. Subir archivo a storage
     const timestamp = Date.now()
     const safeName  = uploadFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-    const path      = `${crisisId}/${timestamp}_${safeName}`
+    const path      = `shared/${sharedCaseId}/${timestamp}_${safeName}`
 
     const { error: uploadErr } = await supabase.storage
       .from('docs')
@@ -777,11 +501,10 @@ export default function TareaDetailPage() {
       return
     }
 
-    // 2. Crear registro en documents
     const { data: newDoc, error: dbErr } = await supabase
       .from('documents')
       .insert({
-        case_id:                crisisId,
+        shared_case_id:         sharedCaseId,
         name:                   uploadName.trim(),
         type:                   uploadType,
         storage_path:           path,
@@ -801,7 +524,6 @@ export default function TareaDetailPage() {
       return
     }
 
-    // 3. Asociar a la tarea
     const { error: linkErr } = await supabase
       .from('task_documents')
       .insert({ task_id: taskId, document_id: newDoc.id })
@@ -812,14 +534,12 @@ export default function TareaDetailPage() {
       return
     }
 
-    // 4. Recargar y resetear
     await reloadTaskDocs()
 
-    // Recargar allDocs también
     const { data: freshDocs } = await supabase
       .from('documents')
       .select('id, name, type, created_at, storage_path, original_filename, file_mime_type')
-      .eq('case_id', crisisId)
+      .eq('shared_case_id', sharedCaseId)
       .order('created_at', { ascending: false })
     if (freshDocs) setAllDocs(freshDocs as Doc[])
 
@@ -843,24 +563,13 @@ export default function TareaDetailPage() {
     await reloadTaskDocs()
   }
 
-  async function reloadHistory() {
-    const { data } = await supabase
-      .from('task_history')
-      .select('id, event_type, description, occurred_at')
-      .eq('task_id', taskId)
-      .order('occurred_at', { ascending: false })
-    if (data) setHistory(data as HistoryEvent[])
-  }
-
   // ── callTaskContext ───────────────────────────────────────────────────────────
 
   async function callTaskContext(userMessage?: string) {
     if (!userId) return
     setChatLoading(true)
     setSuggestedAssignee(null)
-    setSuggestedTopics([])
 
-    // Agregar mensaje del usuario al historial si existe
     const newHistory = userMessage
       ? [...chatMessages, { role: 'user' as const, content: userMessage }]
       : chatMessages
@@ -883,22 +592,14 @@ export default function TareaDetailPage() {
       })
       const json = await res.json()
 
-      // Actualizar contexto
       if (json.context) setTaskContext(json.context)
 
-      // Agregar respuesta del agente al historial
       if (json.context && userMessage) {
-        setChatMessages(prev => [
-          ...prev,
-          { role: 'agent', content: json.context },
-        ])
+        setChatMessages(prev => [...prev, { role: 'agent', content: json.context }])
       }
 
-      // Sugerencias de asignado y tema
       if (json.suggested_assignee) setSuggestedAssignee(json.suggested_assignee)
-      if (json.suggested_topics?.length > 0) setSuggestedTopics(json.suggested_topics)
 
-      // Próxima pregunta o fin del chat
       if (json.next_question) {
         setChatQuestion(json.next_question)
         setChatSuggestions(json.suggestions ?? [])
@@ -909,11 +610,9 @@ export default function TareaDetailPage() {
         setChatDone(true)
       }
 
-      // Aplicar field_updates automáticamente
       if (json.field_updates && Object.keys(json.field_updates).length > 0) {
         const fu = json.field_updates
 
-        // Actualizar estado local de la tarea
         setTask(prev => {
           if (!prev) return null
           const updated = { ...prev }
@@ -935,7 +634,6 @@ export default function TareaDetailPage() {
           return updated
         })
 
-        // Actualizar assigneeVal si cambió
         if (fu.assigned_to_user === true) {
           setAssigneeVal('yo')
         } else if (fu.assigned_contact_name) {
@@ -945,52 +643,21 @@ export default function TareaDetailPage() {
           if (match) setAssigneeVal(`c:${match.id}`)
         }
 
-        // Actualizar dateVal si cambió
         if (fu.due_date !== undefined) setDateVal(fu.due_date ?? '')
 
-        // Log en historial
         await reloadHistory()
       }
 
     } catch (e) {
-      console.error('[tarea-detail] task-context error:', e)
+      console.error('[tarea-shared-detail] task-context error:', e)
     } finally {
       setChatLoading(false)
-      setContextLoading(false)
     }
   }
-
-  // ── handleChatSubmit ─────────────────────────────────────────────────────────
 
   async function handleChatSubmit(message: string) {
     if (!message.trim() || chatLoading) return
     await callTaskContext(message.trim())
-  }
-
-  // ── Log helper ────────────────────────────────────────────────────────────────
-
-  async function logEvent(eventType: string, description: string) {
-    if (!userId || !crisisId) return
-    await supabase.from('task_history').insert({
-      task_id:     taskId,
-      case_id:     crisisId,
-      user_id:     userId,
-      event_type:  eventType,
-      description,
-    })
-    await reloadHistory()
-  }
-
-  async function logCaseHistory(description: string, taskId?: string) {
-    if (!crisisId) return
-    await supabase.from('case_history').insert({
-      case_id:     crisisId,
-      title:       'Tarea actualizada',
-      description,
-      event_type:  'actualizacion_general',
-      task_id:     taskId ?? null,
-      occurred_at: new Date().toISOString(),
-    })
   }
 
   // ── Save handlers ─────────────────────────────────────────────────────────────
@@ -1008,7 +675,7 @@ export default function TareaDetailPage() {
     if (error) { setError(error.message); return }
     setTask(prev => prev ? { ...prev, title: titleVal.trim() } : null)
     await logEvent('contexto_actualizado', `Título actualizado a "${titleVal.trim()}"`)
-    await logCaseHistory(`"${titleVal.trim()}" — título actualizado`, taskId)
+    await logSharedHistory(`"${titleVal.trim()}" — título actualizado`, taskId)
     callTaskContext()
     setEditingTitle(false)
   }
@@ -1022,7 +689,7 @@ export default function TareaDetailPage() {
     setTask(prev => prev ? { ...prev, description: descVal.trim() || null } : null)
     if (descVal.trim()) {
       await logEvent('contexto_actualizado', 'Descripción actualizada')
-      await logCaseHistory(`"${task?.title}" — descripción actualizada`, taskId)
+      await logSharedHistory(`"${task?.title}" — descripción actualizada`, taskId)
     }
     callTaskContext()
     setEditingDesc(false)
@@ -1036,7 +703,7 @@ export default function TareaDetailPage() {
     if (error) { setError(error.message); return }
     setTask(prev => prev ? { ...prev, due_date: dateVal || null } : null)
     await logEvent('contexto_actualizado', `Fecha actualizada a ${dateVal || 'sin fecha'}`)
-    await logCaseHistory(`"${task?.title}" — fecha: ${dateVal || 'sin fecha'}`, taskId)
+    await logSharedHistory(`"${task?.title}" — fecha: ${dateVal || 'sin fecha'}`, taskId)
     callTaskContext()
     setEditingDate(false)
   }
@@ -1060,15 +727,13 @@ export default function TareaDetailPage() {
       assigneeName = c?.name ?? 'un contacto'
     }
     await logEvent('asignacion_cambiada', `Asignada a ${assigneeName}`)
-    await logCaseHistory(`"${task?.title}" — asignada a ${assigneeName}`, taskId)
+    await logSharedHistory(`"${task?.title}" — asignada a ${assigneeName}`, taskId)
     callTaskContext()
 
-    // Abrir modal de notificación si se asignó a un contacto
     if (val.startsWith('c:')) {
       const contactId = val.slice(2)
       const c = contacts.find(c => c.id === contactId)
       if (c) {
-        // Buscar email del contacto en Supabase
         const { data: contactData } = await supabase
           .from('contacts')
           .select('email')
@@ -1090,7 +755,6 @@ export default function TareaDetailPage() {
           bodyInput:    '',
         })
 
-        // Cargar draft en background
         fetch('/api/notification-draft', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1131,17 +795,6 @@ export default function TareaDetailPage() {
     }
   }
 
-  async function handleTopicChange(topicId: string) {
-    setTopicVal(topicId)
-    const { error } = await supabase
-      .from('tasks').update({ label_id: topicId || null }).eq('id', taskId)
-    if (error) { setError(error.message); return }
-    const topic = labels.find(t => t.id === topicId)
-    await logEvent('tema_cambiado', topic ? `Etiqueta: ${topic.name}` : 'Etiqueta removida')
-    await logCaseHistory(`"${task?.title}" — etiqueta: ${topic?.name ?? 'removida'}`, taskId)
-    callTaskContext()
-  }
-
   async function handleToggleStatus() {
     if (!task) return
     const newStatus = task.status === 'completada' ? 'pendiente' : 'completada'
@@ -1155,7 +808,7 @@ export default function TareaDetailPage() {
       'estado_cambiado',
       newStatus === 'completada' ? 'Tarea marcada como completada' : 'Tarea reabierta'
     )
-    await logCaseHistory(newStatus === 'completada' ? `"${task?.title}" completada` : `"${task?.title}" reabierta`, taskId)
+    await logSharedHistory(newStatus === 'completada' ? `"${task?.title}" completada` : `"${task?.title}" reabierta`, taskId)
   }
 
   async function handleSendNotification() {
@@ -1178,7 +831,6 @@ export default function TareaDetailPage() {
       .maybeSingle()
     const ownerName = profile?.full_name ?? 'Tu contacto'
 
-    // Usar el body editado si existe, sino el draft original
     const finalBody = notifyModal.bodyInput.trim() || notifyModal.draftBody || ''
 
     const res = await fetch('/api/notify-assignee', {
@@ -1214,60 +866,12 @@ export default function TareaDetailPage() {
     const { error } = await supabase.from('tasks').delete().eq('id', taskId)
     setDeleteLoading(false)
     if (error) { setError(error.message); return }
-    router.replace('/case')
-  }
-
-  // ── Topic handlers ────────────────────────────────────────────────────────────
-
-  async function handleSaveTopic() {
-    if (!editTopicName.trim() || !crisisId || !userId) return
-    setEditTopicLoading(true)
-
-    if (topicDropdown.view === 'create') {
-      const { data: newTopic, error } = await supabase
-        .from('labels')
-        .insert({ case_id: crisisId, user_id: userId, name: editTopicName.trim(), color: editTopicColor })
-        .select('id, name, color').single()
-      setEditTopicLoading(false)
-      if (error) { setError(error.message); return }
-      setLabels(prev => [...prev, newTopic as Topic])
-      await handleTopicChange(newTopic.id)
-    } else if (topicDropdown.view === 'edit' && topicDropdown.editTopic) {
-      const { error } = await supabase
-        .from('labels')
-        .update({ name: editTopicName.trim(), color: editTopicColor })
-        .eq('id', topicDropdown.editTopic.id)
-      setEditTopicLoading(false)
-      if (error) { setError(error.message); return }
-      setLabels(prev => prev.map(t =>
-        t.id === topicDropdown.editTopic!.id
-          ? { ...t, name: editTopicName.trim(), color: editTopicColor } : t
-      ))
-    }
-    setTopicDropdown(prev => ({ ...prev, view: 'list', editTopic: null }))
-    setEditTopicName('')
-    setEditTopicColor('#0A7E8C')
-  }
-
-  async function handleDeleteTopic() {
-    if (!topicDropdown.editTopic) return
-    setEditTopicLoading(true)
-    const { error } = await supabase.from('labels').delete().eq('id', topicDropdown.editTopic.id)
-    setEditTopicLoading(false)
-    if (error) { setError(error.message); return }
-    const deletedId = topicDropdown.editTopic.id
-    setLabels(prev => prev.filter(t => t.id !== deletedId))
-    if (topicVal === deletedId) {
-      setTopicVal('')
-      await supabase.from('tasks').update({ label_id: null }).eq('id', taskId)
-    }
-    setTopicDropdown(prev => ({ ...prev, view: 'list', editTopic: null }))
+    router.replace('/case/shared/' + sharedCaseId)
   }
 
   // ── Computed ──────────────────────────────────────────────────────────────────
 
-  const isDone        = task?.status === 'completada'
-  const selectedTopic = labels.find(t => t.id === topicVal)
+  const isDone = task?.status === 'completada'
 
   function getAssigneeDisplay() {
     if (!assigneeVal) return null
@@ -1278,9 +882,9 @@ export default function TareaDetailPage() {
     if (assigneeVal.startsWith('c:')) {
       const c = contacts.find(c => `c:${c.id}` === assigneeVal)
       if (c) return {
-        label: c.name,
+        label:    c.name,
         initials: (c.initials ?? initialsFrom(c.name)).slice(0, 2),
-        bg: 'linear-gradient(135deg, #f4ab66, #E8913A)',
+        bg:       'linear-gradient(135deg, #f4ab66, #E8913A)',
       }
     }
     return null
@@ -1288,7 +892,7 @@ export default function TareaDetailPage() {
 
   const assigneeDisplay = getAssigneeDisplay()
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
     <>
@@ -1313,13 +917,16 @@ export default function TareaDetailPage() {
               #f0f4f8;
           }
         }
-        .tarea-detail-bg { animation: heroBgDrift 30s ease-in-out infinite; }
+        .tarea-shared-detail-bg { animation: heroBgDrift 30s ease-in-out infinite; }
+        @keyframes shimmer {
+          0%   { background-position: 200% 0 }
+          100% { background-position: -200% 0 }
+        }
       `}</style>
 
       {/* ── Modal notificación de asignación ── */}
       {notifyModal.open && (
         <>
-          {/* Backdrop */}
           <div
             onClick={() => !notifyModal.sending && setNotifyModal(prev => ({ ...prev, open: false }))}
             style={{
@@ -1328,7 +935,6 @@ export default function TareaDetailPage() {
               zIndex: 600,
             }}
           />
-          {/* Modal */}
           <div style={{
             position: 'fixed', top: '50%', left: '50%',
             transform: 'translate(-50%, -50%)',
@@ -1340,301 +946,284 @@ export default function TareaDetailPage() {
             padding: '28px 28px 24px',
           }}>
             {notifyModal.sent ? (
-                /* Estado: enviado */
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{
-                    width: 56, height: 56, borderRadius: '50%',
-                    background: 'rgba(46,205,167,0.15)',
-                    display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', margin: '0 auto 16px',
-                  }}>
-                    <svg width="24" height="24" viewBox="0 0 24 24"
-                      fill="none" stroke="#2ECDA7" strokeWidth="2.5"
-                      strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{
+                  width: 56, height: 56, borderRadius: '50%',
+                  background: 'rgba(46,205,167,0.15)',
+                  display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', margin: '0 auto 16px',
+                }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24"
+                    fill="none" stroke="#2ECDA7" strokeWidth="2.5"
+                    strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+                <p style={{
+                  fontSize: '1rem', fontWeight: 800,
+                  color: '#1A1A2E', marginBottom: 8,
+                }}>
+                  Notificación enviada
+                </p>
+                <p style={{
+                  fontSize: '0.875rem', color: '#5a7478',
+                  lineHeight: 1.6, marginBottom: 24,
+                }}>
+                  Le avisamos a {notifyModal.contactName} que tiene
+                  una nueva tarea asignada.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setNotifyModal(prev => ({ ...prev, open: false }))}
+                  style={{
+                    width: '100%', padding: '12px',
+                    background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                    color: 'white', border: 'none', borderRadius: 9999,
+                    fontWeight: 700, fontSize: '0.875rem',
+                    cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  Listo
+                </button>
+              </div>
+            ) : (
+              <>
+                <div style={{
+                  display: 'flex', alignItems: 'flex-start',
+                  justifyContent: 'space-between', marginBottom: 16,
+                }}>
+                  <div>
+                    <p style={{
+                      fontSize: '1rem', fontWeight: 800,
+                      color: '#1A1A2E', margin: '0 0 4px',
+                    }}>
+                      ¿Notificar a {notifyModal.contactName}?
+                    </p>
+                    <p style={{
+                      fontSize: '0.8125rem', color: '#5a7478',
+                      margin: 0, lineHeight: 1.5,
+                    }}>
+                      {notifyModal.contactEmail
+                        ? `Se enviará a ${notifyModal.contactEmail}`
+                        : 'No tenemos su email todavía. Ingresalo para notificarlo.'
+                      }
+                    </p>
                   </div>
-                  <p style={{
-                    fontSize: '1rem', fontWeight: 800,
-                    color: '#1A1A2E', marginBottom: 8,
-                  }}>
-                    Notificación enviada
-                  </p>
-                  <p style={{
-                    fontSize: '0.875rem', color: '#5a7478',
-                    lineHeight: 1.6, marginBottom: 24,
-                  }}>
-                    Le avisamos a {notifyModal.contactName} que tiene
-                    una nueva tarea asignada.
-                  </p>
                   <button
                     type="button"
                     onClick={() => setNotifyModal(prev => ({ ...prev, open: false }))}
+                    disabled={notifyModal.sending}
                     style={{
-                      width: '100%', padding: '12px',
-                      background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                      color: 'white', border: 'none', borderRadius: 9999,
-                      fontWeight: 700, fontSize: '0.875rem',
-                      cursor: 'pointer', fontFamily: 'inherit',
+                      background: 'none', border: 'none',
+                      cursor: 'pointer', color: '#5a7478',
+                      fontSize: '1.2rem', lineHeight: 1,
+                      padding: '0 0 0 12px', flexShrink: 0,
                     }}
                   >
-                    Listo
+                    ✕
                   </button>
                 </div>
-              ) : (
-                <>
-                  {/* Header */}
-                  <div style={{
-                    display: 'flex', alignItems: 'flex-start',
-                    justifyContent: 'space-between', marginBottom: 16,
-                  }}>
-                    <div>
-                      <p style={{
-                        fontSize: '1rem', fontWeight: 800,
-                        color: '#1A1A2E', margin: '0 0 4px',
-                      }}>
-                        ¿Notificar a {notifyModal.contactName}?
-                      </p>
-                      <p style={{
-                        fontSize: '0.8125rem', color: '#5a7478',
-                        margin: 0, lineHeight: 1.5,
-                      }}>
-                        {notifyModal.contactEmail
-                          ? `Se enviará a ${notifyModal.contactEmail}`
-                          : 'No tenemos su email todavía. Ingresalo para notificarlo.'
-                        }
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setNotifyModal(prev => ({ ...prev, open: false }))}
-                      disabled={notifyModal.sending}
-                      style={{
-                        background: 'none', border: 'none',
-                        cursor: 'pointer', color: '#5a7478',
-                        fontSize: '1.2rem', lineHeight: 1,
-                        padding: '0 0 0 12px', flexShrink: 0,
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </div>
 
-                  {/* Input email si no hay */}
-                  {!notifyModal.contactEmail && (
-                    <div style={{ marginBottom: 16 }}>
-                      <input
-                        type="email"
-                        placeholder="email@ejemplo.com"
-                        value={notifyModal.emailInput}
-                        onChange={(e) => setNotifyModal(prev => ({
-                          ...prev, emailInput: e.target.value, error: null,
-                        }))}
-                        autoFocus
-                        style={{
-                          width: '100%', padding: '10px 14px',
-                          border: '1.5px solid rgba(10,126,140,0.20)',
-                          borderRadius: '0.75rem', fontSize: '0.875rem',
-                          outline: 'none', color: '#1A1A2E',
-                          fontFamily: 'inherit', background: '#FAF8F5',
-                          boxSizing: 'border-box',
-                        }}
-                        onFocus={(e) => { e.currentTarget.style.borderColor = '#0A7E8C' }}
-                        onBlur={(e)  => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.20)' }}
-                      />
-                    </div>
-                  )}
-
-                  {/* Mensaje generado por Mhiru */}
+                {!notifyModal.contactEmail && (
                   <div style={{ marginBottom: 16 }}>
-                    <div style={{
-                      display: 'flex', alignItems: 'center',
-                      justifyContent: 'space-between', marginBottom: 8,
+                    <input
+                      type="email"
+                      placeholder="email@ejemplo.com"
+                      value={notifyModal.emailInput}
+                      onChange={(e) => setNotifyModal(prev => ({
+                        ...prev, emailInput: e.target.value, error: null,
+                      }))}
+                      autoFocus
+                      style={{
+                        width: '100%', padding: '10px 14px',
+                        border: '1.5px solid rgba(10,126,140,0.20)',
+                        borderRadius: '0.75rem', fontSize: '0.875rem',
+                        outline: 'none', color: '#1A1A2E',
+                        fontFamily: 'inherit', background: '#FAF8F5',
+                        boxSizing: 'border-box',
+                      }}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = '#0A7E8C' }}
+                      onBlur={(e)  => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.20)' }}
+                    />
+                  </div>
+                )}
+
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center',
+                    justifyContent: 'space-between', marginBottom: 8,
+                  }}>
+                    <p style={{
+                      fontSize: '0.7rem', fontWeight: 700,
+                      letterSpacing: '0.06em', textTransform: 'uppercase',
+                      color: '#5a7478', margin: 0,
                     }}>
-                      <p style={{
-                        fontSize: '0.7rem', fontWeight: 700,
-                        letterSpacing: '0.06em', textTransform: 'uppercase',
-                        color: '#5a7478', margin: 0,
-                      }}>
-                        Mensaje
-                      </p>
-                      {!notifyModal.draftLoading && notifyModal.draftBody && !notifyModal.editingBody && (
-                        <button
-                          type="button"
-                          onClick={() => setNotifyModal(prev => ({
-                            ...prev, editingBody: true,
-                            bodyInput: prev.draftBody ?? '',
-                          }))}
-                          style={{
-                            background: 'none', border: 'none',
-                            cursor: 'pointer', color: '#0A7E8C',
-                            fontSize: '0.75rem', fontWeight: 600,
-                            fontFamily: 'inherit', padding: 0,
-                            textDecoration: 'underline',
-                            textUnderlineOffset: 3,
-                          }}
-                        >
-                          Editar
-                        </button>
-                      )}
-                      {notifyModal.editingBody && (
-                        <button
-                          type="button"
-                          onClick={() => setNotifyModal(prev => ({
-                            ...prev, editingBody: false,
-                            bodyInput: prev.draftBody ?? '',
-                          }))}
-                          style={{
-                            background: 'none', border: 'none',
-                            cursor: 'pointer', color: '#5a7478',
-                            fontSize: '0.75rem', fontFamily: 'inherit',
-                            padding: 0,
-                          }}
-                        >
-                          Cancelar
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Skeleton mientras carga */}
-                    {notifyModal.draftLoading && (
-                      <div style={{
-                        padding: '14px 16px',
-                        background: 'rgba(10,126,140,0.04)',
-                        borderRadius: '0.75rem',
-                        border: '1px solid rgba(10,126,140,0.10)',
-                      }}>
-                        {[85, 100, 70, 90, 55].map((w, i) => (
-                          <div key={i} style={{
-                            height: 10, borderRadius: 6,
-                            marginBottom: i < 4 ? 10 : 0,
-                            width: `${w}%`,
-                            background: 'linear-gradient(90deg, rgba(10,126,140,0.08) 25%, rgba(10,126,140,0.16) 50%, rgba(10,126,140,0.08) 75%)',
-                            backgroundSize: '200% 100%',
-                            animation: 'shimmer 1.4s infinite',
-                          }} />
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Mensaje en modo lectura */}
+                      Mensaje
+                    </p>
                     {!notifyModal.draftLoading && notifyModal.draftBody && !notifyModal.editingBody && (
-                      <div style={{
-                        padding: '14px 16px',
-                        background: 'rgba(10,126,140,0.04)',
-                        borderRadius: '0.75rem',
-                        border: '1px solid rgba(10,126,140,0.10)',
-                        fontSize: '0.875rem', color: '#1A1A2E',
-                        lineHeight: 1.65, whiteSpace: 'pre-wrap',
-                      }}>
-                        {notifyModal.draftBody}
-                      </div>
-                    )}
-
-                    {/* Mensaje en modo edición */}
-                    {notifyModal.editingBody && (
-                      <textarea
-                        value={notifyModal.bodyInput}
-                        onChange={(e) => setNotifyModal(prev => ({
-                          ...prev, bodyInput: e.target.value,
+                      <button
+                        type="button"
+                        onClick={() => setNotifyModal(prev => ({
+                          ...prev, editingBody: true,
+                          bodyInput: prev.draftBody ?? '',
                         }))}
-                        rows={6}
-                        autoFocus
                         style={{
-                          width: '100%', padding: '14px 16px',
-                          border: '1.5px solid #0A7E8C',
-                          borderRadius: '0.75rem', fontSize: '0.875rem',
-                          outline: 'none', color: '#1A1A2E',
-                          fontFamily: 'inherit', lineHeight: 1.65,
-                          resize: 'vertical', background: '#FAF8F5',
-                          boxSizing: 'border-box',
+                          background: 'none', border: 'none',
+                          cursor: 'pointer', color: '#0A7E8C',
+                          fontSize: '0.75rem', fontWeight: 600,
+                          fontFamily: 'inherit', padding: 0,
+                          textDecoration: 'underline',
+                          textUnderlineOffset: 3,
                         }}
-                      />
+                      >
+                        Editar
+                      </button>
+                    )}
+                    {notifyModal.editingBody && (
+                      <button
+                        type="button"
+                        onClick={() => setNotifyModal(prev => ({
+                          ...prev, editingBody: false,
+                          bodyInput: prev.draftBody ?? '',
+                        }))}
+                        style={{
+                          background: 'none', border: 'none',
+                          cursor: 'pointer', color: '#5a7478',
+                          fontSize: '0.75rem', fontFamily: 'inherit',
+                          padding: 0,
+                        }}
+                      >
+                        Cancelar
+                      </button>
                     )}
                   </div>
 
-                  {/* Animación shimmer */}
-                  <style>{`
-                    @keyframes shimmer {
-                      0%   { background-position: 200% 0 }
-                      100% { background-position: -200% 0 }
-                    }
-                  `}</style>
-
-                  {/* Error */}
-                  {notifyModal.error && (
-                    <p style={{
-                      fontSize: '0.8125rem', color: '#ba1a1a',
-                      fontWeight: 600, marginBottom: 12,
-                      padding: '8px 12px',
-                      background: 'rgba(186,26,26,0.07)',
-                      borderRadius: '0.5rem',
+                  {notifyModal.draftLoading && (
+                    <div style={{
+                      padding: '14px 16px',
+                      background: 'rgba(10,126,140,0.04)',
+                      borderRadius: '0.75rem',
+                      border: '1px solid rgba(10,126,140,0.10)',
                     }}>
-                      {notifyModal.error}
-                    </p>
+                      {[85, 100, 70, 90, 55].map((w, i) => (
+                        <div key={i} style={{
+                          height: 10, borderRadius: 6,
+                          marginBottom: i < 4 ? 10 : 0,
+                          width: `${w}%`,
+                          background: 'linear-gradient(90deg, rgba(10,126,140,0.08) 25%, rgba(10,126,140,0.16) 50%, rgba(10,126,140,0.08) 75%)',
+                          backgroundSize: '200% 100%',
+                          animation: 'shimmer 1.4s infinite',
+                        }} />
+                      ))}
+                    </div>
                   )}
 
-                  {/* Botones */}
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <button
-                      type="button"
-                      onClick={() => setNotifyModal(prev => ({ ...prev, open: false }))}
-                      disabled={notifyModal.sending}
+                  {!notifyModal.draftLoading && notifyModal.draftBody && !notifyModal.editingBody && (
+                    <div style={{
+                      padding: '14px 16px',
+                      background: 'rgba(10,126,140,0.04)',
+                      borderRadius: '0.75rem',
+                      border: '1px solid rgba(10,126,140,0.10)',
+                      fontSize: '0.875rem', color: '#1A1A2E',
+                      lineHeight: 1.65, whiteSpace: 'pre-wrap',
+                    }}>
+                      {notifyModal.draftBody}
+                    </div>
+                  )}
+
+                  {notifyModal.editingBody && (
+                    <textarea
+                      value={notifyModal.bodyInput}
+                      onChange={(e) => setNotifyModal(prev => ({
+                        ...prev, bodyInput: e.target.value,
+                      }))}
+                      rows={6}
+                      autoFocus
                       style={{
-                        flex: 1, padding: '11px 0',
-                        background: 'rgba(10,126,140,0.07)',
-                        color: '#0A7E8C', border: 'none',
-                        borderRadius: 9999, fontWeight: 700,
-                        fontSize: '0.875rem', cursor: 'pointer',
-                        fontFamily: 'inherit',
-                        opacity: notifyModal.sending ? 0.5 : 1,
+                        width: '100%', padding: '14px 16px',
+                        border: '1.5px solid #0A7E8C',
+                        borderRadius: '0.75rem', fontSize: '0.875rem',
+                        outline: 'none', color: '#1A1A2E',
+                        fontFamily: 'inherit', lineHeight: 1.65,
+                        resize: 'vertical', background: '#FAF8F5',
+                        boxSizing: 'border-box',
                       }}
-                    >
-                      Ahora no
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSendNotification}
-                      disabled={
+                    />
+                  )}
+                </div>
+
+                {notifyModal.error && (
+                  <p style={{
+                    fontSize: '0.8125rem', color: '#ba1a1a',
+                    fontWeight: 600, marginBottom: 12,
+                    padding: '8px 12px',
+                    background: 'rgba(186,26,26,0.07)',
+                    borderRadius: '0.5rem',
+                  }}>
+                    {notifyModal.error}
+                  </p>
+                )}
+
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setNotifyModal(prev => ({ ...prev, open: false }))}
+                    disabled={notifyModal.sending}
+                    style={{
+                      flex: 1, padding: '11px 0',
+                      background: 'rgba(10,126,140,0.07)',
+                      color: '#0A7E8C', border: 'none',
+                      borderRadius: 9999, fontWeight: 700,
+                      fontSize: '0.875rem', cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      opacity: notifyModal.sending ? 0.5 : 1,
+                    }}
+                  >
+                    Ahora no
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSendNotification}
+                    disabled={
+                      notifyModal.sending ||
+                      notifyModal.draftLoading ||
+                      (!notifyModal.contactEmail && !notifyModal.emailInput.trim())
+                    }
+                    style={{
+                      flex: 1, padding: '11px 0',
+                      background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                      color: 'white', border: 'none',
+                      borderRadius: 9999, fontWeight: 700,
+                      fontSize: '0.875rem',
+                      cursor: (
                         notifyModal.sending ||
                         notifyModal.draftLoading ||
                         (!notifyModal.contactEmail && !notifyModal.emailInput.trim())
-                      }
-                      style={{
-                        flex: 1, padding: '11px 0',
-                        background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                        color: 'white', border: 'none',
-                        borderRadius: 9999, fontWeight: 700,
-                        fontSize: '0.875rem',
-                        cursor: (
-                          notifyModal.sending ||
-                          notifyModal.draftLoading ||
-                          (!notifyModal.contactEmail && !notifyModal.emailInput.trim())
-                        ) ? 'not-allowed' : 'pointer',
-                        fontFamily: 'inherit',
-                        opacity: (
-                          notifyModal.sending ||
-                          notifyModal.draftLoading ||
-                          (!notifyModal.contactEmail && !notifyModal.emailInput.trim())
-                        ) ? 0.6 : 1,
-                        transition: 'filter 0.15s',
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!notifyModal.sending && !notifyModal.draftLoading)
-                          e.currentTarget.style.filter = 'brightness(1.08)'
-                      }}
-                      onMouseLeave={(e) => { e.currentTarget.style.filter = 'brightness(1)' }}
-                    >
-                      {notifyModal.sending ? 'Enviando…' : 'Notificar'}
-                    </button>
-                  </div>
-                </>
-              )}
+                      ) ? 'not-allowed' : 'pointer',
+                      fontFamily: 'inherit',
+                      opacity: (
+                        notifyModal.sending ||
+                        notifyModal.draftLoading ||
+                        (!notifyModal.contactEmail && !notifyModal.emailInput.trim())
+                      ) ? 0.6 : 1,
+                      transition: 'filter 0.15s',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!notifyModal.sending && !notifyModal.draftLoading)
+                        e.currentTarget.style.filter = 'brightness(1.08)'
+                    }}
+                    onMouseLeave={(e) => { e.currentTarget.style.filter = 'brightness(1)' }}
+                  >
+                    {notifyModal.sending ? 'Enviando…' : 'Notificar'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </>
       )}
 
-      {/* Dropdowns */}
+      {/* Dropdown asignado */}
       {assigneeDropdown.open && (
         <AssigneeDropdownPortal
           contacts={contacts}
@@ -1644,52 +1233,19 @@ export default function TareaDetailPage() {
           onClose={() => setAssigneeDropdown({ open: false, anchorRect: null })}
         />
       )}
-      {topicDropdown.open && (
-        <TopicDropdownPortal
-          topics={labels}
-          selectedId={topicVal}
-          anchorRect={topicDropdown.anchorRect}
-          view={topicDropdown.view}
-          editTopic={topicDropdown.editTopic}
-          editTopicName={editTopicName}
-          setEditTopicName={setEditTopicName}
-          editTopicColor={editTopicColor}
-          setEditTopicColor={setEditTopicColor}
-          editTopicLoading={editTopicLoading}
-          onToggleTopic={(id) => handleTopicChange(topicVal === id ? '' : id)}
-          onOpenEdit={(t) => {
-            setEditTopicName(t.name)
-            setEditTopicColor(t.color ?? '#0A7E8C')
-            setTopicDropdown(prev => ({ ...prev, view: 'edit', editTopic: t }))
-          }}
-          onOpenCreate={() => {
-            setEditTopicName('')
-            setEditTopicColor('#0A7E8C')
-            setTopicDropdown(prev => ({ ...prev, view: 'create', editTopic: null }))
-          }}
-          onBack={() => setTopicDropdown(prev => ({ ...prev, view: 'list', editTopic: null }))}
-          onSave={handleSaveTopic}
-          onDelete={handleDeleteTopic}
-          onClose={() => {
-            setTopicDropdown(prev => ({ ...prev, open: false }))
-            setEditTopicName('')
-            setEditTopicColor('#0A7E8C')
-          }}
-        />
-      )}
 
-      <div className="tarea-detail-bg flex min-h-screen">
+      <div className="tarea-shared-detail-bg flex min-h-screen">
         <Sidebar />
 
         <main className="flex-1 ml-0 md:ml-[240px] min-h-screen px-5 py-8 pb-28 md:px-10 md:py-10 md:pb-10">
 
           {/* Breadcrumb */}
           <nav style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Link href={`/case/${crisisId}`} style={{
+            <Link href={`/case/shared/${sharedCaseId}`} style={{
               fontSize: '0.8125rem', color: '#0A7E8C', fontWeight: 600,
               textDecoration: 'none',
             }}>
-              {caseName || 'Caso'}
+              {sharedCaseName || 'Tema compartido'}
             </Link>
             <span style={{ color: '#5a7478', fontSize: '0.8125rem' }}>→</span>
             <span style={{ fontSize: '0.8125rem', color: '#5a7478', fontWeight: 500 }}>
@@ -1789,18 +1345,17 @@ export default function TareaDetailPage() {
                   {isDone ? 'Completada' : 'Pendiente'}
                 </span>
 
-                {/* Card Lo que sé — con minichat */}
+                {/* Card Lo que sé */}
                 <div style={{
                   background: '#FFFFFF',
                   borderRadius: '1.5rem',
                   boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
                   marginTop: 20, overflow: 'hidden',
+                  textAlign: 'left',
                 }}>
-                  {/* Header */}
                   <div style={{
                     padding: '14px 20px',
                     borderBottom: '1px solid rgba(10,126,140,0.08)',
-                    textAlign: 'left',
                   }}>
                     <span style={{
                       fontSize: '0.7rem', fontWeight: 700,
@@ -1813,7 +1368,6 @@ export default function TareaDetailPage() {
 
                   <div style={{ padding: '16px 20px' }}>
 
-                    {/* Contexto actual */}
                     {taskContext && (
                       <p style={{
                         fontSize: '0.875rem', color: '#5a7478',
@@ -1840,11 +1394,7 @@ export default function TareaDetailPage() {
                             setChatDone(false)
                             setChatMessages([])
                             setChatQuestion('Hay alguna novedad con esta tarea')
-                            setChatSuggestions([
-                              'Todo sigue igual',
-                              'Cambió la fecha',
-                              'Ya la hice',
-                            ])
+                            setChatSuggestions(['Todo sigue igual', 'Cambió la fecha', 'Ya la hice'])
                           }}
                           style={{
                             padding: '6px 14px', borderRadius: 9999,
@@ -1862,7 +1412,6 @@ export default function TareaDetailPage() {
                       </div>
                     ) : (
                       <>
-                        {/* Pregunta actual */}
                         {chatQuestion && (
                           <p style={{
                             fontSize: '0.875rem', fontWeight: 600,
@@ -1873,7 +1422,6 @@ export default function TareaDetailPage() {
                           </p>
                         )}
 
-                        {/* Chips de sugerencias */}
                         {chatSuggestions.length > 0 && (
                           <div style={{
                             display: 'flex', flexWrap: 'wrap', gap: 8,
@@ -1909,7 +1457,6 @@ export default function TareaDetailPage() {
                           </div>
                         )}
 
-                        {/* Input libre */}
                         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                           <textarea
                             value={chatInput}
@@ -2136,8 +1683,7 @@ export default function TareaDetailPage() {
                 {/* Asignado */}
                 <div style={{
                   display: 'flex', alignItems: 'center',
-                  padding: '16px 20px',
-                  borderBottom: '1px solid rgba(10,126,140,0.08)', gap: 12,
+                  padding: '16px 20px', gap: 12,
                 }}>
                   <span style={{
                     fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
@@ -2178,7 +1724,6 @@ export default function TareaDetailPage() {
                 {suggestedAssignee && !assigneeVal && (
                   <div style={{
                     padding: '10px 20px 14px',
-                    borderBottom: '1px solid rgba(10,126,140,0.08)',
                     background: 'rgba(10,126,140,0.03)',
                   }}>
                     <p style={{
@@ -2197,7 +1742,6 @@ export default function TareaDetailPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        // Buscar el contacto por nombre y asignarlo
                         const match = contacts.find(c =>
                           c.name.toLowerCase() === suggestedAssignee.name.toLowerCase()
                         )
@@ -2231,96 +1775,6 @@ export default function TareaDetailPage() {
                       </div>
                       Asignar a {suggestedAssignee.name}
                     </button>
-                  </div>
-                )}
-
-                {/* Etiqueta */}
-                <div style={{
-                  display: 'flex', alignItems: 'center',
-                  padding: '16px 20px', gap: 12,
-                }}>
-                  <span style={{
-                    fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                    textTransform: 'uppercase', color: '#5a7478',
-                    minWidth: 80, flexShrink: 0,
-                  }}>Etiqueta</span>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {selectedTopic && (
-                      <span style={{
-                        padding: '3px 10px', borderRadius: 9999,
-                        background: `${selectedTopic.color ?? '#0A7E8C'}22`,
-                        color: selectedTopic.color ?? '#0A7E8C',
-                        fontSize: '0.75rem', fontWeight: 700,
-                      }}>{selectedTopic.name}</span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        const rect = e.currentTarget.getBoundingClientRect()
-                        setTopicDropdown(prev => ({
-                          ...prev, open: true,
-                          anchorRect: rect,
-                        }))
-                      }}
-                      style={{
-                        padding: 0, background: 'none', border: 'none',
-                        color: '#0A7E8C', fontSize: '0.8125rem', fontWeight: 600,
-                        cursor: 'pointer', fontFamily: 'inherit',
-                        textDecoration: 'underline', textUnderlineOffset: 3,
-                      }}>
-                      {topicVal ? 'Cambiar' : 'Agregar'}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Etiquetas sugeridas */}
-                {suggestedTopics.length > 0 && !topicVal && (
-                  <div style={{
-                    padding: '10px 20px 14px',
-                    background: 'rgba(10,126,140,0.03)',
-                  }}>
-                    <p style={{
-                      fontSize: '0.7rem', fontWeight: 700,
-                      letterSpacing: '0.06em', textTransform: 'uppercase',
-                      color: '#0A7E8C', marginBottom: 8,
-                    }}>
-                      Etiquetas sugeridas
-                    </p>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {suggestedTopics.map((name) => {
-                        const topic = labels.find(t =>
-                          t.name.toLowerCase() === name.toLowerCase()
-                        )
-                        if (!topic) return null
-                        return (
-                          <button
-                            key={topic.id}
-                            type="button"
-                            onClick={() => {
-                              handleTopicChange(topic.id)
-                              setSuggestedTopics([])
-                            }}
-                            style={{
-                              padding: '5px 12px', borderRadius: 9999,
-                              background: `${topic.color ?? '#0A7E8C'}22`,
-                              border: `1.5px solid ${topic.color ?? '#0A7E8C'}44`,
-                              color: topic.color ?? '#0A7E8C',
-                              fontSize: '0.8125rem', fontWeight: 700,
-                              cursor: 'pointer', fontFamily: 'inherit',
-                              transition: 'background 0.15s',
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = `${topic.color ?? '#0A7E8C'}33`
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = `${topic.color ?? '#0A7E8C'}22`
-                            }}
-                          >
-                            + {topic.name}
-                          </button>
-                        )
-                      })}
-                    </div>
                   </div>
                 )}
               </div>
@@ -2359,7 +1813,6 @@ export default function TareaDetailPage() {
                   boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
                   overflow: 'hidden',
                 }}>
-                  {/* Lista de docs asociados */}
                   {taskDocs.length === 0 ? (
                     <div style={{ padding: '20px 20px 4px' }}>
                       <p style={{
@@ -2380,7 +1833,6 @@ export default function TareaDetailPage() {
                             padding: '8px 0',
                             borderBottom: '1px solid rgba(10,126,140,0.08)',
                           }}>
-                            {/* Ícono doc */}
                             <div style={{
                               width: 32, height: 32, borderRadius: '0.5rem',
                               background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
@@ -2394,7 +1846,6 @@ export default function TareaDetailPage() {
                                 <polyline points="14 2 14 8 20 8" />
                               </svg>
                             </div>
-                            {/* Info */}
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <p style={{
                                 fontSize: '0.875rem', fontWeight: 600,
@@ -2402,13 +1853,10 @@ export default function TareaDetailPage() {
                                 whiteSpace: 'nowrap', overflow: 'hidden',
                                 textOverflow: 'ellipsis',
                               }}>{d.name}</p>
-                              <p style={{
-                                fontSize: '0.7rem', color: '#5a7478', margin: 0,
-                              }}>
+                              <p style={{ fontSize: '0.7rem', color: '#5a7478', margin: 0 }}>
                                 {[DOC_TYPE_LABELS[d.type ?? ''], fmtShortDate(d.created_at)].filter(Boolean).join(' · ')}
                               </p>
                             </div>
-                            {/* Quitar */}
                             <button
                               type="button"
                               onClick={() => handleUnlinkDoc(td.id)}
@@ -2538,7 +1986,6 @@ export default function TareaDetailPage() {
                         color: '#5a7478', marginBottom: 10,
                       }}>Subir documento nuevo</p>
 
-                      {/* Drop zone */}
                       <div
                         onDragEnter={(e) => { e.preventDefault(); dragCounterRef.current++; setIsDragging(true) }}
                         onDragLeave={() => { dragCounterRef.current--; if (dragCounterRef.current === 0) setIsDragging(false) }}
@@ -2580,7 +2027,6 @@ export default function TareaDetailPage() {
                         )}
                       </div>
 
-                      {/* Nombre */}
                       <input
                         type="text"
                         placeholder="Nombre del documento…"
@@ -2598,7 +2044,6 @@ export default function TareaDetailPage() {
                         onBlur={(e)  => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.20)' }}
                       />
 
-                      {/* Tipo */}
                       <select
                         value={uploadType}
                         onChange={(e) => setUploadType(e.target.value)}
@@ -2617,7 +2062,6 @@ export default function TareaDetailPage() {
                         ))}
                       </select>
 
-                      {/* Botones */}
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button
                           type="button"
@@ -2656,7 +2100,7 @@ export default function TareaDetailPage() {
                     </div>
                   )}
 
-                  {/* Botones agregar — solo si ningún panel está abierto */}
+                  {/* Botones agregar */}
                   {!docPickerOpen && !docUploadOpen && (
                     <div style={{
                       borderTop: taskDocs.length > 0
@@ -2723,7 +2167,6 @@ export default function TareaDetailPage() {
                         borderBottom: i < history.length - 1
                           ? '1px solid rgba(10,126,140,0.08)' : 'none',
                       }}>
-                        {/* Dot */}
                         <div style={{
                           width: 8, height: 8, borderRadius: '50%',
                           background: '#2ECDA7', flexShrink: 0,
@@ -2734,7 +2177,7 @@ export default function TareaDetailPage() {
                             fontSize: '0.875rem', fontWeight: 600,
                             color: '#1A1A2E', margin: '0 0 2px',
                           }}>
-                            {EVENT_LABELS[h.event_type] ?? h.event_type}
+                            {h.title ?? EVENT_LABELS[h.event_type] ?? h.event_type}
                           </p>
                           {h.description && (
                             <p style={{
@@ -2745,7 +2188,7 @@ export default function TareaDetailPage() {
                             </p>
                           )}
                           <p style={{ fontSize: '0.7rem', color: '#5a7478', margin: 0 }}>
-                            {fmtDateTime(h.occurred_at)}
+                            {fmtDateTime(h.created_at)}
                           </p>
                         </div>
                       </div>

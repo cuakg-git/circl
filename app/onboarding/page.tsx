@@ -214,7 +214,7 @@ export default function OnboardingPage() {
           const cercania = c.proximity ? (PROXIMITY_LABELS[c.proximity] ?? c.proximity) : 'sin especificar'
           return `${c.name.trim()} (cercanía: ${cercania})`
         }).join(', ')
-      const mensaje = `El usuario completó el paso de círculo en el onboarding. Registrá cada persona como contacto usando crear_contacto y vincinalos a la crisis activa. Las personas son: ${contactosTexto}`
+      const mensaje = `El usuario completó el paso de círculo en el onboarding. Registrá cada persona como contacto usando crear_contacto y vincinalos a la crisis activa. Antes de crear cada contacto, verificá si ya existe un contacto con ese nombre exacto para este usuario — si ya existe, no lo crees de nuevo. Las personas son: ${contactosTexto}`
       sendToAgent(mensaje)   // intentionally not awaited
     }
     setStep(4)
@@ -466,7 +466,15 @@ export default function OnboardingPage() {
             {/* Skip */}
             <button
               type="button"
-              onClick={() => router.push('/dashboard')}
+              onClick={async () => {
+                if (userId) {
+                  await supabase
+                    .from('profiles')
+                    .update({ onboarding_completed: true })
+                    .eq('id', userId)
+                }
+                router.push('/dashboard')
+              }}
               className="mt-3 px-3 py-2 text-sm font-semibold cursor-pointer bg-transparent border-none"
               style={{
                 color: '#5a7478',
@@ -632,8 +640,7 @@ export default function OnboardingPage() {
                         >
                           <option value="">¿Qué tan cercana?</option>
                           <option value="nucleo">Es parte de mi núcleo</option>
-                          <option value="ayuda">Me ayuda o puede ayudar</option>
-                          <option value="profesional">Proveedor o profesional</option>
+                          <option value="ayuda">Me ayuda o puede ayudar</option> 
                         </select>
                       </div>
                     </div>
@@ -749,10 +756,16 @@ export default function OnboardingPage() {
                 <div className="flex items-center justify-between gap-3">
                   <BtnBack onClick={() => setStep(3)} />
                   <div className="flex items-center gap-2">
-                    <BtnSkip onClick={() => router.push('/dashboard')} label="Omitir" />
+                    <BtnSkip onClick={async () => {
+                      await supabase.from('profiles').update({ onboarding_completed: true }).eq('id', userId)
+                      router.push('/dashboard')
+                    }} label="Omitir" />
                     <button
                       type="button"
-                      onClick={() => router.push('/dashboard')}
+                      onClick={async () => {
+                        await supabase.from('profiles').update({ onboarding_completed: true }).eq('id', userId)
+                        router.push('/dashboard')
+                      }}
                       className="bg-[#0A7E8C] text-white font-bold rounded-full py-3 px-6 cursor-pointer hover:brightness-110 active:scale-[0.97] transition-all"
                       style={{ fontFamily: 'inherit' }}
                     >

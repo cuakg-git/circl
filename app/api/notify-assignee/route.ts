@@ -202,7 +202,7 @@ export async function POST(req: NextRequest) {
     const html = buildHtml(subject, body, owner_name, task_title ?? '')
 
     const { error: sendErr } = await resend.emails.send({
-      from:    'Mhiru <onboarding@resend.dev>',
+      from:    'Mhiru <no-reply@hellomhiru.com>',
       to:      toEmail,
       subject,
       html,

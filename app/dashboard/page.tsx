@@ -193,6 +193,25 @@ export default function DashboardPage() {
   const [availableContacts, setAvailableContacts] = useState<Contact[]>([])
   const [availableLoading,  setAvailableLoading]  = useState(false)
 
+  useEffect(() => {
+    async function checkAuth() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.replace('/login')
+        return
+      }
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('onboarding_completed')
+        .eq('id', user.id)
+        .single()
+      if (!profile?.onboarding_completed) {
+        router.replace('/onboarding')
+      }
+    }
+    checkAuth()
+  }, [router])
+
   // â”€â”€ Load data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   useEffect(() => {
@@ -814,15 +833,15 @@ export default function DashboardPage() {
             <div className="flex justify-center" style={{ marginTop: 80 }}>
               <div style={{ textAlign: 'center', maxWidth: 400 }}>
                 <p className="font-bold text-[#1A1A2E]" style={{ fontSize: '1rem', marginBottom: 8 }}>
-                  No hay ningún tema activo
+                  No hay ningún tema activo.
                 </p>
                 <p style={{ fontSize: '0.875rem', color: '#5a7478', marginBottom: 24 }}>
-                  HablÃ¡ con el agente para registrar tu situaciÃ³n.
+                  Creá uno para comenzar.
                 </p>
-                <Link href="/chat"
+                <Link href="/case"
                   className="inline-block bg-[#0A7E8C] text-white font-bold rounded-full transition-all hover:brightness-110"
                   style={{ padding: '12px 28px', fontSize: '0.875rem' }}>
-                  Hablar con el agente
+                  ¿En qué te ayudo primero?
                 </Link>
               </div>
             </div>
