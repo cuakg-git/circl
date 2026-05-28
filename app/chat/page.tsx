@@ -210,14 +210,20 @@ export default function ChatPage() {
     setAgentBusy(true)
 
     try {
+      const contextPayload: Record<string, unknown> = {
+        user_id: userId,
+        message: `El usuario seleccionó el tema "${item.name}". Generá un resumen breve de este tema en primera persona dirigido al usuario: qué está pasando, quiénes están involucrados y qué tareas tiene pendientes. Terminá invitando al usuario a preguntar o pedir ayuda con algo concreto. Tono cálido, directo, sin títulos ni listas formateadas.`,
+      }
+      if (item.type === 'shared_case') {
+        contextPayload.shared_case_id = item.id
+      } else {
+        contextPayload.case_id = item.id
+      }
+
       const res = await fetch('/api/chat', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          user_id: userId,
-          case_id: item.id,
-          message: `El usuario seleccionó el tema "${item.name}". Generá un resumen breve de este tema en primera persona dirigido al usuario: qué está pasando, quiénes están involucrados y qué tareas tiene pendientes. Terminá invitando al usuario a preguntar o pedir ayuda con algo concreto. Tono cálido, directo, sin títulos ni listas formateadas.`,
-        }),
+        body:    JSON.stringify(contextPayload),
       })
 
       const json  = await res.json()
@@ -266,7 +272,13 @@ export default function ChatPage() {
 
     try {
       const body: Record<string, unknown> = { user_id: userId, message: text }
-      if (activeContext?.caseId) body.case_id = activeContext.caseId
+      if (activeContext?.caseId) {
+        if (activeContext.type === 'shared_case') {
+          body.shared_case_id = activeContext.caseId
+        } else {
+          body.case_id = activeContext.caseId
+        }
+      }
 
       const res   = await fetch('/api/chat', {
         method:  'POST',

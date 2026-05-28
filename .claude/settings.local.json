@@ -32,7 +32,12 @@
       "Bash(cd /c/Users/HP/Desktop/Circl/app/case && find . -type d -name \"[id]\" | sort)",
       "Bash(dir \"C:\\\\Users\\\\HP\\\\Desktop\\\\Circl\\\\app\\\\api\")",
       "Bash(curl -s http://localhost:3000/api/health)",
-      "Bash(grep -n \"setAvailableLoading\" \"C:\\\\\\\\Users\\\\\\\\HP\\\\\\\\Desktop\\\\\\\\Circl\\\\\\\\app\\\\\\\\dashboard\\\\\\\\page.tsx\")"
+      "Bash(grep -n \"setAvailableLoading\" \"C:\\\\\\\\Users\\\\\\\\HP\\\\\\\\Desktop\\\\\\\\Circl\\\\\\\\app\\\\\\\\dashboard\\\\\\\\page.tsx\")",
+      "Bash(npm list *)",
+      "WebFetch(domain:zkugknudfkxkxgcetlzs.supabase.co)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }

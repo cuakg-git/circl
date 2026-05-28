@@ -735,9 +735,10 @@ ${historialXml}
   // ── Parallel fetch: contacts, tasks, history ────────────────────────────────
   const [contactsRes, tasksRes, historyRes] = await Promise.all([
     supabaseAdmin
-      .from('case_contacts')
-      .select('contact:contacts(name, relationship, role, proximity, notes)')
-      .eq('case_id', activeCaseId),
+      .from('contacts')
+      .select('name, relationship, role, proximity, notes')
+      .eq('user_id', userId)
+      .order('sort_order', { ascending: true, nullsFirst: false }),
 
     supabaseAdmin
       .from('tasks')
@@ -762,8 +763,7 @@ ${historialXml}
   // ── Build XML sections ──────────────────────────────────────────────────────
 
   const circuloXml = contacts
-    .map((cc: any) => {
-      const c = cc.contact
+    .map((c: any) => {
       if (!c) return ''
       return [
         '    <contacto>',
