@@ -212,7 +212,7 @@ export default function ChatPage() {
     try {
       const contextPayload: Record<string, unknown> = {
         user_id: userId,
-        message: `El usuario seleccionó el tema "${item.name}". Generá un resumen breve de este tema en primera persona dirigido al usuario: qué está pasando, quiénes están involucrados y qué tareas tiene pendientes. Terminá invitando al usuario a preguntar o pedir ayuda con algo concreto. Tono cálido, directo, sin títulos ni listas formateadas.`,
+        message: `El usuario seleccionó el tema "${item.name}". Generá un resumen breve en primera persona dirigido al usuario: qué está pasando, quiénes están involucrados y qué tareas tiene pendientes. Terminá con una pregunta abierta invitando a actuar o charlar sobre el tema. Tono directo, sin títulos ni listas. Podés operar en este tema sin restricciones.`,
       }
       if (item.type === 'shared_case') {
         contextPayload.shared_case_id = item.id
