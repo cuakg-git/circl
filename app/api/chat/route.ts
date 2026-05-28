@@ -73,6 +73,11 @@ En cada turno, en orden estricto:
 3. Después de registrar (o si no había nada que registrar), respondés con texto.
    Máximo 2-3 oraciones + una pregunta si tiene sentido.
 
+4. El bloque <caso_activo> tiene un atributo tipo que puede ser 'propio' o
+   'compartido'. Cuando llamás tools que requieren un ID de caso, usás el <id>
+   del caso activo. Las tools saben internamente a qué tabla apuntar según el
+   tipo — vos solo pasás el id y el tipo.
+
 REGLAS OPERATIVAS
 
 - Registrás antes de responder.
@@ -134,14 +139,16 @@ Ejemplos de buenas sugerencias según contexto:
 Nunca omitís el bloque [SUGERENCIAS]...[/SUGERENCIAS].
 Si no hay contexto suficiente para sugerencias relevantes, usás las genéricas.
 
-TEMAS COMPARTIDOS
+TEMAS PROPIOS VS COMPARTIDOS
 
-Cuando el contexto tiene <caso_activo tipo="compartido">, estás en modo
-lectura. Solo podés responder preguntas sobre el tema, sus participantes
-y sus tareas.
-No podés crear tareas, registrar eventos ni agregar contactos en temas
-compartidos desde el chat. Si el usuario quiere realizar alguna acción,
-indicale que lo haga desde el panel del tema.`
+El atributo tipo en <caso_activo> indica si el caso es 'propio' o
+'compartido'. En ambos tipos podés crear tareas, registrar eventos
+y operar normalmente. Siempre pasás el id del caso activo y su tipo
+a las tools — ellas saben a qué tabla apuntar.
+
+La única diferencia operativa: en temas compartidos no podés
+crear ni modificar contactos del círculo, porque el círculo es
+personal del usuario, no del tema compartido.`
 
 // ── 4. Tool definitions ────────────────────────────────────────────────────────
 
@@ -246,8 +253,13 @@ const TOOLS: Anthropic.Tool[] = [
           type: 'string',
           description: 'Solo si asignar_a_owner es false.',
         },
+        case_type: {
+          type: 'string',
+          enum: ['propio', 'compartido'],
+          description: "Tipo de caso. Viene del atributo tipo de <caso_activo> en el contexto.",
+        },
       },
-      required: ['titulo', 'case_id', 'asignar_a_owner'],
+      required: ['titulo', 'case_id', 'asignar_a_owner', 'case_type'],
     },
   },
 
@@ -266,8 +278,13 @@ const TOOLS: Anthropic.Tool[] = [
           type: 'string',
           description: 'ID del caso al que pertenece la tarea.',
         },
+        case_type: {
+          type: 'string',
+          enum: ['propio', 'compartido'],
+          description: "Tipo de caso. Viene del atributo tipo de <caso_activo> en el contexto.",
+        },
       },
-      required: ['titulo_tarea', 'case_id'],
+      required: ['titulo_tarea', 'case_id', 'case_type'],
     },
   },
 
@@ -287,8 +304,13 @@ const TOOLS: Anthropic.Tool[] = [
         },
         titulo:      { type: 'string', description: 'Título corto del evento.' },
         descripcion: { type: 'string', description: 'Detalles. Opcional.' },
+        case_type: {
+          type: 'string',
+          enum: ['propio', 'compartido'],
+          description: "Tipo de caso. Viene del atributo tipo de <caso_activo> en el contexto.",
+        },
       },
-      required: ['case_id', 'tipo', 'titulo'],
+      required: ['case_id', 'tipo', 'titulo', 'case_type'],
     },
   },
 
@@ -369,8 +391,13 @@ const TOOLS: Anthropic.Tool[] = [
         nueva_due_date:       { type: 'string', description: 'YYYY-MM-DD. Opcional.' },
         reasignar_a_owner:    { type: 'boolean', description: 'Opcional. true para reasignar al usuario.' },
         reasignar_a_contacto: { type: 'string', description: 'Opcional. Nombre del contacto al que reasignar.' },
+        case_type: {
+          type: 'string',
+          enum: ['propio', 'compartido'],
+          description: "Tipo de caso. Viene del atributo tipo de <caso_activo> en el contexto.",
+        },
       },
-      required: ['titulo_busqueda', 'case_id'],
+      required: ['titulo_busqueda', 'case_id', 'case_type'],
     },
   },
 
@@ -382,8 +409,13 @@ const TOOLS: Anthropic.Tool[] = [
       properties: {
         titulo_busqueda: { type: 'string', description: 'Título o parte del título de la tarea a eliminar.' },
         case_id:         { type: 'string', description: 'ID del caso al que pertenece.' },
+        case_type: {
+          type: 'string',
+          enum: ['propio', 'compartido'],
+          description: "Tipo de caso. Viene del atributo tipo de <caso_activo> en el contexto.",
+        },
       },
-      required: ['titulo_busqueda', 'case_id'],
+      required: ['titulo_busqueda', 'case_id', 'case_type'],
     },
   },
 ]
@@ -811,7 +843,7 @@ ${historialXml}
   <perfil>
     <nombre>${esc(fullName)}</nombre>
   </perfil>
-  <caso_activo>
+  <caso_activo tipo="propio">
     <id>${esc(activeCaseId)}</id>
     <nombre>${esc(caseData.name)}</nombre>
     <categoria>${esc(caseData.category)}</categoria>
@@ -1056,9 +1088,10 @@ async function toolCrearTarea(
   input:  Record<string, unknown>,
   userId: string,
 ): Promise<Record<string, unknown>> {
-  const titulo                   = String(input.titulo   ?? '')
+  const titulo                   = String(input.titulo    ?? '')
   const descripcion              = input.descripcion ? String(input.descripcion) : null
-  const case_id                  = String(input.case_id  ?? '')
+  const case_id                  = String(input.case_id   ?? '')
+  const case_type                = String(input.case_type ?? 'propio')
   const due_date                 = input.due_date ? String(input.due_date) : null
   const asignarAOwner            = Boolean(input.asignar_a_owner)
   const nombreContactoAsignado   = input.nombre_contacto_asignado
@@ -1090,17 +1123,24 @@ async function toolCrearTarea(
     assignedContactId = contactData.id
   }
 
+  const taskPayload: Record<string, unknown> = {
+    title:               titulo,
+    description:         descripcion,
+    due_date:            due_date,
+    assigned_to_user:    asignarAOwner,
+    assigned_contact_id: assignedContactId,
+    status:              'pendiente',
+  }
+
+  if (case_type === 'compartido') {
+    taskPayload.shared_case_id = case_id
+  } else {
+    taskPayload.case_id = case_id
+  }
+
   const { data: tareaData, error: tareaErr } = await supabaseAdmin
     .from('tasks')
-    .insert({
-      case_id,
-      title:               titulo,
-      description:         descripcion,
-      due_date:            due_date,
-      assigned_to_user:    asignarAOwner,
-      assigned_contact_id: assignedContactId,
-      status:              'pendiente',
-    })
+    .insert(taskPayload)
     .select('id')
     .single()
 
@@ -1108,13 +1148,7 @@ async function toolCrearTarea(
     return { success: false, error: tareaErr?.message ?? 'Error al crear tarea' }
   }
 
-  await supabaseAdmin
-    .from('case_history')
-    .insert({
-      case_id,
-      event_type: 'tarea_agregada',
-      title:      titulo,
-    })
+  await insertHistory(case_id, case_type, 'tarea_agregada', titulo)
 
   return {
     success: true,
@@ -1128,11 +1162,13 @@ async function toolCompletarTarea(
 ): Promise<Record<string, unknown>> {
   const tituloTarea = String(input.titulo_tarea ?? '')
   const case_id     = String(input.case_id      ?? '')
+  const case_type   = String(input.case_type    ?? 'propio')
+  const caseCol     = case_type === 'compartido' ? 'shared_case_id' : 'case_id'
 
   const { data: tareaData } = await supabaseAdmin
     .from('tasks')
     .select('id, title')
-    .eq('case_id', case_id)
+    .eq(caseCol, case_id)
     .eq('status', 'pendiente')
     .ilike('title', `%${tituloTarea}%`)
     .limit(1)
@@ -1151,13 +1187,7 @@ async function toolCompletarTarea(
     return { success: false, error: updateErr.message ?? 'Error al completar tarea' }
   }
 
-  await supabaseAdmin
-    .from('case_history')
-    .insert({
-      case_id,
-      event_type: 'tarea_completada',
-      title:      `Tarea completada: ${tareaData.title}`,
-    })
+  await insertHistory(case_id, case_type, 'tarea_completada', `Tarea completada: ${tareaData.title}`)
 
   return {
     success: true,
@@ -1168,29 +1198,16 @@ async function toolCompletarTarea(
 async function toolRegistrarEvento(
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const case_id    = String(input.case_id    ?? '')
-  const tipo       = String(input.tipo       ?? '')
-  const titulo     = String(input.titulo     ?? '')
-  const descripcion = input.descripcion ? String(input.descripcion) : null
+  const case_id     = String(input.case_id    ?? '')
+  const case_type   = String(input.case_type  ?? 'propio')
+  const tipo        = String(input.tipo       ?? '')
+  const titulo      = String(input.titulo     ?? '')
+  const descripcion = input.descripcion ? String(input.descripcion) : undefined
 
-  const { data: eventoData, error: eventoErr } = await supabaseAdmin
-    .from('case_history')
-    .insert({
-      case_id,
-      event_type:  tipo,
-      title:       titulo,
-      description: descripcion,
-    })
-    .select('id')
-    .single()
-
-  if (eventoErr || !eventoData) {
-    return { success: false, error: eventoErr?.message ?? 'Error al registrar evento' }
-  }
+  await insertHistory(case_id, case_type, tipo, titulo, descripcion)
 
   return {
     success: true,
-    id:      eventoData.id,
     summary: `Evento "${titulo}" registrado en el historial.`,
   }
 }
@@ -1299,12 +1316,14 @@ async function toolEditarTarea(
   userId: string,
 ): Promise<Record<string, unknown>> {
   const tituloBusqueda = String(input.titulo_busqueda ?? '')
-  const caseId         = String(input.case_id ?? '')
+  const caseId         = String(input.case_id   ?? '')
+  const caseType       = String(input.case_type ?? 'propio')
+  const caseCol        = caseType === 'compartido' ? 'shared_case_id' : 'case_id'
 
   const { data: tarea } = await supabaseAdmin
     .from('tasks')
     .select('id, title')
-    .eq('case_id', caseId)
+    .eq(caseCol, caseId)
     .eq('status', 'pendiente')
     .ilike('title', `%${tituloBusqueda}%`)
     .limit(1)
@@ -1349,9 +1368,7 @@ async function toolEditarTarea(
 
   if (error) return { success: false, error: error.message }
 
-  await supabaseAdmin
-    .from('case_history')
-    .insert({ case_id: caseId, event_type: 'actualizacion_general', title: `Tarea editada: ${tarea.title}` })
+  await insertHistory(caseId, caseType, 'actualizacion_general', `Tarea editada: ${tarea.title}`)
 
   return { success: true, summary: `Tarea "${tarea.title}" actualizada correctamente.` }
 }
@@ -1360,12 +1377,14 @@ async function toolEliminarTarea(
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   const tituloBusqueda = String(input.titulo_busqueda ?? '')
-  const caseId         = String(input.case_id ?? '')
+  const caseId         = String(input.case_id   ?? '')
+  const caseType       = String(input.case_type ?? 'propio')
+  const caseCol        = caseType === 'compartido' ? 'shared_case_id' : 'case_id'
 
   const { data: tarea } = await supabaseAdmin
     .from('tasks')
     .select('id, title')
-    .eq('case_id', caseId)
+    .eq(caseCol, caseId)
     .ilike('title', `%${tituloBusqueda}%`)
     .limit(1)
     .maybeSingle()
@@ -1381,14 +1400,40 @@ async function toolEliminarTarea(
 
   if (error) return { success: false, error: error.message }
 
-  await supabaseAdmin
-    .from('case_history')
-    .insert({ case_id: caseId, event_type: 'actualizacion_general', title: `Tarea eliminada: ${tarea.title}` })
+  await insertHistory(caseId, caseType, 'actualizacion_general', `Tarea eliminada: ${tarea.title}`)
 
   return { success: true, summary: `Tarea "${tarea.title}" eliminada.` }
 }
 
 // ── 10. Helpers ───────────────────────────────────────────────────────────────
+
+async function insertHistory(
+  caseId:      string,
+  caseType:    string,
+  eventType:   string,
+  title:       string,
+  description?: string,
+): Promise<void> {
+  if (caseType === 'compartido') {
+    await supabaseAdmin
+      .from('shared_case_history')
+      .insert({
+        shared_case_id: caseId,
+        event_type:     eventType,
+        title,
+        description:    description ?? null,
+      })
+  } else {
+    await supabaseAdmin
+      .from('case_history')
+      .insert({
+        case_id:     caseId,
+        event_type:  eventType,
+        title,
+        description: description ?? null,
+      })
+  }
+}
 
 /** Escapes a value for safe embedding in XML. */
 function esc(value: string | null | undefined): string {
