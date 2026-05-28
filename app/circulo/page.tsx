@@ -476,20 +476,21 @@ export default function CirculoPage() {
   // ── Suggestions ──────────────────────────────────────────────────────────────
 
   async function fetchSuggestions(user: { id: string }) {
-    const cached = sessionStorage.getItem('mhiru_suggestions')
-    if (cached) { setSuggestions(JSON.parse(cached)); return }
-
     setSuggestionsLoading(true)
     try {
-      const res = await fetch('/api/suggest-providers', {
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token ?? ''
+      const res = await fetch('/api/suggestions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: user.id }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({}),
       })
       const json = await res.json()
-      if (json.suggestions?.length > 0) {
-        setSuggestions(json.suggestions)
-        sessionStorage.setItem('mhiru_suggestions', JSON.stringify(json.suggestions))
+      if (json.providers?.length > 0) {
+        setSuggestions(json.providers)
       }
     } catch (e) {
       console.error('[fetchSuggestions]', e)

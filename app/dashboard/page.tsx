@@ -1,141 +1,69 @@
-﻿'use client'
+'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
 import { supabase } from '@/lib/supabase'
 import {
-  SkeletonStyles, SkeletonText, SkeletonAvatar,
-  SkeletonCard, SkeletonBase,
+  SkeletonStyles, SkeletonText, SkeletonCard, SkeletonBase,
 } from '@/components/Skeleton'
 
-// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Types ──────────────────────────────────────────────────────────────────────
 
-type Crisis = {
+type UserContext = {
+  identity:       string | null
+  history:        string | null
+  current_state:  string | null
+  current_needs:  string | null
+  circle_summary: string | null
+  themes_summary: string | null
+  last_regen_at:  string | null
+}
+
+type Suggestion = {
+  id:          string
+  type:        'provider' | 'chat' | 'theme' | 'invitation'
+  title:       string
+  description: string | null
+  status:      string
+  metadata:    any
+}
+
+type CaseRow = {
   id:         string
   name:       string
   status:     string
-  category:   string | null
-  started_at: string | null
   ai_summary: string | null
+  started_at: string | null
 }
 
-type Contact = {
-  id:           string
-  name:         string
-  role:         string | null
-  proximity:    string | null
-  initials:     string | null
-  phone:        string | null
-  email:        string | null
-  relationship: string | null
+type SharedCaseRow = {
+  id:   string
+  name: string
 }
 
-type HistoryEvent = {
-  id:          string
-  title:       string
-  description: string | null
-  occurred_at: string
+type ContactRow = {
+  id:        string
+  name:      string
+  initials:  string | null
+  proximity: string | null
 }
 
-// Sidesheet modes
-type SSMode = 'member-view' | 'member-add' | null
-
-// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-function daysSince(iso: string | null) {
-  if (!iso) return 0
-  const ms = Date.now() - new Date(iso).getTime()
-  return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)))
-}
-
-function fmtLongDate(iso: string | null) {
-  if (!iso) return 'â€”'
-  const s = new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' })
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
-function fmtShortDate(iso: string | null) {
-  if (!iso) return ''
-  return new Date(iso)
-    .toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
-    .replace('.', '')
-}
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
 function getInitials(name: string) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
 }
 
-// â”€â”€ Role mapping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-const ROLE_BADGES: Record<string, { label: string; bg: string; color: string }> = {
-  acompanamiento:      { label: 'AcompaÃ±.',  bg: 'rgba(46,205,167,0.10)', color: '#0a6e5a' },
-  logistico:           { label: 'LogÃ­stico', bg: 'rgba(232,145,58,0.10)', color: '#b86a10' },
-  prestador_servicios: { label: 'Prestador', bg: 'rgba(10,126,140,0.07)', color: '#0A7E8C' },
+function fmtDate(iso: string | null) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('es-AR', {
+    weekday: 'long', day: 'numeric', month: 'long',
+  }).replace(/^\w/, c => c.toUpperCase())
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  acompanamiento:      'AcompaÃ±amiento',
-  logistico:           'LogÃ­stico',
-  prestador_servicios: 'Prestador de servicios',
-}
-
-const PROXIMITY_LABELS: Record<string, string> = {
-  nucleo:       'Es parte de mi nÃºcleo',
-  ayuda:        'Es alguien que me ayuda o puede ayudar',
-  profesional:  'Es un proveedor de servicios o un profesional',
-}
-
-const DOC_TYPE_LABELS: Record<string, string> = {
-  estudio_medico: 'Estudio mÃ©dico',
-  receta:         'Receta',
-  informe:        'Informe',
-  otros:          'Otros',
-}
-
-// â”€â”€ Icons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-function IconChevronLeft() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m15 18-6-6 6-6" />
-    </svg>
-  )
-}
-
-function IconAddPerson() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0A7E8C"
-      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <line x1="19" y1="8"  x2="19" y2="14" />
-      <line x1="22" y1="11" x2="16" y2="11" />
-    </svg>
-  )
-}
-
-function IconClose({ color = '#5a7478' }: { color?: string }) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color}
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" y1="6"  x2="6"  y2="18" />
-      <line x1="6"  y1="6"  x2="18" y2="18" />
-    </svg>
-  )
-}
-
-// â”€â”€ Shared sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="font-bold uppercase text-[#5a7478]"
-      style={{ fontSize: '0.875rem', letterSpacing: '0.1em', marginBottom: 16 }}>
-      {children}
-    </p>
-  )
-}
+// ── Sub-components ─────────────────────────────────────────────────────────────
 
 function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
@@ -148,836 +76,839 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
   )
 }
 
-// â”€â”€ Sidesheet shared elements â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-const SS_INPUT_STYLE: React.CSSProperties = {
-  flex: 1, border: 'none', background: 'none',
-  fontSize: '0.875rem', fontWeight: 600, outline: 'none',
-  color: '#1A1A2E', fontFamily: 'inherit',
+function SectionLabel({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <p style={{
+      fontSize: '0.7rem', fontWeight: 700,
+      letterSpacing: '0.12em', textTransform: 'uppercase',
+      color: '#5a7478', marginBottom: 12, marginTop: 0,
+      ...style,
+    }}>
+      {children}
+    </p>
+  )
 }
 
-const SS_SELECT_STYLE: React.CSSProperties = {
-  flex: 1, maxWidth: 220,
-  background: '#FAF8F5',
-  border: '1.5px solid rgba(10,126,140,0.12)',
-  borderRadius: 9999,
-  padding: '8px 36px 8px 16px',
-  fontSize: '0.875rem', color: '#1A1A2E',
-  outline: 'none', appearance: 'none',
-  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235a7478' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
-  backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: 16,
-  cursor: 'pointer',
+function EmptyText({ children }: { children: React.ReactNode }) {
+  return (
+    <p style={{
+      fontSize: '0.875rem', color: '#5a7478',
+      fontStyle: 'italic', margin: 0, lineHeight: 1.65,
+    }}>
+      {children}
+    </p>
+  )
 }
 
-// â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── OrbitalCard ────────────────────────────────────────────────────────────────
+
+function OrbitalCardDash() {
+  const size = 180
+  const r1   = 140
+  const r2   = 88
+  const p1   = size - r1
+  const p2   = size - r2
+
+  return (
+    <div style={{
+      position: 'absolute', top: 0, right: 0,
+      width: size, height: size,
+      pointerEvents: 'none',
+      overflow: 'hidden',
+    }}>
+      <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
+        <path d={`M ${p1} ${size} A ${r1} ${r1} 0 0 1 ${size} ${p1}`}
+          fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth="1.5"
+          strokeDasharray="2 6" strokeLinecap="round" />
+        <path d={`M ${p2} ${size} A ${r2} ${r2} 0 0 1 ${size} ${p2}`}
+          fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1"
+          strokeDasharray="2 5" strokeLinecap="round" />
+        <circle cx={50} cy={50} r={6} fill="#2ECDA7" opacity="0.85" />
+      </svg>
+    </div>
+  )
+}
+
+// ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const [id, setId] = useState<string | null>(null)
-  const router  = useRouter()
+  const router = useRouter()
 
-  // â”€â”€ Page data state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const [crisis,   setCrisis]   = useState<Crisis | null>(null)
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [history,  setHistory]  = useState<HistoryEvent[]>([])
-  const [loading,  setLoading]  = useState(true)
+  const [loading,     setLoading]     = useState(true)
+  const [firstName,   setFirstName]   = useState('')
+  const [userCtx,     setUserCtx]     = useState<UserContext | null>(null)
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [cases,       setCases]       = useState<CaseRow[]>([])
+  const [sharedCases, setSharedCases] = useState<SharedCaseRow[]>([])
+  const [contacts,    setContacts]    = useState<ContactRow[]>([])
 
-  // â”€â”€ Sidesheet state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const [ssMode,    setSsMode]    = useState<SSMode>(null)
-  const [ssLoading, setSsLoading] = useState(false)
-  const [ssError,   setSsError]   = useState<string | null>(null)
+  // ── Chat "Lo que sé sobre vos" ────────────────────────────────────────────
+  const [ctxQuestion,    setCtxQuestion]    = useState<string | null>(null)
+  const [ctxSuggestions, setCtxSuggestions] = useState<string[]>([])
+  const [ctxInput,       setCtxInput]       = useState('')
+  const [ctxLoading,     setCtxLoading]     = useState(false)
+  const [ctxDone,        setCtxDone]        = useState(false)
+  const [ctxTurn,        setCtxTurn]        = useState(1)
+  const [ctxError,       setCtxError]       = useState<string | null>(null)
 
-  // Member sidesheet state
-  const [ssMember,    setSsMember]    = useState<Contact | null>(null)
-  const [mvRole,      setMvRole]      = useState('')
-  const [mvProximity, setMvProximity] = useState('')
-  const [availableContacts, setAvailableContacts] = useState<Contact[]>([])
-  const [availableLoading,  setAvailableLoading]  = useState(false)
+  const [ctxOpen, setCtxOpen] = useState(true)
 
+  // ── Auth + onboarding check ───────────────────────────────────────────────
   useEffect(() => {
-    async function checkAuth() {
+    async function init() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.replace('/login')
-        return
-      }
+      if (!user) { router.replace('/login'); return }
+
       const { data: profile } = await supabase
         .from('profiles')
-        .select('onboarding_completed')
+        .select('onboarding_completed, full_name')
         .eq('id', user.id)
         .single()
+
       if (!profile?.onboarding_completed) {
         router.replace('/onboarding')
-      }
-    }
-    checkAuth()
-  }, [router])
-
-  // â”€â”€ Load data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-  useEffect(() => {
-    async function load() {
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      if (userError || !user) { router.replace('/login'); return }
-
-      const { data: activeCrisis, error: activeCrisisError } = await supabase
-        .from('cases')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('status', 'activa')
-        .maybeSingle()
-
-      if (activeCrisisError || !activeCrisis) {
-        setLoading(false)
         return
       }
 
-      setId(activeCrisis.id)
-      const currentId = activeCrisis.id
+      const full  = profile?.full_name ?? user.user_metadata?.full_name ?? ''
+      const first = full.trim().split(/\s+/)[0] || 'vos'
+      setFirstName(first)
 
-      const [crisisRes, contactsRes, historyRes] = await Promise.all([
+      // ── Cargar todos los datos en paralelo ──────────────────────────────
+      const [ctxRes, sugRes, casesRes, membersRes, contactsRes] = await Promise.all([
+        supabase
+          .from('user_context')
+          .select('identity, history, current_state, current_needs, circle_summary, themes_summary, last_regen_at')
+          .eq('user_id', user.id)
+          .maybeSingle(),
+
+        supabase
+          .from('suggestions')
+          .select('id, type, title, description, status, metadata')
+          .eq('user_id', user.id)
+          .eq('status', 'pending')
+          .order('generated_at', { ascending: false })
+          .limit(6),
+
         supabase
           .from('cases')
-          .select('id, name, status, category, started_at, ai_summary')
-          .eq('id', currentId).eq('user_id', user.id).maybeSingle(),
+          .select('id, name, status, ai_summary, started_at')
+          .eq('user_id', user.id)
+          .eq('status', 'activa')
+          .order('started_at', { ascending: false }),
+
         supabase
-          .from('case_contacts')
-          .select('contact:contacts(id, name, role, proximity, initials, phone, email, relationship)')
-          .eq('case_id', currentId),
+          .from('shared_case_members')
+          .select('shared_case_id')
+          .eq('user_id', user.id)
+          .eq('status', 'active'),
+
         supabase
-          .from('case_history')
-          .select('id, title, description, occurred_at')
-          .eq('case_id', currentId).order('occurred_at', { ascending: false }),
+          .from('contacts')
+          .select('id, name, initials, proximity')
+          .eq('user_id', user.id)
+          .order('sort_order', { ascending: true, nullsFirst: false })
+          .limit(4),
       ])
 
-      if (crisisRes.error) console.error('Error crisis:', crisisRes.error)
-      if (!crisisRes.data) { router.replace('/case'); return }
-      setCrisis(crisisRes.data)
+      setUserCtx(ctxRes.data ?? null)
+      setSuggestions((sugRes.data ?? []) as Suggestion[])
+      setCases((casesRes.data ?? []) as CaseRow[])
+      setContacts((contactsRes.data ?? []) as ContactRow[])
 
-      if (contactsRes.error) console.error('Error contacts:', contactsRes.error)
-      // case_contacts may have duplicate rows for the same contact_id;
-      // dedupe by contact id before storing
-      const ccRows = (contactsRes.data ?? []) as { contact: Contact | Contact[] | null }[]
-      const dedup  = new Map<string, Contact>()
-      for (const r of ccRows) {
-        const c = Array.isArray(r.contact) ? r.contact[0] : r.contact
-        if (c && !dedup.has(c.id)) dedup.set(c.id, c)
+      // Cargar nombres de shared cases
+      const ids = (membersRes.data ?? []).map((r: any) => r.shared_case_id)
+      if (ids.length > 0) {
+        const { data: scData } = await supabase
+          .from('shared_cases')
+          .select('id, name')
+          .in('id', ids)
+        setSharedCases((scData ?? []) as SharedCaseRow[])
       }
-      setContacts(Array.from(dedup.values()))
-
-      if (historyRes.error) console.error('Error history:', historyRes.error)
-      setHistory((historyRes.data ?? []) as HistoryEvent[])
 
       setLoading(false)
     }
-    load()
-  }, [id, router])
+    init()
+  }, [router])
 
-  // â”€â”€ Reload helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-  const reloadContacts = useCallback(async () => {
-    const { data } = await supabase
-      .from('case_contacts')
-      .select('contact:contacts(id, name, role, proximity, initials, phone, email, relationship)')
-      .eq('case_id', id)
-    if (!data) return
-    const ccRows = data as { contact: Contact | Contact[] | null }[]
-    const dedup  = new Map<string, Contact>()
-    for (const r of ccRows) {
-      const c = Array.isArray(r.contact) ? r.contact[0] : r.contact
-      if (c && !dedup.has(c.id)) dedup.set(c.id, c)
+  // ── Init chat "Lo que sé sobre vos" ──────────────────────────────────────
+  useEffect(() => {
+    if (loading) return
+    async function initChat() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const accessToken = session?.access_token ?? ''
+        const res = await fetch('/api/user-context/chat/init', {
+          headers: { 'Authorization': `Bearer ${accessToken}` },
+        })
+        const json = await res.json()
+        if (res.ok) {
+          setCtxQuestion(json.question)
+          setCtxSuggestions(json.suggestions ?? [])
+        }
+      } catch {
+        setCtxQuestion('¿Cómo describirías quién sos más allá de tu trabajo o rol familiar?')
+        setCtxSuggestions([
+          'Soy muy familiar y cercano',
+          'Me defino por mis proyectos',
+          'Soy alguien muy independiente',
+        ])
+      }
     }
-    setContacts(Array.from(dedup.values()))
-  }, [id])
+    initChat()
+  }, [loading])
 
-  const reloadHistory = useCallback(async () => {
-    const { data } = await supabase
-      .from('case_history')
-      .select('id, title, description, occurred_at')
-      .eq('case_id', id)
-      .order('occurred_at', { ascending: false })
-    if (data) setHistory(data as HistoryEvent[])
-  }, [id])
+  // ── Dismiss suggestion ────────────────────────────────────────────────────
+  async function dismissSuggestion(id: string) {
+    await supabase
+      .from('suggestions')
+      .update({ status: 'dismissed' })
+      .eq('id', id)
+    setSuggestions(prev => prev.filter(s => s.id !== id))
+  }
 
-  // Best-effort write to case_history; never blocks the UI on failure
-  const logHistory = useCallback(async (title: string, description: string | null, eventType: string) => {
-    const { error } = await supabase.from('case_history').insert({
-      case_id:     id,
-      title,
-      description,
-      event_type:  eventType,
-      occurred_at: new Date().toISOString(),
-    })
-    if (error) {
-      console.error('Error logging history:', error.message, error.details, error.hint, error.code)
-      return
+  // ── Handle context chat submit ────────────────────────────────────────────
+  async function handleCtxSubmit(response: string) {
+    if (!response.trim() || ctxLoading || ctxDone) return
+    setCtxLoading(true)
+    setCtxError(null)
+    setCtxInput('')
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token ?? ''
+
+      const res = await fetch('/api/user-context/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          current_question: ctxQuestion,
+          user_response:    response,
+          turn:             ctxTurn,
+        }),
+      })
+
+      const json = await res.json()
+      if (!res.ok) {
+        setCtxError(json.error ?? 'Hubo un error. Intentá de nuevo.')
+        setCtxLoading(false)
+        return
+      }
+
+      // Actualizar identity en el estado local
+      setUserCtx(prev => prev
+        ? { ...prev, identity: json.new_identity }
+        : {
+            identity: json.new_identity, history: null, current_state: null,
+            current_needs: null, circle_summary: null, themes_summary: null,
+            last_regen_at: null,
+          }
+      )
+
+      const newTurn = ctxTurn + 1
+      setCtxTurn(newTurn)
+
+      if (json.next_question && newTurn <= 3) {
+        setCtxQuestion(json.next_question)
+        setCtxSuggestions(json.suggestions ?? [])
+      } else {
+        setCtxDone(true)
+        setCtxSuggestions([])
+        setCtxQuestion(null)
+      }
+    } catch {
+      setCtxError('No se pudo conectar. Intentá de nuevo.')
+    } finally {
+      setCtxLoading(false)
     }
-    await reloadHistory()
-  }, [id, reloadHistory])
-
-  // â”€â”€ Sidesheet helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-  function openMemberView(c: Contact) {
-    setSsMember(c)
-    setMvRole(c.role ?? '')
-    setMvProximity(c.proximity ?? '')
-    setSsError(null)
-    setSsMode('member-view')
   }
 
-  async function openMemberAdd() {
-    setSsError(null)
-    setAvailableContacts([])
-    setAvailableLoading(true)
-    setSsMode('member-add')
+  // ── Derived ───────────────────────────────────────────────────────────────
+  const today      = fmtDate(new Date().toISOString())
+  const totalTemas = cases.length + sharedCases.length
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setAvailableLoading(false); return }
+  // Frases del saludo
+  const greetingLine1 = userCtx?.current_needs
+    ? `Hola, ${firstName}. Tenés ${totalTemas} ${totalTemas === 1 ? 'tema activo' : 'temas activos'}.`
+    : `Hola, ${firstName}.`
 
-    const { data: allContacts, error } = await supabase
-      .from('contacts')
-      .select('id, name, role, proximity, initials, phone, email, relationship')
-      .eq('user_id', user.id)
-      .order('name', { ascending: true })
+  const greetingLine2 = userCtx?.current_state ?? null
 
-    setAvailableLoading(false)
-    if (error) { setSsError(error.message); return }
-
-    const inCrisis = new Set(contacts.map((c) => c.id))
-    const available = (allContacts ?? []).filter((c) => !inCrisis.has(c.id)) as Contact[]
-    setAvailableContacts(available)
-  }
-
-  function closeSheet() {
-    setSsMode(null)
-    setSsMember(null)
-    setSsError(null)
-  }
-
-  // â”€â”€ Member view actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-  async function handleRoleChange(val: string) {
-    if (!ssMember) return
-    setMvRole(val)
-    setSsError(null)
-    const { error } = await supabase.from('contacts').update({ role: val }).eq('id', ssMember.id)
-    if (error) { setSsError(error.message); return }
-    await reloadContacts()
-  }
-
-  async function handleProximityChange(val: string) {
-    if (!ssMember) return
-    setMvProximity(val)
-    setSsError(null)
-    const { error } = await supabase.from('contacts').update({ proximity: val }).eq('id', ssMember.id)
-    if (error) { setSsError(error.message); return }
-    await reloadContacts()
-  }
-
-  async function handleRemoveMember() {
-    if (!ssMember) return
-    if (!window.confirm(`Â¿Quitar a ${ssMember.name.split(' ')[0]} de este tema?`)) return
-    setSsLoading(true)
-    setSsError(null)
-    const { error } = await supabase
-      .from('case_contacts')
-      .delete()
-      .eq('case_id', id)
-      .eq('contact_id', ssMember.id)
-    setSsLoading(false)
-    if (error) { setSsError(error.message); return }
-    await reloadContacts()
-    closeSheet()
-  }
-
-  // â”€â”€ Member add action â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-  async function handleAddMember(c: Contact) {
-    if (ssLoading) return
-    setSsLoading(true)
-    setSsError(null)
-    const { error } = await supabase
-      .from('case_contacts')
-      .insert({ case_id: id, contact_id: c.id })
-    setSsLoading(false)
-    if (error) { setSsError(error.message); return }
-    await reloadContacts()
-    closeSheet()
-  }
-
-  // â”€â”€ Derived â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-  const isOpen = ssMode !== null
-
-  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
       <style>{`
         @keyframes heroBgDrift {
           0%, 100% {
             background:
-              radial-gradient(ellipse at 15% 15%, rgba(61,199,166,0.03)  0%, transparent 55%),
-              radial-gradient(ellipse at 85% 10%, rgba(80,220,175,0.07)  0%, transparent 50%),
-              radial-gradient(ellipse at 88% 82%, rgba(224,121,49,0.08)  0%, transparent 52%),
-              radial-gradient(ellipse at 12% 88%, rgba(158,160,81,0.08)  0%, transparent 50%),
-              radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 65%),
-              #f0f4f8;
-          }
-          25% {
-            background:
-              radial-gradient(ellipse at 22% 10%, rgba(61,199,166,0.03)  0%, transparent 55%),
-              radial-gradient(ellipse at 90% 20%, rgba(80,220,175,0.07)  0%, transparent 50%),
-              radial-gradient(ellipse at 80% 88%, rgba(224,121,49,0.08)  0%, transparent 52%),
-              radial-gradient(ellipse at  6% 78%, rgba(158,160,81,0.08)  0%, transparent 50%),
+              radial-gradient(ellipse at 15% 15%, rgba(61,199,166,0.03) 0%, transparent 55%),
+              radial-gradient(ellipse at 85% 10%, rgba(80,220,175,0.07) 0%, transparent 50%),
+              radial-gradient(ellipse at 88% 82%, rgba(224,121,49,0.08) 0%, transparent 52%),
+              radial-gradient(ellipse at 12% 88%, rgba(158,160,81,0.08) 0%, transparent 50%),
               radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 65%),
               #f0f4f8;
           }
           50% {
             background:
-              radial-gradient(ellipse at 10% 22%, rgba(61,199,166,0.03)  0%, transparent 55%),
-              radial-gradient(ellipse at 78%  8%, rgba(80,220,175,0.07)  0%, transparent 50%),
-              radial-gradient(ellipse at 92% 75%, rgba(224,121,49,0.08)  0%, transparent 52%),
-              radial-gradient(ellipse at 18% 92%, rgba(158,160,81,0.08)  0%, transparent 50%),
-              radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 65%),
-              #f0f4f8;
-          }
-          75% {
-            background:
-              radial-gradient(ellipse at 20% 22%, rgba(61,199,166,0.03)  0%, transparent 55%),
-              radial-gradient(ellipse at 82% 18%, rgba(80,220,175,0.07)  0%, transparent 50%),
-              radial-gradient(ellipse at 85% 90%, rgba(224,121,49,0.08)  0%, transparent 52%),
-              radial-gradient(ellipse at 14% 82%, rgba(158,160,81,0.08)  0%, transparent 50%),
+              radial-gradient(ellipse at 10% 22%, rgba(61,199,166,0.03) 0%, transparent 55%),
+              radial-gradient(ellipse at 78%  8%, rgba(80,220,175,0.07) 0%, transparent 50%),
+              radial-gradient(ellipse at 92% 75%, rgba(224,121,49,0.08) 0%, transparent 52%),
+              radial-gradient(ellipse at 18% 92%, rgba(158,160,81,0.08) 0%, transparent 50%),
               radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 65%),
               #f0f4f8;
           }
         }
-        .crisis-detail-bg { animation: heroBgDrift 30s ease-in-out infinite; }
+        .dash-bg { animation: heroBgDrift 30s ease-in-out infinite; }
+        @media (max-width: 768px) {
+          .dash-grid { grid-template-columns: 1fr !important; }
+        }
+        @keyframes typingDot {
+          0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
+          40%           { transform: scale(1);   opacity: 1;   }
+        }
       `}</style>
 
-      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-          SIDESHEET OVERLAY + PANEL
-      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
-
-      {/* Overlay */}
-      <div
-        onClick={closeSheet}
-        style={{
-          position:       'fixed',
-          inset:          0,
-          background:     'rgba(0,0,0,0.22)',
-          zIndex:         200,
-          opacity:        isOpen ? 1 : 0,
-          pointerEvents:  isOpen ? 'auto' : 'none',
-          transition:     'opacity 0.3s',
-        }}
-      />
-
-      {/* Panel */}
-      <div
-        style={{
-          position:   'fixed',
-          top:        0,
-          right:      0,
-          width:      420,
-          maxWidth:   '100vw',
-          height:     '100vh',
-          background: '#f0f4f8',
-          zIndex:     201,
-          transform:  isOpen ? 'translateX(0)' : 'translateX(100%)',
-          transition: 'transform 0.35s cubic-bezier(0.4,0,0.2,1)',
-          overflowY:  'auto',
-          display:    'flex',
-          flexDirection: 'column',
-          boxShadow:  '-6px 0 32px rgba(0,0,0,0.10)',
-        }}
-      >
-        {/* Top bar */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '20px 24px 0', flexShrink: 0,
-        }}>
-          <span style={{
-            fontSize: '0.7rem', fontWeight: 700,
-            letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5a7478',
-          }}>
-            {ssMode === 'member-view' ? 'Miembro del cÃ­rculo'
-             : ssMode === 'member-add'  ? 'Agregar al cÃ­rculo'
-             : ''}
-          </span>
-          <button
-            onClick={closeSheet}
-            style={{
-              width: 36, height: 36, borderRadius: '50%',
-              background: 'rgba(0,0,0,0.06)', border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#5a7478', fontSize: '1rem', transition: 'background 0.15s',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.11)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)' }}
-          >
-            âœ•
-          </button>
-        </div>
-
-        {/* â”€â”€ MEMBER VIEW â”€â”€ */}
-        {ssMode === 'member-view' && ssMember && (() => {
-          const initials = (ssMember.initials ?? getInitials(ssMember.name)).slice(0, 2)
-          const badge = ROLE_BADGES[ssMember.role ?? ''] ?? null
-          return (
-            <div style={{ padding: '0 24px 40px', flex: 1 }}>
-              {/* Hero */}
-              <div style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center',
-                textAlign: 'center', padding: '24px 0 20px',
-                borderBottom: '1px solid rgba(10,126,140,0.12)', marginBottom: 24,
-              }}>
-                <div style={{
-                  width: 80, height: 80, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontWeight: 800, fontSize: '1.5rem', color: 'white',
-                  boxShadow: '0 8px 40px rgba(10,126,140,0.16)',
-                  marginBottom: 14,
-                }}>
-                  {initials}
-                </div>
-                <div style={{
-                  fontSize: '1.5rem', fontWeight: 800,
-                  letterSpacing: '-0.02em', marginBottom: 8, color: '#1A1A2E',
-                }}>
-                  {ssMember.name}
-                </div>
-                {badge && (
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', borderRadius: 9999,
-                    padding: '3px 11px', fontSize: '0.7rem', fontWeight: 700,
-                    letterSpacing: '0.05em', textTransform: 'uppercase',
-                    background: badge.bg, color: badge.color,
-                  }}>
-                    {ROLE_LABELS[ssMember.role ?? ''] ?? badge.label}
-                  </span>
-                )}
-              </div>
-
-              {/* Datos de contacto */}
-              <div style={{ marginBottom: 24 }}>
-                <p style={{
-                  fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
-                  textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
-                }}>Datos de contacto</p>
-                <Card style={{ padding: 0, borderRadius: '1rem' }}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '13px 20px', borderBottom: '1px solid rgba(10,126,140,0.12)', gap: 12,
-                  }}>
-                    <span style={{
-                      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                      textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-                    }}>TelÃ©fono</span>
-                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1A1A2E', flex: 1 }}>
-                      {ssMember.phone || 'â€”'}
-                    </span>
-                  </div>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '13px 20px', borderBottom: '1px solid rgba(10,126,140,0.12)', gap: 12,
-                  }}>
-                    <span style={{
-                      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                      textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-                    }}>Email</span>
-                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1A1A2E', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {ssMember.email || 'â€”'}
-                    </span>
-                  </div>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '13px 20px', gap: 12,
-                  }}>
-                    <span style={{
-                      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                      textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-                    }}>RelaciÃ³n</span>
-                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1A1A2E', flex: 1 }}>
-                      {ssMember.relationship || 'â€”'}
-                    </span>
-                  </div>
-                </Card>
-              </div>
-
-              {/* Rol y cercanÃ­a */}
-              <div style={{ marginBottom: 24 }}>
-                <p style={{
-                  fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
-                  textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
-                }}>Rol y cercanÃ­a</p>
-                <Card style={{ padding: 0, borderRadius: '1rem' }}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '13px 20px', borderBottom: '1px solid rgba(10,126,140,0.12)', gap: 12,
-                  }}>
-                    <span style={{
-                      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                      textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-                    }}>Rol</span>
-                    <select
-                      value={mvRole}
-                      onChange={(e) => handleRoleChange(e.target.value)}
-                      style={{ ...SS_SELECT_STYLE, maxWidth: 240 }}
-                    >
-                      <option value="">â€” Sin rol â€”</option>
-                      {Object.entries(ROLE_LABELS).map(([val, label]) => (
-                        <option key={val} value={val}>{label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '13px 20px', gap: 12,
-                  }}>
-                    <span style={{
-                      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                      textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-                    }}>CercanÃ­a</span>
-                    <select
-                      value={mvProximity}
-                      onChange={(e) => handleProximityChange(e.target.value)}
-                      style={{ ...SS_SELECT_STYLE, maxWidth: 280 }}
-                    >
-                      <option value="">â€” Sin definir â€”</option>
-                      {Object.entries(PROXIMITY_LABELS).map(([val, label]) => (
-                        <option key={val} value={val}>{label}</option>
-                      ))}
-                    </select>
-                  </div>
-                </Card>
-              </div>
-
-              {/* Error inline */}
-              {ssError && (
-                <p style={{
-                  fontSize: '0.7rem', color: '#ba1a1a', fontWeight: 600,
-                  marginBottom: 16, padding: '10px 14px',
-                  background: 'rgba(186,26,26,0.06)', borderRadius: '0.6rem',
-                }}>
-                  {ssError}
-                </p>
-              )}
-
-              {/* Acciones */}
-              <div>
-                <p style={{
-                  fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
-                  textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
-                }}>Acciones</p>
-                <Card style={{ padding: 0, borderRadius: '1rem' }}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '13px 20px', gap: 12,
-                  }}>
-                    <span style={{ fontSize: '0.875rem', color: '#5a7478', flex: 1 }}>
-                      Quitar a {ssMember.name.split(' ')[0]} de este tema
-                    </span>
-                    <button
-                      onClick={handleRemoveMember}
-                      disabled={ssLoading}
-                      style={{
-                        background: 'rgba(186,26,26,0.06)', color: '#ba1a1a',
-                        border: 'none', borderRadius: '0.6rem',
-                        padding: '7px 16px', fontSize: '0.875rem', fontWeight: 700,
-                        cursor: ssLoading ? 'not-allowed' : 'pointer',
-                        opacity: ssLoading ? 0.6 : 1, transition: 'filter 0.15s',
-                      }}
-                    >
-                      Quitar
-                    </button>
-                  </div>
-                </Card>
-              </div>
-            </div>
-          )
-        })()}
-
-        {/* â”€â”€ MEMBER ADD â”€â”€ */}
-        {ssMode === 'member-add' && (
-          <div style={{ padding: '0 24px 40px', flex: 1 }}>
-            {/* Hero */}
-            <div style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              textAlign: 'center', padding: '24px 0 20px',
-              borderBottom: '1px solid rgba(10,126,140,0.12)', marginBottom: 24,
-            }}>
-              <div style={{
-                width: 72, height: 72, borderRadius: '50%',
-                background: 'rgba(61,199,166,0.08)',
-                border: '2px dashed rgba(61,199,166,0.45)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                marginBottom: 14,
-              }}>
-                <IconAddPerson />
-              </div>
-              <div style={{
-                fontSize: '1.5rem', fontWeight: 800,
-                letterSpacing: '-0.02em', color: '#1A1A2E',
-              }}>
-                Agregar al cÃ­rculo
-              </div>
-            </div>
-
-            {/* Error inline */}
-            {ssError && (
-              <p style={{
-                fontSize: '0.7rem', color: '#ba1a1a', fontWeight: 600,
-                marginBottom: 16, padding: '10px 14px',
-                background: 'rgba(186,26,26,0.06)', borderRadius: '0.6rem',
-              }}>
-                {ssError}
-              </p>
-            )}
-
-            {/* Loading state */}
-            {availableLoading && (
-              <p className="text-center" style={{ fontSize: '0.875rem', color: '#5a7478', padding: '24px 0' }}>
-                Cargando contactosâ€¦
-              </p>
-            )}
-
-            {/* Empty state */}
-            {!availableLoading && availableContacts.length === 0 && (
-              <Card style={{ padding: 24, textAlign: 'center' }}>
-                <p style={{ fontSize: '0.875rem', color: '#5a7478', lineHeight: 1.6 }}>
-                  Todos tus contactos ya estÃ¡n en este tema.<br />
-                  PodÃ©s agregar nuevos hablando con el agente.
-                </p>
-              </Card>
-            )}
-
-            {/* Available contacts list */}
-            {!availableLoading && availableContacts.length > 0 && (
-              <>
-                <p style={{
-                  fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
-                  textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
-                }}>Contactos disponibles</p>
-                <Card style={{ padding: 0, borderRadius: '1rem' }}>
-                  {availableContacts.map((c, i) => {
-                    const initials = (c.initials ?? getInitials(c.name)).slice(0, 2)
-                    const badge = ROLE_BADGES[c.role ?? ''] ?? null
-                    return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => handleAddMember(c)}
-                        disabled={ssLoading}
-                        className="flex items-center w-full text-left"
-                        style={{
-                          gap: 12, padding: '14px 20px',
-                          borderBottom: i < availableContacts.length - 1 ? '1px solid rgba(10,126,140,0.12)' : 'none',
-                          background: 'transparent', border: 'none',
-                          cursor: ssLoading ? 'not-allowed' : 'pointer',
-                          opacity: ssLoading ? 0.6 : 1,
-                          transition: 'background 0.15s',
-                        }}
-                        onMouseEnter={(e) => { if (!ssLoading) e.currentTarget.style.background = 'rgba(61,199,166,0.07)' }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
-                      >
-                        <div className="rounded-full flex items-center justify-center flex-shrink-0 text-white"
-                          style={{
-                            width: 36, height: 36, fontSize: '0.75rem', fontWeight: 700,
-                            background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                          }}>
-                          {initials}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-bold text-[#1A1A2E] truncate" style={{ fontSize: '0.875rem' }}>
-                            {c.name}
-                          </div>
-                          {c.relationship && (
-                            <div style={{ fontSize: '0.7rem', color: '#5a7478', marginTop: 2 }}>
-                              {c.relationship}
-                            </div>
-                          )}
-                        </div>
-                        {badge && (
-                          <span className="inline-flex items-center font-bold uppercase whitespace-nowrap flex-shrink-0"
-                            style={{
-                              background: badge.bg, color: badge.color, borderRadius: 9999,
-                              padding: '3px 11px', fontSize: '0.7rem', letterSpacing: '0.05em',
-                            }}>
-                            {badge.label}
-                          </span>
-                        )}
-                      </button>
-                    )
-                  })}
-                </Card>
-              </>
-            )}
-          </div>
-        )}
-
-      </div>
-
-      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-          MAIN PAGE
-      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
-
-      <div className="crisis-detail-bg flex min-h-screen">
+      <div className="dash-bg flex min-h-screen">
         <Sidebar />
 
         <main className="flex-1 ml-0 md:ml-[240px] min-h-screen px-5 py-8 pb-28 md:px-10 md:py-10 md:pb-10">
           <SkeletonStyles />
 
-          {/* Empty state â€” no active crisis */}
-          {!loading && !crisis && (
-            <div className="flex justify-center" style={{ marginTop: 80 }}>
-              <div style={{ textAlign: 'center', maxWidth: 400 }}>
-                <p className="font-bold text-[#1A1A2E]" style={{ fontSize: '1rem', marginBottom: 8 }}>
-                  No hay ningún tema activo.
-                </p>
-                <p style={{ fontSize: '0.875rem', color: '#5a7478', marginBottom: 24 }}>
-                  Creá uno para comenzar.
-                </p>
-                <Link href="/case"
-                  className="inline-block bg-[#0A7E8C] text-white font-bold rounded-full transition-all hover:brightness-110"
-                  style={{ padding: '12px 28px', fontSize: '0.875rem' }}>
-                  ¿En qué te ayudo primero?
-                </Link>
-              </div>
-            </div>
-          )}
-
-          {/* Header */}
-          {crisis && (
-            <div className="flex items-start justify-between flex-wrap"
-              style={{ gap: 12, marginBottom: 40 }}>
-              <div>
-                <h1 className="font-extrabold text-[#1A1A2E]"
-                  style={{ fontSize: '2rem', letterSpacing: '-0.03em', marginBottom: 8, lineHeight: 1.15 }}>
-                  {crisis.name}
-                </h1>
-                <div className="flex items-center flex-wrap" style={{ gap: 10 }}>
-                  {crisis.status === 'activa' ? (
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', borderRadius: 9999,
-                      padding: '3px 11px', fontSize: '0.7rem', fontWeight: 700,
-                      letterSpacing: '0.05em', textTransform: 'uppercase',
-                      background: 'rgba(46,205,167,0.14)', color: '#0a6e5a',
-                    }}>Activa</span>
-                  ) : (
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', borderRadius: 9999,
-                      padding: '3px 11px', fontSize: '0.7rem', fontWeight: 700,
-                      letterSpacing: '0.05em', textTransform: 'uppercase',
-                      background: 'rgba(90,116,120,0.10)', color: '#5a7478',
-                    }}>Resuelta</span>
-                  )}
-                  <span className="text-[#5a7478]" style={{ fontSize: '0.7rem' }}>
-                    Desde el {fmtLongDate(crisis.started_at)} Â· {daysSince(crisis.started_at)} dÃ­as
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Contexto */}
-          {crisis?.ai_summary && (
-            <div style={{ marginBottom: 40 }}>
-              <SectionTitle>Contexto</SectionTitle>
-              <Card>
-                <p className="text-[#5a7478]" style={{ fontSize: '0.875rem', lineHeight: 1.75 }}>
-                  {crisis.ai_summary}
-                </p>
-              </Card>
-            </div>
-          )}
-
-
-          {/* Historia */}
-          {crisis && <div style={{ marginBottom: 40 }}>
-            <SectionTitle>Historia</SectionTitle>
-            <Card>
-              {history.length > 0 ? (
-                <div className="flex flex-col">
-                  {history.map((h, i) => {
-                    const isLast = i === history.length - 1
-                    return (
-                      <div key={h.id} className="flex"
-                        style={{ gap: 16, paddingBottom: 28, position: 'relative' }}>
-                        {!isLast && (
-                          <div style={{
-                            position: 'absolute', left: 15, top: 34, bottom: 0,
-                            width: 2, background: 'rgba(10,126,140,0.12)',
-                          }} />
-                        )}
-                        <div className="rounded-full flex items-center justify-center flex-shrink-0"
-                          style={{ width: 32, height: 32, background: '#FFFFFF', border: '2px solid #0A7E8C', position: 'relative', zIndex: 1 }}>
-                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#0A7E8C' }} />
-                        </div>
-                        <div className="flex-1" style={{ paddingTop: 4 }}>
-                          <div style={{ fontSize: '0.7rem', color: '#5a7478', marginBottom: 3 }}>
-                            {fmtLongDate(h.occurred_at)}
-                          </div>
-                          <div className="font-bold text-[#1A1A2E]" style={{ fontSize: '0.875rem', marginBottom: 3 }}>
-                            {h.title}
-                          </div>
-                          {h.description && (
-                            <div style={{ fontSize: '0.875rem', color: '#5a7478', lineHeight: 1.5 }}>
-                              {h.description}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <p className="text-[#5a7478] text-center" style={{ fontSize: '0.875rem', padding: '24px 0' }}>
-                  Sin eventos en la historia todavia
-                </p>
-              )}
-            </Card>
-          </div>}
-
-          {/* -- Loading skeleton ---------------------------------------- */}
-          {loading && !crisis && (
+          {/* ── Skeleton ──────────────────────────────────────────────── */}
+          {loading && (
             <div>
-              {/* Header skeleton */}
-              <div className="mb-10">
-                <SkeletonText width="55%" style={{ height: 32, marginBottom: 16 }} />
-                <div className="flex items-center gap-3">
-                  <SkeletonBase width={52} height={22} style={{ borderRadius: 9999 }} />
-                  <SkeletonText width={180} />
-                </div>
-              </div>
-
-              {/* Context card skeleton */}
-              <div className="mb-10">
-                <SkeletonCard>
-                  <div className="flex flex-col gap-3">
-                    <SkeletonText width="90%" />
-                    <SkeletonText width="80%" />
-                    <SkeletonText width="60%" />
-                  </div>
-                </SkeletonCard>
-              </div>
-
-              {/* Historia timeline skeleton */}
-              <SkeletonCard>
-                <SkeletonText width="30%" style={{ marginBottom: 16 }} />
-                <div className="flex gap-6">
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="flex items-start gap-2 flex-1">
-                      <SkeletonAvatar size={10} />
-                      <div className="flex-1 flex flex-col gap-1.5">
-                        <SkeletonText width="80%" />
-                        <SkeletonText width="55%" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <SkeletonBase width="50%" height={32} style={{ borderRadius: 8, marginBottom: 10 }} />
+              <SkeletonBase width="70%" height={18} style={{ borderRadius: 8, marginBottom: 40 }} />
+              <SkeletonCard style={{ marginBottom: 20 }}>
+                <SkeletonText width="30%" style={{ marginBottom: 10 }} />
+                <SkeletonText width="90%" style={{ marginBottom: 6 }} />
+                <SkeletonText width="75%" />
               </SkeletonCard>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
+                <SkeletonCard><SkeletonText width="40%" style={{ marginBottom: 10 }} /><SkeletonText width="85%" /><SkeletonText width="60%" /></SkeletonCard>
+                <SkeletonCard><SkeletonText width="40%" style={{ marginBottom: 10 }} /><SkeletonText width="85%" /><SkeletonText width="60%" /></SkeletonCard>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                <SkeletonCard><SkeletonText width="40%" style={{ marginBottom: 10 }} /><SkeletonText width="80%" /><SkeletonText width="50%" /></SkeletonCard>
+                <SkeletonCard><SkeletonText width="40%" style={{ marginBottom: 10 }} /><SkeletonText width="80%" /><SkeletonText width="50%" /></SkeletonCard>
+              </div>
             </div>
+          )}
+
+          {!loading && (
+            <>
+              {/* ── Saludo narrativo ──────────────────────────────────── */}
+              <div style={{
+                borderLeft: '3px solid #0A7E8C',
+                paddingLeft: 16,
+                marginBottom: 32,
+              }}>
+                <h1 style={{
+                  fontSize: '1.375rem',
+                  fontWeight: 800,
+                  color: '#1A1A2E',
+                  letterSpacing: '-0.02em',
+                  marginBottom: 0,
+                  lineHeight: 1.25,
+                }}>
+                  {greetingLine1}
+                </h1>
+                <p style={{
+                  fontSize: '0.75rem',
+                  color: '#5a7478',
+                  marginTop: 6,
+                  marginBottom: 0,
+                }}>
+                  {today}
+                </p>
+              </div>
+
+              {/* ── Card de contexto narrativo ────────────────────────── */}
+              {greetingLine2 && (
+                <div style={{
+                  background: '#1A1A2E',
+                  borderRadius: '1.5rem',
+                  padding: '28px',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  marginBottom: 20,
+                }}>
+                  <OrbitalCardDash />
+                  <p style={{
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase' as const,
+                    color: '#2ECDA7',
+                    marginBottom: 12,
+                    position: 'relative',
+                    zIndex: 1,
+                  }}>
+                    Cómo pienso que estás
+                  </p>
+                  <p style={{
+                    fontSize: '0.9375rem',
+                    color: 'rgba(255,255,255,0.82)',
+                    lineHeight: 1.7,
+                    margin: 0,
+                    position: 'relative',
+                    zIndex: 1,
+                  }}>
+                    {greetingLine2}
+                  </p>
+                </div>
+              )}
+
+              {/* ── Lo que sé sobre vos — full width ────────────────── */}
+              <div style={{
+                background: '#FFFFFF',
+                borderRadius: '1.5rem',
+                boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
+                marginBottom: 20,
+                overflow: 'hidden',
+              }}>
+                {/* ── Header colapsable ── */}
+                <button
+                  type="button"
+                  onClick={() => setCtxOpen(prev => !prev)}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '14px 24px',
+                    background: 'none',
+                    border: 'none',
+                    borderBottom: '1px solid rgba(10,126,140,0.08)',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <span style={{
+                    fontSize: '0.7rem', fontWeight: 700,
+                    letterSpacing: '0.12em', textTransform: 'uppercase',
+                    color: '#5a7478',
+                  }}>
+                    Lo que sé sobre vos
+                  </span>
+                  <svg
+                    width="16" height="16" viewBox="0 0 24 24"
+                    fill="none" stroke="#5a7478"
+                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    style={{
+                      flexShrink: 0,
+                      transition: 'transform 0.2s',
+                      transform: ctxOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+                    }}
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+
+                {/* ── Párrafo de contexto — colapsable ── */}
+                {ctxOpen && userCtx?.identity && (
+                  <p style={{
+                    fontSize: '0.8125rem',
+                    color: '#5a7478',
+                    lineHeight: 1.55,
+                    margin: 0,
+                    padding: '16px 24px',
+                    borderBottom: '1px solid rgba(10,126,140,0.08)',
+                    background: 'rgba(10,126,140,0.03)',
+                  }}>
+                    {userCtx.identity}
+                  </p>
+                )}
+
+                {/* ── Minichat — siempre visible ── */}
+                <div style={{ padding: '16px 24px' }}>
+                  {ctxDone ? (
+                    <p style={{
+                      fontSize: '0.875rem', color: '#5a7478',
+                      fontStyle: 'italic', margin: 0,
+                    }}>
+                      Ya tengo bastante contexto sobre vos. Volvé cuando
+                      quieras actualizar tu perfil.
+                    </p>
+                  ) : ctxQuestion ? (
+                    <>
+                      {/* Pregunta */}
+                      <p style={{
+                        fontSize: '0.9375rem', fontWeight: 600,
+                        color: '#1A1A2E', marginBottom: 14, marginTop: 0,
+                      }}>
+                        {ctxQuestion}
+                      </p>
+
+                      {/* Chips */}
+                      {ctxSuggestions.length > 0 && !ctxLoading && (
+                        <div style={{
+                          display: 'flex', flexWrap: 'wrap', gap: 8,
+                          marginBottom: 14,
+                        }}>
+                          {ctxSuggestions.map((s, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => handleCtxSubmit(s)}
+                              disabled={ctxLoading}
+                              style={{
+                                padding: '7px 16px', borderRadius: 9999,
+                                border: '1.5px solid rgba(10,126,140,0.25)',
+                                background: 'white', color: '#0A7E8C',
+                                fontSize: '0.875rem', fontWeight: 600,
+                                cursor: 'pointer', fontFamily: 'inherit',
+                                transition: 'background 0.15s',
+                              }}
+                              onMouseEnter={e => {
+                                e.currentTarget.style.background = 'rgba(10,126,140,0.06)'
+                              }}
+                              onMouseLeave={e => {
+                                e.currentTarget.style.background = 'white'
+                              }}
+                            >
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Typing indicator */}
+                      {ctxLoading && (
+                        <div style={{
+                          display: 'flex', gap: 5, alignItems: 'center',
+                          marginBottom: 14,
+                        }}>
+                          {[0, 1, 2].map(i => (
+                            <span key={i} style={{
+                              width: 7, height: 7, borderRadius: '50%',
+                              background: '#0A7E8C', display: 'inline-block',
+                              animation: `typingDot 1.2s ease-in-out ${i * 0.2}s infinite`,
+                            }} />
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Input libre */}
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                        <textarea
+                          value={ctxInput}
+                          onChange={e => setCtxInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault()
+                              handleCtxSubmit(ctxInput)
+                            }
+                          }}
+                          disabled={ctxLoading || ctxDone}
+                          placeholder="O escribí tu respuesta…"
+                          rows={1}
+                          style={{
+                            flex: 1,
+                            border: '1.5px solid rgba(10,126,140,0.12)',
+                            borderRadius: '1rem',
+                            padding: '10px 14px',
+                            fontSize: '0.875rem',
+                            lineHeight: 1.5,
+                            resize: 'none',
+                            outline: 'none',
+                            fontFamily: 'inherit',
+                            color: '#1A1A2E',
+                            background: '#FAF8F5',
+                            minHeight: 42,
+                            maxHeight: 100,
+                            opacity: ctxLoading ? 0.5 : 1,
+                          }}
+                          onFocus={e => { e.currentTarget.style.borderColor = '#0A7E8C' }}
+                          onBlur={e  => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleCtxSubmit(ctxInput)}
+                          disabled={ctxLoading || !ctxInput.trim() || ctxDone}
+                          style={{
+                            width: 42, height: 42, borderRadius: '50%',
+                            border: 'none',
+                            cursor: (ctxLoading || !ctxInput.trim() || ctxDone)
+                              ? 'not-allowed' : 'pointer',
+                            background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                            display: 'flex', alignItems: 'center',
+                            justifyContent: 'center', flexShrink: 0,
+                            opacity: (ctxLoading || !ctxInput.trim() || ctxDone) ? 0.4 : 1,
+                          }}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24"
+                            fill="none" stroke="white"
+                            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13" />
+                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      {/* Error */}
+                      {ctxError && (
+                        <div style={{
+                          marginTop: 10, padding: '8px 14px',
+                          borderRadius: '0.75rem',
+                          background: 'rgba(186,26,26,0.07)',
+                          border: '1px solid rgba(186,26,26,0.18)',
+                          fontSize: '0.8125rem', color: '#ba1a1a', fontWeight: 600,
+                          display: 'flex', alignItems: 'center',
+                          justifyContent: 'space-between', gap: 8,
+                        }}>
+                          <span>{ctxError}</span>
+                          <button
+                            onClick={() => setCtxError(null)}
+                            style={{
+                              background: 'none', border: 'none', cursor: 'pointer',
+                              color: '#ba1a1a', fontSize: '1rem', lineHeight: 1,
+                            }}
+                          >✕</button>
+                        </div>
+                      )}
+                    </>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* ── Grid principal — 4 bloques ────────────────────────── */}
+              <div
+                className="dash-grid"
+                style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}
+              >
+
+                {/* ── 1. En qué hacer foco ───────────────────────────── */}
+                <Card>
+                  <SectionLabel>En qué hacer foco</SectionLabel>
+                  {userCtx?.current_needs ? (
+                    <p style={{
+                      fontSize: '0.9375rem', color: '#1A1A2E',
+                      lineHeight: 1.7, margin: 0,
+                    }}>
+                      {userCtx.current_needs}
+                    </p>
+                  ) : (
+                    <EmptyText>Sin datos de necesidades todavía.</EmptyText>
+                  )}
+                </Card>
+
+                {/* ── 2. Sugerencias ─────────────────────────────────── */}
+                <Card>
+                  <SectionLabel>Sugerencias</SectionLabel>
+                  {suggestions.length === 0 ? (
+                    <EmptyText>No hay sugerencias pendientes.</EmptyText>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {suggestions.slice(0, 4).map(s => (
+                        <div
+                          key={s.id}
+                          style={{
+                            display: 'flex', alignItems: 'flex-start', gap: 10,
+                            padding: '10px 12px',
+                            background: 'rgba(10,126,140,0.04)',
+                            borderRadius: '0.75rem',
+                          }}
+                        >
+                          <div style={{
+                            width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                            background: s.type === 'chat'
+                              ? 'rgba(10,126,140,0.10)'
+                              : s.type === 'theme'
+                              ? 'rgba(83,74,183,0.10)'
+                              : s.type === 'invitation'
+                              ? 'rgba(46,205,167,0.10)'
+                              : 'rgba(232,145,58,0.10)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '0.7rem', fontWeight: 700,
+                            color: s.type === 'chat'
+                              ? '#0A7E8C'
+                              : s.type === 'theme'
+                              ? '#534AB7'
+                              : s.type === 'invitation'
+                              ? '#0a6e5a'
+                              : '#b86a10',
+                          }}>
+                            {s.type === 'chat' ? '💬' : s.type === 'theme' ? '📁' : s.type === 'invitation' ? '👥' : '🔗'}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#1A1A2E', marginBottom: 2 }}>
+                              {s.title}
+                            </div>
+                            {s.description && (
+                              <div style={{ fontSize: '0.75rem', color: '#5a7478', lineHeight: 1.4 }}>
+                                {s.description}
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => dismissSuggestion(s.id)}
+                            style={{
+                              background: 'none', border: 'none', cursor: 'pointer',
+                              color: '#5a7478', padding: 2, flexShrink: 0,
+                              fontSize: '1rem', lineHeight: 1,
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.color = '#ba1a1a' }}
+                            onMouseLeave={e => { e.currentTarget.style.color = '#5a7478' }}
+                            title="Descartar"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+
+                {/* ── 3. Tu círculo ──────────────────────────────────── */}
+                <Card>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <SectionLabel style={{ marginBottom: 0 }}>Tu círculo</SectionLabel>
+                    <Link href="/circulo" style={{ fontSize: '0.75rem', color: '#0A7E8C', fontWeight: 600, textDecoration: 'none' }}>
+                      Ver todos →
+                    </Link>
+                  </div>
+                  {userCtx?.circle_summary && (
+                    <p style={{
+                      fontSize: '0.875rem', color: '#5a7478',
+                      fontStyle: 'italic', lineHeight: 1.65,
+                      margin: '0 0 14px',
+                    }}>
+                      {userCtx.circle_summary}
+                    </p>
+                  )}
+                  {contacts.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {contacts.map(c => {
+                        const initials = (c.initials ?? getInitials(c.name)).slice(0, 2)
+                        return (
+                          <Link
+                            key={c.id}
+                            href={`/circulo/${c.id}`}
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}
+                          >
+                            <div style={{
+                              width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                              background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: '0.75rem', fontWeight: 700, color: 'white',
+                            }}>
+                              {initials}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1A1A2E', lineHeight: 1.2 }}>
+                                {c.name}
+                              </div>
+                              {c.proximity && (
+                                <div style={{ fontSize: '0.7rem', color: '#5a7478', marginTop: 1 }}>
+                                  {c.proximity === 'nucleo' ? 'Núcleo' : c.proximity === 'ayuda' ? 'Red de ayuda' : 'Profesional'}
+                                </div>
+                              )}
+                            </div>
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <EmptyText>Todavía no agregaste personas a tu círculo.</EmptyText>
+                  )}
+                </Card>
+
+                {/* ── 4. Tus temas ───────────────────────────────────── */}
+                <Card>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <SectionLabel style={{ marginBottom: 0 }}>Tus temas</SectionLabel>
+                    <Link href="/case" style={{ fontSize: '0.75rem', color: '#0A7E8C', fontWeight: 600, textDecoration: 'none' }}>
+                      Ver todos →
+                    </Link>
+                  </div>
+                  {userCtx?.themes_summary && (
+                    <p style={{
+                      fontSize: '0.875rem', color: '#5a7478',
+                      fontStyle: 'italic', lineHeight: 1.65,
+                      margin: '0 0 14px',
+                    }}>
+                      {userCtx.themes_summary}
+                    </p>
+                  )}
+                  {cases.length === 0 && sharedCases.length === 0 ? (
+                    <EmptyText>No tenés temas activos todavía.</EmptyText>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {cases.map(c => (
+                        <Link
+                          key={c.id}
+                          href={`/case/${c.id}`}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '8px 10px', borderRadius: '0.75rem',
+                            background: 'rgba(10,126,140,0.04)',
+                            textDecoration: 'none', transition: 'background 0.15s',
+                          }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(61,199,166,0.08)' }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(10,126,140,0.04)' }}
+                        >
+                          <div style={{
+                            width: 8, height: 8, borderRadius: '50%',
+                            background: '#0A7E8C', flexShrink: 0,
+                          }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1A1A2E' }}>
+                              {c.name}
+                            </div>
+                          </div>
+                          <span style={{
+                            fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em',
+                            textTransform: 'uppercase', color: '#0A7E8C',
+                            background: 'rgba(10,126,140,0.08)', borderRadius: 9999,
+                            padding: '2px 8px', flexShrink: 0,
+                          }}>
+                            Propio
+                          </span>
+                        </Link>
+                      ))}
+                      {sharedCases.map(sc => (
+                        <Link
+                          key={sc.id}
+                          href={`/case/shared/${sc.id}`}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '8px 10px', borderRadius: '0.75rem',
+                            background: 'rgba(83,74,183,0.04)',
+                            textDecoration: 'none', transition: 'background 0.15s',
+                          }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(83,74,183,0.08)' }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(83,74,183,0.04)' }}
+                        >
+                          <div style={{
+                            width: 8, height: 8, borderRadius: '50%',
+                            background: '#534AB7', flexShrink: 0,
+                          }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1A1A2E' }}>
+                              {sc.name}
+                            </div>
+                          </div>
+                          <span style={{
+                            fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em',
+                            textTransform: 'uppercase', color: '#534AB7',
+                            background: 'rgba(83,74,183,0.08)', borderRadius: 9999,
+                            padding: '2px 8px', flexShrink: 0,
+                          }}>
+                            Compartido
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+
+              </div>
+            </>
           )}
         </main>
       </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
@@ -152,6 +152,81 @@ export default function Sidebar() {
   const pathname = usePathname()
   const [user, setUser] = useState<UserInfo | null>(null)
 
+  const [devVisible,   setDevVisible]   = useState(false)
+  const [regenLoading, setRegenLoading] = useState(false)
+  const [regenMsg,     setRegenMsg]     = useState<string | null>(null)
+  const [suggLoading,  setSuggLoading]  = useState(false)
+  const [suggMsg,      setSuggMsg]      = useState<string | null>(null)
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.ctrlKey && e.altKey && e.key === 'p') {
+        e.preventDefault()
+        setDevVisible(prev => !prev)
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [])
+
+  async function handleRegenContext() {
+    if (regenLoading) return
+    setRegenLoading(true)
+    setRegenMsg(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token ?? ''
+      const res = await fetch('/api/user-context/regenerate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setRegenMsg('Contexto regenerado ✓')
+      } else {
+        setRegenMsg(data.error ?? 'Error al regenerar')
+      }
+    } catch {
+      setRegenMsg('Error de red')
+    } finally {
+      setRegenLoading(false)
+      setTimeout(() => setRegenMsg(null), 3000)
+    }
+  }
+
+  async function handleRegenSuggestions() {
+    if (suggLoading) return
+    setSuggLoading(true)
+    setSuggMsg(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token ?? ''
+      const res = await fetch('/api/suggestions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setSuggMsg('Sugerencias regeneradas ✓')
+      } else {
+        setSuggMsg(data.error ?? 'Error al regenerar')
+      }
+    } catch {
+      setSuggMsg('Error de red')
+    } finally {
+      setSuggLoading(false)
+      setTimeout(() => setSuggMsg(null), 3000)
+    }
+  }
+
   useEffect(() => {
     // ── Initial load ─────────────────────────────────────────────────────────
     supabase.auth.getUser().then(({ data }) => {
@@ -297,6 +372,81 @@ export default function Sidebar() {
             )}
           </Link>
         </div>
+
+        {devVisible && (
+          <div style={{
+            padding: '12px 16px',
+            borderTop: '1px solid rgba(10,126,140,0.12)',
+          }}>
+            <button
+              type="button"
+              onClick={handleRegenContext}
+              disabled={regenLoading}
+              style={{
+                width: '100%',
+                background: regenLoading
+                  ? 'rgba(10,126,140,0.35)'
+                  : 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 9999,
+                padding: '8px 14px',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                cursor: regenLoading ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+                transition: 'opacity 0.15s',
+              }}
+            >
+              {regenLoading ? 'Regenerando…' : '⚡ Regenerar contexto'}
+            </button>
+            {regenMsg && (
+              <p style={{
+                fontSize: '0.7rem',
+                color: regenMsg.includes('✓') ? '#0a6e5a' : '#ba1a1a',
+                textAlign: 'center',
+                marginTop: 8,
+                fontWeight: 600,
+              }}>
+                {regenMsg}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={handleRegenSuggestions}
+              disabled={suggLoading}
+              style={{
+                width: '100%',
+                marginTop: 8,
+                background: suggLoading
+                  ? 'rgba(10,126,140,0.35)'
+                  : 'linear-gradient(135deg, #E8913A, #f4ab66)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 9999,
+                padding: '8px 14px',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                cursor: suggLoading ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+                transition: 'opacity 0.15s',
+              }}
+            >
+              {suggLoading ? 'Regenerando…' : '💡 Regenerar sugerencias'}
+            </button>
+            {suggMsg && (
+              <p style={{
+                fontSize: '0.7rem',
+                color: suggMsg.includes('✓') ? '#0a6e5a' : '#ba1a1a',
+                textAlign: 'center',
+                marginTop: 8,
+                fontWeight: 600,
+              }}>
+                {suggMsg}
+              </p>
+            )}
+          </div>
+        )}
       </aside>
 
       {/* ══════════════════════════════════════════════════════════════════

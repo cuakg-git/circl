@@ -578,6 +578,8 @@ export default function TareaDetailPage() {
   const [chatSuggestions, setChatSuggestions] = useState<string[]>([])
   const [chatDone,        setChatDone]        = useState(false)
 
+  const [ctxOpen, setCtxOpen] = useState(true)
+
   // ── Load ──────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -1797,11 +1799,22 @@ export default function TareaDetailPage() {
                   marginTop: 20, overflow: 'hidden',
                 }}>
                   {/* Header */}
-                  <div style={{
-                    padding: '14px 20px',
-                    borderBottom: '1px solid rgba(10,126,140,0.08)',
-                    textAlign: 'left',
-                  }}>
+                  <button
+                    type="button"
+                    onClick={() => setCtxOpen(prev => !prev)}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '14px 20px',
+                      background: 'none',
+                      border: 'none',
+                      borderBottom: '1px solid rgba(10,126,140,0.08)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
                     <span style={{
                       fontSize: '0.7rem', fontWeight: 700,
                       letterSpacing: '0.12em', textTransform: 'uppercase',
@@ -1809,21 +1822,38 @@ export default function TareaDetailPage() {
                     }}>
                       Lo que sé
                     </span>
-                  </div>
+                    <svg
+                      width="16" height="16" viewBox="0 0 24 24"
+                      fill="none" stroke="#5a7478"
+                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                      style={{
+                        flexShrink: 0,
+                        transition: 'transform 0.2s',
+                        transform: ctxOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+                      }}
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
 
+                  {/* Context paragraph that collapses */}
+                  {ctxOpen && taskContext && (
+                    <p style={{
+                      fontSize: '0.8125rem',
+                      color: '#5a7478',
+                      lineHeight: 1.55,
+                      margin: 0,
+                      padding: '16px 20px',
+                      borderBottom: '1px solid rgba(10,126,140,0.08)',
+                      background: 'rgba(10,126,140,0.03)',
+                      textAlign: 'left',
+                    }}>
+                      {taskContext}
+                    </p>
+                  )}
+
+                  {/* Minichat div that always renders */}
                   <div style={{ padding: '16px 20px' }}>
-
-                    {/* Contexto actual */}
-                    {taskContext && (
-                      <p style={{
-                        fontSize: '0.875rem', color: '#5a7478',
-                        fontStyle: 'italic', lineHeight: 1.65,
-                        margin: '0 0 16px', textAlign: 'left',
-                      }}>
-                        {taskContext}
-                      </p>
-                    )}
-
                     {/* Minichat */}
                     {chatDone ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
