@@ -173,6 +173,7 @@ export default function Sidebar() {
     if (regenLoading) return
     setRegenLoading(true)
     setRegenMsg(null)
+    window.dispatchEvent(new CustomEvent('mhiru:context-regenerating'))
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const accessToken = session?.access_token ?? ''
@@ -194,6 +195,7 @@ export default function Sidebar() {
       setRegenMsg('Error de red')
     } finally {
       setRegenLoading(false)
+      window.dispatchEvent(new CustomEvent('mhiru:context-regenerated'))
       setTimeout(() => setRegenMsg(null), 3000)
     }
   }

@@ -134,8 +134,9 @@ function OrbitalCardDash() {
 export default function DashboardPage() {
   const router = useRouter()
 
-  const [loading,     setLoading]     = useState(true)
-  const [firstName,   setFirstName]   = useState('')
+  const [loading,      setLoading]      = useState(true)
+  const [regenerating, setRegenerating] = useState(false)
+  const [firstName,    setFirstName]    = useState('')
   const [userCtx,     setUserCtx]     = useState<UserContext | null>(null)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [cases,       setCases]       = useState<CaseRow[]>([])
@@ -151,7 +152,9 @@ export default function DashboardPage() {
   const [ctxTurn,        setCtxTurn]        = useState(1)
   const [ctxError,       setCtxError]       = useState<string | null>(null)
 
-  const [ctxOpen, setCtxOpen] = useState(true)
+  const [ctxOpen,     setCtxOpen]     = useState(true)
+  const [circuloOpen, setCirculoOpen] = useState(true)
+  const [temasOpen,   setTemasOpen]   = useState(true)
 
   // ── Auth + onboarding check ───────────────────────────────────────────────
   useEffect(() => {
@@ -258,6 +261,35 @@ export default function DashboardPage() {
     initChat()
   }, [loading])
 
+  // ── Reload user context from Supabase ────────────────────────────────────
+  async function reloadUserContext() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data } = await supabase
+      .from('user_context')
+      .select('identity, history, current_state, current_needs, circle_summary, themes_summary, last_regen_at')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (data) setUserCtx(data)
+  }
+
+  // ── Listen for regen events from Sidebar ─────────────────────────────────
+  useEffect(() => {
+    function onRegenerating() {
+      setRegenerating(true)
+    }
+    function onRegenerated() {
+      setRegenerating(false)
+      reloadUserContext()
+    }
+    window.addEventListener('mhiru:context-regenerating', onRegenerating)
+    window.addEventListener('mhiru:context-regenerated',  onRegenerated)
+    return () => {
+      window.removeEventListener('mhiru:context-regenerating', onRegenerating)
+      window.removeEventListener('mhiru:context-regenerated',  onRegenerated)
+    }
+  }, [])
+
   // ── Dismiss suggestion ────────────────────────────────────────────────────
   async function dismissSuggestion(id: string) {
     await supabase
@@ -270,6 +302,7 @@ export default function DashboardPage() {
   // ── Handle context chat submit ────────────────────────────────────────────
   async function handleCtxSubmit(response: string) {
     if (!response.trim() || ctxLoading || ctxDone) return
+    setRegenerating(true)
     setCtxLoading(true)
     setCtxError(null)
     setCtxInput('')
@@ -323,6 +356,7 @@ export default function DashboardPage() {
       setCtxError('No se pudo conectar. Intentá de nuevo.')
     } finally {
       setCtxLoading(false)
+      setRegenerating(false)
     }
   }
 
@@ -427,7 +461,7 @@ export default function DashboardPage() {
               </div>
 
               {/* ── Card de contexto narrativo ────────────────────────── */}
-              {greetingLine2 && (
+              {(greetingLine2 || regenerating) && (
                 <div style={{
                   background: '#1A1A2E',
                   borderRadius: '1.5rem',
@@ -449,16 +483,24 @@ export default function DashboardPage() {
                   }}>
                     Cómo pienso que estás
                   </p>
-                  <p style={{
-                    fontSize: '0.9375rem',
-                    color: 'rgba(255,255,255,0.82)',
-                    lineHeight: 1.7,
-                    margin: 0,
-                    position: 'relative',
-                    zIndex: 1,
-                  }}>
-                    {greetingLine2}
-                  </p>
+                  {regenerating ? (
+                    <div style={{ position: 'relative', zIndex: 1 }}>
+                      <SkeletonBase width="95%" height={13} style={{ borderRadius: 6, marginBottom: 8, background: 'rgba(255,255,255,0.12)' }} />
+                      <SkeletonBase width="80%" height={13} style={{ borderRadius: 6, marginBottom: 8, background: 'rgba(255,255,255,0.12)' }} />
+                      <SkeletonBase width="60%" height={13} style={{ borderRadius: 6, background: 'rgba(255,255,255,0.12)' }} />
+                    </div>
+                  ) : (
+                    <p style={{
+                      fontSize: '0.9375rem',
+                      color: 'rgba(255,255,255,0.82)',
+                      lineHeight: 1.7,
+                      margin: 0,
+                      position: 'relative',
+                      zIndex: 1,
+                    }}>
+                      {greetingLine2}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -509,18 +551,24 @@ export default function DashboardPage() {
                 </button>
 
                 {/* ── Párrafo de contexto — colapsable ── */}
-                {ctxOpen && userCtx?.identity && (
-                  <p style={{
-                    fontSize: '0.8125rem',
-                    color: '#5a7478',
-                    lineHeight: 1.55,
-                    margin: 0,
-                    padding: '16px 24px',
-                    borderBottom: '1px solid rgba(10,126,140,0.08)',
-                    background: 'rgba(10,126,140,0.03)',
-                  }}>
-                    {userCtx.identity}
-                  </p>
+                {ctxOpen && (userCtx?.identity || regenerating) && (
+                  regenerating
+                    ? <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(10,126,140,0.08)', background: 'rgba(10,126,140,0.03)' }}>
+                        <SkeletonBase width="95%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
+                        <SkeletonBase width="80%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
+                        <SkeletonBase width="60%" height={13} style={{ borderRadius: 6 }} />
+                      </div>
+                    : <p style={{
+                        fontSize: '0.8125rem',
+                        color: '#5a7478',
+                        lineHeight: 1.55,
+                        margin: 0,
+                        padding: '16px 24px',
+                        borderBottom: '1px solid rgba(10,126,140,0.08)',
+                        background: 'rgba(10,126,140,0.03)',
+                      }}>
+                        {userCtx!.identity}
+                      </p>
                 )}
 
                 {/* ── Minichat — siempre visible ── */}
@@ -684,7 +732,13 @@ export default function DashboardPage() {
                 {/* ── 1. En qué hacer foco ───────────────────────────── */}
                 <Card>
                   <SectionLabel>En qué hacer foco</SectionLabel>
-                  {userCtx?.current_needs ? (
+                  {regenerating ? (
+                    <>
+                      <SkeletonBase width="95%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
+                      <SkeletonBase width="85%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
+                      <SkeletonBase width="55%" height={13} style={{ borderRadius: 6 }} />
+                    </>
+                  ) : userCtx?.current_needs ? (
                     <p style={{
                       fontSize: '0.9375rem', color: '#1A1A2E',
                       lineHeight: 1.7, margin: 0,
@@ -766,23 +820,75 @@ export default function DashboardPage() {
 
                 {/* ── 3. Tu círculo ──────────────────────────────────── */}
                 <Card>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                    <SectionLabel style={{ marginBottom: 0 }}>Tu círculo</SectionLabel>
-                    <Link href="/circulo" style={{ fontSize: '0.75rem', color: '#0A7E8C', fontWeight: 600, textDecoration: 'none' }}>
-                      Ver todos →
-                    </Link>
-                  </div>
-                  {userCtx?.circle_summary && (
+                  <button
+                    type="button"
+                    onClick={() => setCirculoOpen(prev => !prev)}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '14px 24px',
+                      background: 'none',
+                      border: 'none',
+                      borderBottom: '1px solid rgba(10,126,140,0.08)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      margin: '-24px -24px 0',
+                      width: 'calc(100% + 48px)',
+                    }}
+                  >
+                    <span style={{
+                      fontSize: '0.7rem', fontWeight: 700,
+                      letterSpacing: '0.12em', textTransform: 'uppercase',
+                      color: '#5a7478',
+                    }}>
+                      Tu círculo
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <Link
+                        href="/circulo"
+                        onClick={e => e.stopPropagation()}
+                        style={{ fontSize: '0.75rem', color: '#0A7E8C', fontWeight: 600, textDecoration: 'none' }}
+                      >
+                        Ver todos →
+                      </Link>
+                      <svg
+                        width="16" height="16" viewBox="0 0 24 24"
+                        fill="none" stroke="#5a7478"
+                        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                        style={{
+                          flexShrink: 0,
+                          transition: 'transform 0.2s',
+                          transform: circuloOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+                        }}
+                      >
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </div>
+                  </button>
+                  {circuloOpen && userCtx?.circle_summary && (
                     <p style={{
-                      fontSize: '0.875rem', color: '#5a7478',
-                      fontStyle: 'italic', lineHeight: 1.65,
-                      margin: '0 0 14px',
+                      fontSize: '0.8125rem',
+                      color: '#5a7478',
+                      lineHeight: 1.55,
+                      margin: '0 -24px',
+                      padding: '16px 24px',
+                      borderBottom: '1px solid rgba(10,126,140,0.08)',
+                      background: 'rgba(10,126,140,0.03)',
                     }}>
                       {userCtx.circle_summary}
                     </p>
                   )}
-                  {contacts.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {regenerating && circuloOpen ? (
+                    <div style={{ marginBottom: 14, paddingTop: 16 }}>
+                      <SkeletonBase width="90%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
+                      <SkeletonBase width="70%" height={13} style={{ borderRadius: 6 }} />
+                    </div>
+                  ) : null}
+                  <div style={{ paddingTop: 16 }}>
+                    {contacts.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       {contacts.map(c => {
                         const initials = (c.initials ?? getInitials(c.name)).slice(0, 2)
                         return (
@@ -813,29 +919,82 @@ export default function DashboardPage() {
                         )
                       })}
                     </div>
-                  ) : (
-                    <EmptyText>Todavía no agregaste personas a tu círculo.</EmptyText>
-                  )}
+                    ) : (
+                      <EmptyText>Todavía no agregaste personas a tu círculo.</EmptyText>
+                    )}
+                  </div>
                 </Card>
 
                 {/* ── 4. Tus temas ───────────────────────────────────── */}
                 <Card>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                    <SectionLabel style={{ marginBottom: 0 }}>Tus temas</SectionLabel>
-                    <Link href="/case" style={{ fontSize: '0.75rem', color: '#0A7E8C', fontWeight: 600, textDecoration: 'none' }}>
-                      Ver todos →
-                    </Link>
-                  </div>
-                  {userCtx?.themes_summary && (
+                  <button
+                    type="button"
+                    onClick={() => setTemasOpen(prev => !prev)}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '14px 24px',
+                      background: 'none',
+                      border: 'none',
+                      borderBottom: '1px solid rgba(10,126,140,0.08)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      margin: '-24px -24px 0',
+                      width: 'calc(100% + 48px)',
+                    }}
+                  >
+                    <span style={{
+                      fontSize: '0.7rem', fontWeight: 700,
+                      letterSpacing: '0.12em', textTransform: 'uppercase',
+                      color: '#5a7478',
+                    }}>
+                      Tus temas
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <Link
+                        href="/case"
+                        onClick={e => e.stopPropagation()}
+                        style={{ fontSize: '0.75rem', color: '#0A7E8C', fontWeight: 600, textDecoration: 'none' }}
+                      >
+                        Ver todos →
+                      </Link>
+                      <svg
+                        width="16" height="16" viewBox="0 0 24 24"
+                        fill="none" stroke="#5a7478"
+                        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                        style={{
+                          flexShrink: 0,
+                          transition: 'transform 0.2s',
+                          transform: temasOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+                        }}
+                      >
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </div>
+                  </button>
+                  {temasOpen && userCtx?.themes_summary && (
                     <p style={{
-                      fontSize: '0.875rem', color: '#5a7478',
-                      fontStyle: 'italic', lineHeight: 1.65,
-                      margin: '0 0 14px',
+                      fontSize: '0.8125rem',
+                      color: '#5a7478',
+                      lineHeight: 1.55,
+                      margin: '0 -24px',
+                      padding: '16px 24px',
+                      borderBottom: '1px solid rgba(10,126,140,0.08)',
+                      background: 'rgba(10,126,140,0.03)',
                     }}>
                       {userCtx.themes_summary}
                     </p>
                   )}
-                  {cases.length === 0 && sharedCases.length === 0 ? (
+                  {regenerating && temasOpen ? (
+                    <div style={{ marginBottom: 14, paddingTop: 16 }}>
+                      <SkeletonBase width="90%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
+                      <SkeletonBase width="65%" height={13} style={{ borderRadius: 6 }} />
+                    </div>
+                  ) : null}
+                  <div style={{ paddingTop: 16 }}>
+                    {cases.length === 0 && sharedCases.length === 0 ? (
                     <EmptyText>No tenés temas activos todavía.</EmptyText>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -905,6 +1064,7 @@ export default function DashboardPage() {
                       ))}
                     </div>
                   )}
+                  </div>
                 </Card>
 
               </div>

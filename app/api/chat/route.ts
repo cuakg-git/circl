@@ -15,7 +15,7 @@ const supabaseAdmin = createClient(
 
 // ── 2. Constants ───────────────────────────────────────────────────────────────
 
-const MODEL               = 'claude-sonnet-4-5-20251001'
+const MODEL               = 'claude-sonnet-4-5-20250929'
 const MAX_TOOL_ITERATIONS = 10
 const PRICE_IN_PER_MTOK   = 3.0   // USD per million tokens
 const PRICE_OUT_PER_MTOK  = 15.0  // USD per million tokens
@@ -56,13 +56,36 @@ CÓMO HABLÁS
   Decís lo que ya está hecho: "Listo, anoté a Caro."
 - Palabras prohibidas: "comunidad", "familia" (como concepto abstracto), "guerrero".
 
+CÓMO USÁS EL CONTEXTO
+
+En cada turno recibís un bloque <contexto> con:
+- <temas>: TODOS los temas del usuario, cada uno con su id, tipo
+  (propio o compartido), resumen, tareas pendientes e historial.
+- <circulo>: todos los contactos del usuario.
+
+No hay un 'tema activo'. Vos inferís de qué tema habla el usuario
+por el contenido de su mensaje, igual que en una conversación normal.
+Si el usuario menciona a una persona, un lugar o una situación,
+buscá en <temas> a cuál corresponde y respondé desde ahí.
+
+Si el usuario cambia de tema en medio de la charla ('y con el viaje
+cómo venimos', 'pasemos a lo de mamá'), simplemente seguí la conversación
+sobre el tema nuevo. No necesitás registrar el cambio en ningún lado.
+
+Cuando llamás una tool que requiere case_id y case_type, usás el id y
+el tipo del tema correspondiente según lo que inferiste de la conversación.
+Si no está claro a qué tema se refiere el usuario, preguntale.
+
+Si el usuario habla de algo que claramente no corresponde a ningún tema
+existente, puede ser un tema nuevo — ofrecé crearlo con crear_caso.
+
 CÓMO OPERÁS
 
 En cada turno, en orden estricto:
 
 1. Leés el bloque <contexto> que viene en el último mensaje del usuario.
-   Te dice quién es, qué casos tiene activos, quiénes están en su círculo
-   y qué tareas hay pendientes.
+   Es tu referencia interna — NO lo resumís ni lo repetís en voz alta.
+   Usalo para inferir el tema, las personas y las tareas relevantes.
 
 2. Si el mensaje tiene información registrable (nombre nuevo, tarea concreta,
    nota médica, decisión), llamás la tool correspondiente ANTES de responder con texto.
@@ -346,32 +369,27 @@ export async function POST(request: Request) {
   const startMs = Date.now()
 
   // ── Parse body ──────────────────────────────────────────────────────────────
-  let body: { user_id?: string; message?: string; case_id?: string }
+  let body: { user_id?: string; message?: string }
   try {
     body = await request.json()
   } catch {
     return Response.json({ error: 'Body inválido' }, { status: 400 })
   }
 
-  const { user_id, message, case_id } = body
+  const { user_id, message } = body
   if (!user_id || typeof user_id !== 'string' ||
       !message || typeof message !== 'string') {
     return Response.json({ error: 'Faltan user_id o message' }, { status: 400 })
   }
 
-  // ── Find or create conversation ─────────────────────────────────────────────
-  const baseQuery = supabaseAdmin
+  // ── Find or create conversation (one per user) ──────────────────────────────
+  const { data: existingConv } = await supabaseAdmin
     .from('conversations')
     .select('id')
     .eq('user_id', user_id)
     .order('created_at', { ascending: false })
     .limit(1)
-
-  const { data: existingConv } = await (
-    case_id
-      ? baseQuery.eq('case_id', case_id)
-      : baseQuery.is('case_id', null)
-  ).maybeSingle()
+    .maybeSingle()
 
   let conversationId: string
   if (existingConv) {
@@ -379,7 +397,7 @@ export async function POST(request: Request) {
   } else {
     const { data: newConv, error: convErr } = await supabaseAdmin
       .from('conversations')
-      .insert({ user_id, case_id: case_id ?? null, title: 'Chat' })
+      .insert({ user_id, title: 'Chat' })
       .select('id')
       .single()
     if (convErr || !newConv) {
@@ -416,7 +434,7 @@ export async function POST(request: Request) {
     ).reverse()
 
     // ── Build context block ─────────────────────────────────────────────────
-    const contextBlock = await buildContextBlock(user_id, case_id)
+    const contextBlock = await buildContextBlock(user_id)
 
     // ── Build messages for Claude ───────────────────────────────────────────
     let messagesForClaude: Array<{ role: 'user' | 'assistant'; content: string }> =
@@ -480,148 +498,187 @@ export async function POST(request: Request) {
 
 // ── 6. buildContextBlock ───────────────────────────────────────────────────────
 
-async function buildContextBlock(
-  userId: string,
-  caseIdOverride?: string,
-): Promise<string> {
-  // ── Fetch case ──────────────────────────────────────────────────────────────
-  let caseData: Record<string, any> | null = null
+async function buildContextBlock(userId: string): Promise<string> {
+  // ── 1. Base data in parallel ────────────────────────────────────────────────
+  const [profileRes, ownCasesRes, sharedRes, contactsRes] = await Promise.all([
+    supabaseAdmin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', userId)
+      .maybeSingle(),
 
-  if (caseIdOverride) {
-    const { data } = await supabaseAdmin
+    supabaseAdmin
       .from('cases')
-      .select('*')
-      .eq('id', caseIdOverride)
-      .maybeSingle()
-    caseData = data
-  } else {
-    const { data } = await supabaseAdmin
-      .from('cases')
-      .select('*')
+      .select('id, name, ai_summary, ai_next_step, category')
       .eq('user_id', userId)
-      .eq('status', 'activa')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    caseData = data
-  }
-
-  // ── Fetch profile (always needed) ──────────────────────────────────────────
-  const { data: profileData } = await supabaseAdmin
-    .from('profiles')
-    .select('full_name')
-    .eq('id', userId)
-    .maybeSingle()
-
-  const fullName = (profileData?.full_name ?? '') as string
-
-  // ── No active case ──────────────────────────────────────────────────────────
-  if (!caseData) {
-    return `<contexto>
-  <perfil>
-    <nombre>${esc(fullName)}</nombre>
-  </perfil>
-  <caso_activo>ninguno</caso_activo>
-</contexto>`
-  }
-
-  const caseId = caseData.id as string
-
-  // ── Parallel fetch: contacts, tasks, history ────────────────────────────────
-  const [contactsRes, tasksRes, historyRes] = await Promise.all([
-    supabaseAdmin
-      .from('case_contacts')
-      .select('contact:contacts(name, relationship, role, proximity, notes)')
-      .eq('case_id', caseId),
+      .eq('status', 'activa'),
 
     supabaseAdmin
-      .from('tasks')
-      .select('title, description, due_date, assigned_to_user, contact:contacts(name)')
-      .eq('case_id', caseId)
-      .eq('status', 'pendiente')
-      .order('due_date', { ascending: true, nullsFirst: false })
-      .limit(10),
+      .from('shared_case_members')
+      .select('shared_cases!inner(id, name, ai_summary)')
+      .eq('user_id', userId)
+      .eq('status', 'active'),
 
     supabaseAdmin
-      .from('case_history')
-      .select('event_type, title, description, occurred_at')
-      .eq('case_id', caseId)
-      .order('occurred_at', { ascending: false })
-      .limit(5),
+      .from('contacts')
+      .select('name, relationship, role, proximity, notes')
+      .eq('user_id', userId)
+      .order('sort_order', { ascending: true, nullsFirst: false }),
   ])
 
-  const contacts = (contactsRes.data ?? []) as any[]
-  const tasks    = (tasksRes.data    ?? []) as any[]
-  const history  = (historyRes.data  ?? []) as any[]
+  const fullName    = (profileRes.data?.full_name ?? '') as string
+  const ownCases    = (ownCasesRes.data ?? []) as any[]
+  const sharedCases = (sharedRes.data ?? []).map((m: any) => m.shared_cases).filter(Boolean) as any[]
+  const contacts    = (contactsRes.data ?? []) as any[]
 
-  // ── Build XML sections ──────────────────────────────────────────────────────
+  // ── 2. Detail for each case in parallel ─────────────────────────────────────
+  const ownCaseDetails = await Promise.all(
+    ownCases.map(async (c: any) => {
+      const [tasksRes, historyRes] = await Promise.all([
+        supabaseAdmin
+          .from('tasks')
+          .select('title, due_date, assigned_to_user, contact:contacts(name)')
+          .eq('case_id', c.id)
+          .eq('status', 'pendiente')
+          .order('due_date', { ascending: true, nullsFirst: false })
+          .limit(8),
 
-  const circuloXml = contacts
-    .map((cc: any) => {
-      const c = cc.contact
-      if (!c) return ''
-      return [
-        '    <contacto>',
-        `      <nombre>${esc(c.name)}</nombre>`,
-        `      <relacion>${esc(c.relationship)}</relacion>`,
-        `      <rol>${esc(c.role)}</rol>`,
-        `      <proximidad>${esc(c.proximity)}</proximidad>`,
-        `      <notas>${esc(c.notes)}</notas>`,
-        '    </contacto>',
-      ].join('\n')
+        supabaseAdmin
+          .from('case_history')
+          .select('event_type, title, description, occurred_at')
+          .eq('case_id', c.id)
+          .order('occurred_at', { ascending: false })
+          .limit(4),
+      ])
+      return {
+        ...c,
+        tasks:   (tasksRes.data   ?? []) as any[],
+        history: (historyRes.data ?? []) as any[],
+      }
     })
-    .filter(Boolean)
-    .join('\n')
+  )
 
-  const tareasXml = tasks
-    .map((t: any) => {
-      const asignadaA = t.assigned_to_user
-        ? 'vos'
-        : (t.contact?.name ?? 'sin asignar')
-      return [
-        '    <tarea>',
-        `      <titulo>${esc(t.title)}</titulo>`,
-        `      <vence>${esc(describeDueDate(t.due_date))}</vence>`,
-        `      <asignada_a>${esc(asignadaA)}</asignada_a>`,
-        '    </tarea>',
-      ].join('\n')
+  const sharedCaseDetails = await Promise.all(
+    sharedCases.map(async (sc: any) => {
+      const [tasksRes, membersRes, historyRes] = await Promise.all([
+        supabaseAdmin
+          .from('tasks')
+          .select('title, due_date, assigned_to_user, contact:contacts(name)')
+          .eq('shared_case_id', sc.id)
+          .eq('status', 'pendiente')
+          .order('due_date', { ascending: true, nullsFirst: false })
+          .limit(8),
+
+        supabaseAdmin
+          .from('shared_case_members')
+          .select('profiles!inner(full_name)')
+          .eq('shared_case_id', sc.id)
+          .eq('status', 'active'),
+
+        supabaseAdmin
+          .from('shared_case_history')
+          .select('event_type, title, description, occurred_at')
+          .eq('shared_case_id', sc.id)
+          .order('occurred_at', { ascending: false })
+          .limit(4),
+      ])
+      return {
+        ...sc,
+        tasks:        (tasksRes.data   ?? []) as any[],
+        participants: (membersRes.data ?? []) as any[],
+        history:      (historyRes.error ? [] : (historyRes.data ?? [])) as any[],
+      }
     })
-    .join('\n')
+  )
 
-  const historialXml = history
-    .map((h: any) => {
+  // ── 3. XML helpers ──────────────────────────────────────────────────────────
+
+  function buildTareasXml(tasks: any[]): string {
+    if (tasks.length === 0) return '      (sin tareas pendientes)'
+    return tasks.map((t: any) => {
+      const asignadaA = t.assigned_to_user ? 'vos' : (t.contact?.name ?? 'sin asignar')
+      return [
+        '      <tarea>',
+        `        <titulo>${esc(t.title)}</titulo>`,
+        `        <vence>${esc(describeDueDate(t.due_date))}</vence>`,
+        `        <asignada_a>${esc(asignadaA)}</asignada_a>`,
+        '      </tarea>',
+      ].join('\n')
+    }).join('\n')
+  }
+
+  function buildHistorialXml(history: any[]): string {
+    if (history.length === 0) return '      (sin historial)'
+    return history.map((h: any) => {
       const fecha = h.occurred_at
         ? new Date(h.occurred_at).toLocaleDateString('es-AR', {
-            day:   '2-digit',
-            month: '2-digit',
-            year:  'numeric',
+            day: '2-digit', month: '2-digit', year: 'numeric',
           })
         : ''
       const desc = h.description ? ` — ${h.description}` : ''
-      return `    <evento fecha="${esc(fecha)}" tipo="${esc(h.event_type)}">${esc(h.title + desc)}</evento>`
-    })
-    .join('\n')
+      return `      <evento fecha="${esc(fecha)}" tipo="${esc(h.event_type)}">${esc(h.title + desc)}</evento>`
+    }).join('\n')
+  }
+
+  // ── 4. Build temas XML ──────────────────────────────────────────────────────
+
+  const temasXml = [
+    ...ownCaseDetails.map((c: any) =>
+      `    <tema id="${esc(c.id)}" tipo="propio">
+      <nombre>${esc(c.name)}</nombre>
+      <resumen>${esc(c.ai_summary)}</resumen>
+      <proximo_paso>${esc(c.ai_next_step)}</proximo_paso>
+      <tareas_pendientes>
+${buildTareasXml(c.tasks)}
+      </tareas_pendientes>
+      <historial_reciente>
+${buildHistorialXml(c.history)}
+      </historial_reciente>
+    </tema>`
+    ),
+
+    ...sharedCaseDetails.map((sc: any) => {
+      const participantesXml = sc.participants.length > 0
+        ? sc.participants.map((m: any) =>
+            `        <participante>${esc(m.profiles?.full_name)}</participante>`
+          ).join('\n')
+        : '        (sin participantes)'
+      return `    <tema id="${esc(sc.id)}" tipo="compartido">
+      <nombre>${esc(sc.name)}</nombre>
+      <resumen>${esc(sc.ai_summary)}</resumen>
+      <participantes>
+${participantesXml}
+      </participantes>
+      <tareas_pendientes>
+${buildTareasXml(sc.tasks)}
+      </tareas_pendientes>
+      <historial_reciente>
+${buildHistorialXml(sc.history)}
+      </historial_reciente>
+    </tema>`
+    }),
+  ].join('\n')
+
+  // ── 5. Build círculo XML ────────────────────────────────────────────────────
+
+  const circuloXml = contacts.map((c: any) => [
+    '    <contacto>',
+    `      <nombre>${esc(c.name)}</nombre>`,
+    `      <relacion>${esc(c.relationship)}</relacion>`,
+    `      <rol>${esc(c.role)}</rol>`,
+    `      <proximidad>${esc(c.proximity)}</proximidad>`,
+    `      <notas>${esc(c.notes)}</notas>`,
+    '    </contacto>',
+  ].join('\n')).join('\n')
 
   return `<contexto>
-  <perfil>
-    <nombre>${esc(fullName)}</nombre>
-  </perfil>
-  <caso_activo>
-    <id>${esc(caseId)}</id>
-    <nombre>${esc(caseData.name)}</nombre>
-    <categoria>${esc(caseData.category)}</categoria>
-    <resumen>${esc(caseData.ai_summary)}</resumen>
-    <proximo_paso>${esc(caseData.ai_next_step)}</proximo_paso>
-  </caso_activo>
+  <perfil><nombre>${esc(fullName)}</nombre></perfil>
+  <temas>
+${temasXml || '    (sin temas activos)'}
+  </temas>
   <circulo>
 ${circuloXml || '    (sin contactos registrados)'}
   </circulo>
-  <tareas_pendientes>
-${tareasXml || '    (sin tareas pendientes)'}
-  </tareas_pendientes>
-  <historial_reciente>
-${historialXml || '    (sin historial)'}
-  </historial_reciente>
 </contexto>`
 }
 

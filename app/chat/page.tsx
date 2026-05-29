@@ -523,6 +523,13 @@ export default function ChatPage() {
     )
   }
 
+  // ── Derived: suggestions for input bar ────────────────────────────────────
+
+  const lastAgentMsg = [...messages].reverse().find(m => m.role === 'agent')
+  const activeSuggestions = !agentBusy && lastAgentMsg?.suggestions?.length
+    ? lastAgentMsg.suggestions
+    : []
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -718,120 +725,72 @@ export default function ChatPage() {
             <div
               ref={threadRef}
               className="chat-thread flex-1 overflow-y-auto flex flex-col gap-[14px]"
-              style={{ padding: 24 }}
+              style={{ padding: 24, width: '100%' }}
             >
-              {(() => {
-                const lastAgentIndex = messages.reduce(
-                  (last, msg, i) => (msg.role === 'agent' ? i : last),
-                  -1
-                )
-                return messages.map((msg, idx) => {
-                  const showSuggestions =
-                    msg.role === 'agent' &&
-                    idx === lastAgentIndex &&
-                    !agentBusy &&
-                    (msg.suggestions?.length ?? 0) > 0
+              {messages.map((msg) => (
+                <div key={msg.id} style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <div
+                    className="flex flex-col"
+                    style={{
+                      maxWidth:  '72%',
+                      alignSelf: msg.role === 'agent' ? 'flex-start' : 'flex-end',
+                      width:     'fit-content',
+                    }}
+                  >
+                    {/* Sender label */}
+                    <span
+                      className="text-[0.7rem] font-bold mb-1 px-1"
+                      style={{
+                        color:     msg.role === 'agent' ? '#0A7E8C' : '#5a7478',
+                        textAlign: msg.role === 'agent' ? 'left'    : 'right',
+                      }}
+                    >
+                      {msg.role === 'agent' ? 'Mhiru' : 'Vos'}
+                    </span>
 
-                  return (
-                    <div key={msg.id}>
-                      <div
-                        className="flex flex-col"
-                        style={{
-                          maxWidth:  '68%',
-                          alignSelf: msg.role === 'agent' ? 'flex-start' : 'flex-end',
-                        }}
-                      >
-                        {/* Sender label */}
-                        <span
-                          className="text-[0.7rem] font-bold mb-1 px-1"
-                          style={{
-                            color:     msg.role === 'agent' ? '#0A7E8C' : '#5a7478',
-                            textAlign: msg.role === 'agent' ? 'left'    : 'right',
-                          }}
-                        >
-                          {msg.role === 'agent' ? 'Mhiru' : 'Vos'}
-                        </span>
-
-                        {/* Bubble */}
-                        <div style={{
-                          padding:                '12px 17px',
-                          borderRadius:           18,
-                          borderBottomLeftRadius:  msg.role === 'agent' ? 4  : 18,
-                          borderBottomRightRadius: msg.role === 'user'  ? 4  : 18,
-                          background:             msg.role === 'agent' ? '#0A7E8C' : '#FFFFFF',
-                          color:                  msg.role === 'agent' ? '#FFFFFF' : '#1A1A2E',
-                          border:                 msg.role === 'user'
-                            ? '1.5px solid rgba(10,126,140,0.30)'
-                            : 'none',
-                          fontSize: '0.875rem', lineHeight: 1.6,
-                          whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                        }}>
-                          {msg.text}
-                        </div>
-
-                        {/* Timestamp */}
-                        <span style={{
-                          fontSize: '0.65rem', color: '#5a7478',
-                          marginTop: 4, padding: '0 5px',
-                          alignSelf: msg.role === 'agent' ? 'flex-start' : 'flex-end',
-                        }}>
-                          {msg.time}
-                        </span>
-
-                        {/* Action feedback */}
-                        {msg.role === 'agent' && msg.action && (
-                          <div style={{
-                            display: 'flex', alignItems: 'center', gap: 4,
-                            fontSize: '0.65rem', color: '#5a7478',
-                            marginTop: 2, paddingLeft: 5, alignSelf: 'flex-start',
-                          }}>
-                            <span className="material-symbols-outlined"
-                              style={{ fontSize: 14, color: '#5a7478', lineHeight: 1 }}>
-                              {msg.action.icon}
-                            </span>
-                            {msg.action.label}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Quick reply chips — only on the last agent message */}
-                      {showSuggestions && (
-                        <div style={{
-                          display:   'flex',
-                          flexWrap:  'wrap',
-                          gap:       8,
-                          marginTop: 8,
-                          alignSelf: 'flex-start',
-                        }}>
-                          {(msg.suggestions ?? []).map((s) => (
-                            <button
-                              key={s}
-                              type="button"
-                              onClick={() => send(s)}
-                              style={{
-                                background:   '#FFFFFF',
-                                border:       '1.5px solid rgba(10,126,140,0.25)',
-                                borderRadius: 9999,
-                                padding:      '6px 14px',
-                                fontSize:     '0.75rem',
-                                fontWeight:   600,
-                                color:        '#0A7E8C',
-                                cursor:       'pointer',
-                                fontFamily:   'inherit',
-                                transition:   'background 0.15s',
-                              }}
-                              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(10,126,140,0.05)' }}
-                              onMouseLeave={e => { e.currentTarget.style.background = '#FFFFFF' }}
-                            >
-                              {s}
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                    {/* Bubble */}
+                    <div style={{
+                      padding:                '12px 17px',
+                      borderRadius:           18,
+                      borderBottomLeftRadius:  msg.role === 'agent' ? 4  : 18,
+                      borderBottomRightRadius: msg.role === 'user'  ? 4  : 18,
+                      background:             msg.role === 'agent' ? '#0A7E8C' : '#FFFFFF',
+                      color:                  msg.role === 'agent' ? '#FFFFFF' : '#1A1A2E',
+                      border:                 msg.role === 'user'
+                        ? '1.5px solid rgba(10,126,140,0.30)'
+                        : 'none',
+                      fontSize: '0.875rem', lineHeight: 1.6,
+                      whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                    }}>
+                      {msg.text}
                     </div>
-                  )
-                })
-              })()}
+
+                    {/* Timestamp */}
+                    <span style={{
+                      fontSize: '0.65rem', color: '#5a7478',
+                      marginTop: 4, padding: '0 5px',
+                      alignSelf: msg.role === 'agent' ? 'flex-start' : 'flex-end',
+                    }}>
+                      {msg.time}
+                    </span>
+
+                    {/* Action feedback */}
+                    {msg.role === 'agent' && msg.action && (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 4,
+                        fontSize: '0.65rem', color: '#5a7478',
+                        marginTop: 2, paddingLeft: 5, alignSelf: 'flex-start',
+                      }}>
+                        <span className="material-symbols-outlined"
+                          style={{ fontSize: 14, color: '#5a7478', lineHeight: 1 }}>
+                          {msg.action.icon}
+                        </span>
+                        {msg.action.label}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
 
               {/* Typing indicator */}
               {agentBusy && <TypingIndicator />}
@@ -839,48 +798,83 @@ export default function ChatPage() {
 
             {/* Input bar */}
             <div
-              className="flex-shrink-0 flex items-end gap-[10px] bg-white"
-              style={{ padding: '14px 20px', borderTop: '1px solid rgba(10,126,140,0.12)' }}
+              className="flex-shrink-0 bg-white"
+              style={{ padding: '12px 20px', borderTop: '1px solid rgba(10,126,140,0.12)' }}
             >
-              <textarea
-                ref={textareaRef}
-                className="flex-1 outline-none resize-none text-[#1A1A2E]"
-                style={{
-                  background:   '#FAF8F5',
-                  border:       '1.5px solid rgba(10,126,140,0.12)',
-                  borderRadius: '1.5rem',
-                  padding:      '11px 16px',
-                  fontSize:     '0.875rem',
-                  lineHeight:   1.5,
-                  minHeight:    44,
-                  maxHeight:    120,
-                  transition:   'border-color 0.2s',
-                }}
-                placeholder="Escribí un mensaje…"
-                rows={1}
-                value={input}
-                onChange={onInputChange}
-                onKeyDown={onKeyDown}
-                onFocus={(e) => { e.currentTarget.style.borderColor = '#0A7E8C' }}
-                onBlur={(e)  => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)' }}
-                disabled={agentBusy}
-              />
 
-              <button
-                type="button"
-                onClick={() => send()}
-                disabled={agentBusy || !input.trim()}
-                className="flex-shrink-0 flex items-center justify-center rounded-full text-white transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                style={{
-                  width:      44,
-                  height:     44,
-                  background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                  boxShadow:  '0 4px 16px rgba(10,126,140,0.25)',
-                  flexShrink: 0,
-                }}
-              >
-                <SendIcon />
-              </button>
+              {/* Chips — arriba del textarea, siempre */}
+              {activeSuggestions.length > 0 && (
+                <div className="flex flex-col md:flex-row gap-[6px] mb-[8px]">
+                  {activeSuggestions.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => send(s)}
+                      disabled={agentBusy}
+                      className="w-full md:w-auto"
+                      style={{
+                        background:   '#FFFFFF',
+                        border:       '1.5px solid rgba(10,126,140,0.25)',
+                        borderRadius: 9999,
+                        padding:      '6px 14px',
+                        fontSize:     '0.75rem',
+                        fontWeight:   600,
+                        color:        '#0A7E8C',
+                        cursor:       'pointer',
+                        fontFamily:   'inherit',
+                        whiteSpace:   'nowrap',
+                        textAlign:    'left',
+                        transition:   'background 0.15s',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(10,126,140,0.05)' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = '#FFFFFF' }}
+                    >{s}</button>
+                  ))}
+                </div>
+              )}
+
+              {/* Textarea + send en fila */}
+              <div className="flex items-end gap-[10px]">
+                <textarea
+                  ref={textareaRef}
+                  className="flex-1 outline-none resize-none text-[#1A1A2E]"
+                  style={{
+                    background:   '#FAF8F5',
+                    border:       '1.5px solid rgba(10,126,140,0.12)',
+                    borderRadius: '1.5rem',
+                    padding:      '11px 16px',
+                    fontSize:     '0.875rem',
+                    lineHeight:   1.5,
+                    minHeight:    44,
+                    maxHeight:    120,
+                    transition:   'border-color 0.2s',
+                  }}
+                  placeholder="Escribí un mensaje…"
+                  rows={1}
+                  value={input}
+                  onChange={onInputChange}
+                  onKeyDown={onKeyDown}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = '#0A7E8C' }}
+                  onBlur={(e)  => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)' }}
+                  disabled={agentBusy}
+                />
+                <button
+                  type="button"
+                  onClick={() => send()}
+                  disabled={agentBusy || !input.trim()}
+                  className="flex-shrink-0 flex items-center justify-center rounded-full text-white transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  style={{
+                    width:      44,
+                    height:     44,
+                    background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                    boxShadow:  '0 4px 16px rgba(10,126,140,0.25)',
+                    flexShrink: 0,
+                  }}
+                >
+                  <SendIcon />
+                </button>
+              </div>
+
             </div>
 
           </div>

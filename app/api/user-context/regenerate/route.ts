@@ -8,11 +8,21 @@ const supabase  = createClient(
   process.env.SUPABASE_SECRET_KEY!
 )
 
-const STYLE = `Español rioplatense, segunda persona (vos),
-tono cálido y directo. Hablale directamente al usuario,
-no describas como si fuera un tercero. Usá "tenés",
-"estás", "necesitás", "tu". 2-4 oraciones.
-Solo prosa, sin bullets ni listas.`
+const STYLE = `Español rioplatense, segunda persona (vos).
+Tono: presencia tranquila. Como alguien que ya pasó por esto
+y sabe lo que hay que hacer. Directo sin ser frío. Humano sin
+ser emotivo. No nombrés el dolor — reconocelo implícitamente
+y actuá.
+
+Reglas estrictas:
+- NUNCA arranques con el nombre del usuario. Arrancá con un
+  verbo o con la situación directamente.
+- Oraciones cortas. Máximo 2-3 por dimensión.
+- Sin metáforas de viaje o batalla.
+- Sin palabras: "comunidad", "familia" (abstracto), "guerrero",
+  "camino", "proceso", "lucha".
+- Solo prosa, sin bullets ni listas.
+- No describas — actuá. Verbos activos, sujeto implícito.`
 
 async function generate(prompt: string): Promise<string> {
   const res = await anthropic.messages.create({
@@ -140,47 +150,41 @@ export async function POST(req: NextRequest) {
       await Promise.all([
 
         has('identity') ? generate(`
-Sos un asistente que sintetiza el perfil de un usuario.
-${STYLE}
-
-DATOS DEL USUARIO:
-Nombre: ${nombreUsuario}
-Email: ${userEmail ?? 'No disponible'}
-Miembro desde: ${miembroDesde}
-Ubicación: ${ubicacion || 'No especificada'}
-Obra social: ${obraSocial || 'No especificada'}
-
-Describite al usuario en 2-3 oraciones hablándole
-directamente. Incluí su nombre, su contexto vital,
-y una característica que defina cómo se para ante
-las situaciones que enfrenta. Usá segunda persona:
-'Sos...', 'Trabajás...', 'Te caracterizás por...'
-`) : Promise.resolve(null),
-
-        has('history') ? generate(`
-Sos un asistente que sintetiza la historia de un usuario en Mhiru.
+Sintetizá quién es este usuario en 2-3 oraciones.
 ${STYLE}
 
 DATOS:
 Nombre: ${nombreUsuario}
+Miembro desde: ${miembroDesde}
+Ubicación: ${ubicacion || 'No especificada'}
+Obra social: ${obraSocial || 'No especificada'}
+
+Describí quién es, desde dónde se para, y qué lo caracteriza.
+Arrancá con "Sos..." o con una observación directa sobre su perfil.
+Sin mencionar el nombre en el texto.
+`) : Promise.resolve(null),
+
+        has('history') ? generate(`
+Sintetizá la trayectoria de este usuario en Mhiru en 2-3 oraciones.
+${STYLE}
+
+DATOS:
 Miembro desde: ${miembroDesde}
 Temas propios: ${cases.length}
 Temas compartidos: ${shared.length}
 Historial reciente:
 ${historialTexto}
 
-Escribile al usuario un párrafo sobre su trayectoria
-en Mhiru hablándole directamente: desde cuándo estás,
-qué situaciones atravesaste y cómo evolucionaste.
-Usá segunda persona: 'Empezaste...', 'Atravesaste...'
+Describí qué situaciones atravesó y cómo evolucionó.
+Arrancá con "Empezaste...", "Desde que...", o similar.
+Sin mencionar el nombre en el texto.
 `) : Promise.resolve(null),
 
         has('current_state') ? generate(`
-Sos un asistente que describe el estado actual de un usuario.
+Describí cómo está este usuario hoy en 2-3 oraciones.
 ${STYLE}
 
 DATOS:
-Nombre: ${nombreUsuario}
 Temas activos propios: ${cases.filter((c: any) => c.status === 'activa').length}
 Temas compartidos activos: ${shared.length}
 Tareas pendientes:
@@ -188,18 +192,16 @@ ${tareasTexto}
 Historial reciente:
 ${historialTexto}
 
-Describile brevemente cómo está hoy hablándole
-directamente. Considerá su carga de tareas y temas
-activos. Usá segunda persona con empatía y sin
-dramatismo: 'Estás...', 'Tenés...', 'Esta semana...'
+Describí su carga real sin dramatizarla.
+Arrancá con "Tenés...", "Estás...", "Esta semana..." o similar.
+Sin mencionar el nombre en el texto.
 `) : Promise.resolve(null),
 
         has('current_needs') ? generate(`
-Sos un asistente que identifica las necesidades actuales de un usuario.
+Identificá qué necesita este usuario ahora en 1-2 oraciones.
 ${STYLE}
 
 DATOS:
-Nombre: ${nombreUsuario}
 Tareas pendientes:
 ${tareasTexto}
 Temas propios:
@@ -207,44 +209,37 @@ ${casesTexto}
 Temas compartidos:
 ${sharedTexto}
 
-Identificá qué necesitás en este momento concreto
-y expresáselo directamente al usuario. Una o dos
-necesidades claras y accionables en segunda persona:
-'Necesitás...', 'Lo más importante ahora es que...'
+Una o dos necesidades concretas y accionables.
+Arrancá con "Necesitás...", "Lo más urgente es...", o similar.
+Sin mencionar el nombre en el texto.
 `) : Promise.resolve(null),
 
         has('circle_summary') ? generate(`
-Sos un asistente que describe la red social de un usuario.
+Describí el círculo de apoyo de este usuario en 2-3 oraciones.
 ${STYLE}
 
 DATOS:
-Nombre: ${nombreUsuario}
 Contactos (${contacts.length}):
 ${contactosTexto}
 
-Describile al usuario su red de personas hablándole
-directamente. Para cada persona relevante, explicá
-quién es y qué función cumple en su vida.
-Usá segunda persona: 'Tu círculo incluye...',
-'Contás con...', 'Tenés cerca a...'
+Describí quiénes están cerca y qué función cumplen.
+Arrancá con "Contás con...", "Tu círculo tiene...", "Tenés cerca..." o similar.
+Sin mencionar el nombre del usuario en el texto.
 `) : Promise.resolve(null),
 
         has('themes_summary') ? generate(`
-Sos un asistente que describe los temas activos de un usuario.
+Describí los temas activos de este usuario en 2-3 oraciones.
 ${STYLE}
 
 DATOS:
-Nombre: ${nombreUsuario}
 Temas propios:
 ${casesTexto}
 Temas compartidos:
 ${sharedTexto}
 
-Describile al usuario sus temas activos hablándole
-directamente. Para cada uno, explicá de qué se trata,
-por qué lo tenés en tu vida y qué lugar ocupa en
-tu agenda. Usá segunda persona: 'Tenés activo...',
-'Estás coordinando...', 'Tu tema más urgente es...'
+Describí qué está gestionando y qué lugar ocupa en su agenda.
+Arrancá con "Tenés activo...", "Estás coordinando...", o similar.
+Sin mencionar el nombre del usuario en el texto.
 `) : Promise.resolve(null),
 
       ])
