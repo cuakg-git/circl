@@ -824,7 +824,6 @@ export default function DashboardPage() {
                     type="button"
                     onClick={() => setCirculoOpen(prev => !prev)}
                     style={{
-                      width: '100%',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
@@ -931,7 +930,6 @@ export default function DashboardPage() {
                     type="button"
                     onClick={() => setTemasOpen(prev => !prev)}
                     style={{
-                      width: '100%',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
