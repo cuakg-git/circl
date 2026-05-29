@@ -319,7 +319,7 @@ export default function ChatPage() {
     return (
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0 16px' }}>
         {/* Chat general item */}
-        <div
+        <button
           type="button"
           onClick={selectGeneral}
           style={{
@@ -339,7 +339,7 @@ export default function ChatPage() {
           }}>
             Chat general
           </span>
-        </div>
+        </button>
 
         {/* ¿De qué querés hablar? section */}
         {caseItems.length > 0 && (
