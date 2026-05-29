@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import { supabase } from '@/lib/supabase'
+import { SkeletonStyles, SkeletonText, SkeletonCard, SkeletonBase } from '@/components/Skeleton'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -106,6 +107,7 @@ export default function ChatPage() {
   const [activeContext, setActiveContext] = useState<ActiveContext>(null)
   const [input,         setInput]         = useState('')
   const [agentBusy,     setAgentBusy]     = useState(false)
+  const [loading,       setLoading]       = useState(true)
   const [panelOpen,     setPanelOpen]     = useState(true)
   const [drawerOpen,    setDrawerOpen]    = useState(false)
 
@@ -178,6 +180,7 @@ export default function ChatPage() {
               action: m.sender === 'agente' ? detectAction(m.content) : null,
             } as Message))
           )
+          setLoading(false)
           return
         }
       }
@@ -189,6 +192,7 @@ export default function ChatPage() {
         text: 'Hola. ¿En qué te puedo ayudar hoy?',
         time: nowTime(),
       }])
+      setLoading(false)
     }
 
     init()
@@ -419,6 +423,103 @@ export default function ChatPage() {
           </>
         )}
       </div>
+    )
+  }
+
+  // ── Skeleton loading ────────────────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <>
+        <SkeletonStyles />
+        <style>{`
+          @keyframes heroBgDrift {
+            0%, 100% {
+              background:
+                radial-gradient(ellipse at 15% 15%, rgba(61,199,166,0.03)  0%, transparent 55%),
+                radial-gradient(ellipse at 85% 10%, rgba(80,220,175,0.07)  0%, transparent 50%),
+                radial-gradient(ellipse at 88% 82%, rgba(224,121,49,0.08)  0%, transparent 52%),
+                radial-gradient(ellipse at 12% 88%, rgba(158,160,81,0.08)  0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 65%),
+                #f0f4f8;
+            }
+          }
+          .chat-bg { animation: heroBgDrift 30s ease-in-out infinite; }
+        `}</style>
+
+        <div className="chat-bg flex" style={{ height: '100vh', overflow: 'hidden' }}>
+          <Sidebar />
+
+          <main className="flex flex-1 overflow-hidden md:ml-[240px]" style={{ height: '100%' }}>
+
+            {/* ZONA 1 — Panel lateral skeleton */}
+            <div
+              className="hidden md:flex"
+              style={{
+                width:         260,
+                minWidth:      260,
+                flexDirection: 'column',
+                background:    '#FFFFFF',
+                borderRight:   '1px solid rgba(10,126,140,0.12)',
+                flexShrink:    0,
+                padding:       '8px 0 16px',
+              }}
+            >
+              <SkeletonBase
+                width={80}
+                height={12}
+                style={{ borderRadius: 6, margin: 16 }}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '0 16px' }}>
+                <SkeletonBase height={36} style={{ borderRadius: 8 }} />
+                <SkeletonBase height={36} style={{ borderRadius: 8 }} />
+                <SkeletonBase height={36} style={{ borderRadius: 8 }} />
+              </div>
+            </div>
+
+            {/* Chat area */}
+            <div
+              className="flex flex-1 flex-col overflow-hidden pb-16 md:pb-0"
+              style={{ background: '#FAF8F5' }}
+            >
+
+              {/* ZONA 2 — Topbar skeleton */}
+              <div
+                className="flex-shrink-0 flex items-center gap-3 bg-white"
+                style={{ padding: '16px 20px', borderBottom: '1px solid rgba(10,126,140,0.12)' }}
+              >
+                <SkeletonBase width={200} height={16} style={{ borderRadius: 6 }} />
+              </div>
+
+              {/* ZONA 3 — Message thread skeleton */}
+              <div
+                className="flex-1 overflow-hidden flex flex-col gap-[14px]"
+                style={{ padding: 24 }}
+              >
+                {/* Bubble 1 — agente, izquierda */}
+                <SkeletonBase
+                  width="65%"
+                  height={60}
+                  style={{ borderRadius: 18, borderBottomLeftRadius: 4 }}
+                />
+                {/* Bubble 2 — usuario, derecha */}
+                <SkeletonBase
+                  width="45%"
+                  height={44}
+                  style={{ borderRadius: 18, borderBottomRightRadius: 4, alignSelf: 'flex-end' }}
+                />
+                {/* Bubble 3 — agente, izquierda */}
+                <SkeletonBase
+                  width="55%"
+                  height={80}
+                  style={{ borderRadius: 18, borderBottomLeftRadius: 4 }}
+                />
+              </div>
+
+            </div>
+          </main>
+        </div>
+      </>
     )
   }
 

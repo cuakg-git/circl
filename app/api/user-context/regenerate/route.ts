@@ -31,6 +31,8 @@ export async function POST(req: NextRequest) {
     if (authErr || !user) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
+    const userId    = user.id
+    const userEmail = user.email
 
     // ── Dimensiones a regenerar ───────────────────────────────────
     let dimensions: string[] = []
@@ -49,13 +51,13 @@ export async function POST(req: NextRequest) {
         supabase
           .from('profiles')
           .select('full_name, avatar_url, location, health_insurance, created_at, phone')
-          .eq('id', user.id)
+          .eq('id', userId)
           .maybeSingle(),
 
         supabase
           .from('cases')
           .select('id, name, status, category, ai_summary, started_at')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .order('started_at', { ascending: false }),
 
         supabase
@@ -65,13 +67,13 @@ export async function POST(req: NextRequest) {
             joined_at,
             shared_case:shared_cases!inner(id, name, status, ai_summary, created_at)
           `)
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .eq('status', 'active'),
 
         supabase
           .from('contacts')
           .select('name, relationship, role, proximity, notes')
-          .eq('user_id', user.id),
+          .eq('user_id', userId),
       ])
 
     const profile  = profileRes.data
@@ -105,7 +107,7 @@ export async function POST(req: NextRequest) {
     ])
 
     // ── Textos auxiliares ─────────────────────────────────────────
-    const nombreUsuario = profile?.full_name ?? user.email ?? 'el usuario'
+    const nombreUsuario = profile?.full_name ?? userEmail ?? 'el usuario'
     const ubicacion     = profile?.location ?? ''
     const obraSocial    = profile?.health_insurance ?? ''
     const miembroDesde  = profile?.created_at
@@ -143,7 +145,7 @@ ${STYLE}
 
 DATOS DEL USUARIO:
 Nombre: ${nombreUsuario}
-Email: ${user.email}
+Email: ${userEmail ?? 'No disponible'}
 Miembro desde: ${miembroDesde}
 Ubicación: ${ubicacion || 'No especificada'}
 Obra social: ${obraSocial || 'No especificada'}
@@ -259,7 +261,7 @@ tu agenda. Usá segunda persona: 'Tenés activo...',
     // ── Upsert en user_context ────────────────────────────────────
     const { error: upsertErr } = await supabase
       .from('user_context')
-      .upsert({ user_id: user.id, ...update })
+      .upsert({ user_id: userId, ...update })
 
     if (upsertErr) {
       return NextResponse.json(
