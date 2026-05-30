@@ -230,16 +230,6 @@ export default function DashboardPage() {
       }
 
       setLoading(false)
-
-      // Si no hay contexto o tiene más de 1 hora, marcar como stale
-      const lastRegen = ctxRes.data?.last_regen_at
-      if (!lastRegen) {
-        setContextStale(true)
-      } else {
-        const diffMs = Date.now() - new Date(lastRegen).getTime()
-        const diffHours = diffMs / (1000 * 60 * 60)
-        if (diffHours > 1) setContextStale(true)
-      }
     }
     init()
   }, [router])
