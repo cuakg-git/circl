@@ -578,7 +578,7 @@ export default function TareaDetailPage() {
   const [chatSuggestions, setChatSuggestions] = useState<string[]>([])
   const [chatDone,        setChatDone]        = useState(false)
 
-  const [ctxOpen, setCtxOpen] = useState(true)
+  const [ctxOpen,        setCtxOpen]        = useState(true)
 
   // ── Load ──────────────────────────────────────────────────────────────────────
 
@@ -1158,6 +1158,7 @@ export default function TareaDetailPage() {
       newStatus === 'completada' ? 'Tarea marcada como completada' : 'Tarea reabierta'
     )
     await logCaseHistory(newStatus === 'completada' ? `"${task?.title}" completada` : `"${task?.title}" reabierta`, taskId)
+    window.dispatchEvent(new CustomEvent('mhiru:context-stale'))
   }
 
   async function handleSendNotification() {

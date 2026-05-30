@@ -100,7 +100,65 @@ const supabase = createClient(
 
 export async function POST(request: Request) {
   const body = await request.json()
-  const { user_id, contact_id, current_question, user_response } = body || {}
+  const { user_id, contact_id, current_question, user_response, generate_first_question } = body || {}
+
+  const generateFirst = generate_first_question === true
+
+  if (generateFirst) {
+    // Generar primera pregunta personalizada según el contacto
+    const { data: contactData } = await supabase
+      .from('contacts')
+      .select('name, role, relationship, proximity, context_summary')
+      .eq('id', contact_id)
+      .eq('user_id', user_id)
+      .maybeSingle()
+
+    if (!contactData) {
+      return Response.json({ error: 'Contacto no encontrado' }, { status: 404 })
+    }
+
+    const role = contactData?.role ?? ''
+    const name = contactData?.name ?? ''
+    const relationship = contactData?.relationship ?? ''
+
+    const isProvider = role === 'prestador_servicios'
+
+    const systemPrompt = isProvider
+      ? `Generá UNA pregunta corta y directa para conocer mejor la relación del usuario con un prestador de servicios de salud llamado ${name}${relationship ? ` (${relationship})` : ''}. La pregunta debe ser sobre cómo lo conoció, qué servicio le da o cómo fue su experiencia. Máximo 12 palabras. Sin signos de apertura (¿). Respondé SOLO con un JSON: {"question": "...", "suggestions": ["...", "...", "..."]}`
+      : `Generá UNA pregunta corta y directa para conocer mejor la relación del usuario con una persona llamada ${name}${relationship ? ` (${relationship})` : ''}. La pregunta debe ser sobre el vínculo, cómo se conocieron o qué lugar ocupa en su vida. Máximo 12 palabras. Sin signos de apertura (¿). Respondé SOLO con un JSON: {"question": "...", "suggestions": ["...", "...", "..."]}`
+
+    try {
+      const res = await anthropic.messages.create({
+        model:      'claude-haiku-4-5-20251001',
+        max_tokens: 200,
+        messages:   [{ role: 'user', content: systemPrompt }],
+      })
+
+      const text = res.content[0].type === 'text' ? res.content[0].text.trim() : ''
+      try {
+        const parsed = JSON.parse(text.replace(/```json|```/g, '').trim())
+        return Response.json({
+          next_question: parsed.question,
+          suggestions:   parsed.suggestions ?? [],
+        })
+      } catch {
+        return Response.json({
+          next_question: isProvider
+            ? `Cómo llegaste a trabajar con ${name}`
+            : `Quién es ${name} en tu vida`,
+          suggestions: [],
+        })
+      }
+    } catch (err) {
+      console.error('[contact-context] error generando primera pregunta:', err)
+      return Response.json({
+        next_question: isProvider
+          ? `Cómo llegaste a trabajar con ${name}`
+          : `Quién es ${name} en tu vida`,
+        suggestions: [],
+      })
+    }
+  }
 
   if (!user_id || !contact_id || !current_question || !user_response) {
     return Response.json({ error: 'Missing required fields' }, { status: 400 })

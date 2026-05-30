@@ -117,6 +117,7 @@ function NuevoPrestadorContent() {
       return
     }
 
+    window.dispatchEvent(new CustomEvent('mhiru:context-stale'))
     router.replace(`/circulo/prestador/${inserted.id}`)
   }
 

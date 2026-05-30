@@ -134,10 +134,36 @@ export default function AuthCallbackPage() {
               window.location.href = `/case/shared/${data.shared_case_id}`
             } else {
               console.log('[CALLBACK] invitation failed or no shared_case_id, redirecting to /dashboard')
+              // Fire and forget — regenerate contexto del usuario en background
+              supabase.auth.getSession().then(({ data: { session } }) => {
+                if (session?.access_token) {
+                  fetch('/api/user-context/regenerate', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${session.access_token}`,
+                    },
+                    body: JSON.stringify({}),
+                  }).catch(() => {}) // silenciar errores — es background
+                }
+              })
               window.location.href = '/dashboard'
             }
           } catch (err) {
             console.log('[CALLBACK] exception accepting invitation:', err)
+            // Fire and forget — regenerate contexto del usuario en background
+            supabase.auth.getSession().then(({ data: { session } }) => {
+              if (session?.access_token) {
+                fetch('/api/user-context/regenerate', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                  },
+                  body: JSON.stringify({}),
+                }).catch(() => {}) // silenciar errores — es background
+              }
+            })
             window.location.href = '/dashboard'
           }
         }
@@ -150,6 +176,19 @@ export default function AuthCallbackPage() {
         window.location.href = '/onboarding'
       } else {
         console.log('[CALLBACK] redirecting to /dashboard')
+        // Fire and forget — regenerate contexto del usuario en background
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session?.access_token) {
+            fetch('/api/user-context/regenerate', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({}),
+            }).catch(() => {}) // silenciar errores — es background
+          }
+        })
         window.location.href = '/dashboard'
       }
     }

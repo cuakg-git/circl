@@ -28,14 +28,6 @@ type Contact = {
   context_summary:  string | null
 }
 
-type Provider = {
-  id:         string
-  name:       string
-  phone:      string | null
-  email:      string | null
-  prestacion: string | null
-  notes:      string | null
-}
 
 type Suggestion = {
   name:       string
@@ -463,11 +455,26 @@ export default function CirculoPage() {
   const [loading,     setLoading]     = useState(true)
   const [contacts,    setContacts]    = useState<Contact[]>([])
   const [avatarUrls,  setAvatarUrls]  = useState<Record<string, string>>({})
-  const [providers,          setProviders]          = useState<Provider[]>([])
   const [suggestions,        setSuggestions]        = useState<Suggestion[]>([])
   const [suggestionsLoading, setSuggestionsLoading] = useState(false)
   const [userName,    setUserName]    = useState('')
   const [userAvatar,  setUserAvatar]  = useState<string | null>(null)
+  const [obrasSociales, setObrasSociales] = useState<string[]>([])
+  const [addingOS,      setAddingOS]      = useState(false)
+  const [newOSInput,    setNewOSInput]    = useState('')
+  const [savingOS,      setSavingOS]      = useState(false)
+  const [newProviderModal, setNewProviderModal] = useState<{
+    open:      boolean
+    name:      string
+    phone:     string
+    email:     string
+    specialty: string
+    saving:    boolean
+    error:     string | null
+  }>({
+    open: false, name: '', phone: '', email: '',
+    specialty: '', saving: false, error: null,
+  })
 
   // Mobile orbit scaling
   const orbitWrapRef = useRef<HTMLDivElement | null>(null)
@@ -545,14 +552,13 @@ export default function CirculoPage() {
       }
       setAvatarUrls(map)
 
-      // Providers
-      const { data: providersData } = await supabase
-        .from('providers')
-        .select('id, name, phone, email, prestacion, notes')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true })
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('health_insurances')
+        .eq('id', user.id)
+        .maybeSingle()
 
-      setProviders((providersData ?? []) as Provider[])
+      setObrasSociales(profileData?.health_insurances ?? [])
 
       setLoading(false)
       fetchSuggestions(user)
@@ -560,12 +566,90 @@ export default function CirculoPage() {
     load()
   }, [router])
 
+  // ── Obras sociales ───────────────────────────────────────────────────────────
+
+  async function handleAddOS() {
+    if (!newOSInput.trim() || savingOS) return
+    setSavingOS(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setSavingOS(false); return }
+
+    const updated = [...obrasSociales, newOSInput.trim()]
+    const { error } = await supabase
+      .from('profiles')
+      .update({ health_insurances: updated })
+      .eq('id', user.id)
+
+    if (!error) {
+      setObrasSociales(updated)
+      setNewOSInput('')
+      setAddingOS(false)
+      window.dispatchEvent(new CustomEvent('mhiru:context-stale'))
+    }
+    setSavingOS(false)
+  }
+
+  async function handleRemoveOS(index: number) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const updated = obrasSociales.filter((_, i) => i !== index)
+    const { error } = await supabase
+      .from('profiles')
+      .update({ health_insurances: updated })
+      .eq('id', user.id)
+    if (!error) {
+      setObrasSociales(updated)
+      window.dispatchEvent(new CustomEvent('mhiru:context-stale'))
+    }
+  }
+
+  // ── Agregar prestador externo ────────────────────────────────────────────────
+
+  async function handleAddExternalProvider() {
+    if (!newProviderModal.name.trim()) {
+      setNewProviderModal(prev => ({ ...prev, error: 'El nombre es obligatorio.' }))
+      return
+    }
+    setNewProviderModal(prev => ({ ...prev, saving: true, error: null }))
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data: newContact, error } = await supabase
+      .from('contacts')
+      .insert({
+        user_id:        user.id,
+        name:           newProviderModal.name.trim(),
+        phone:          newProviderModal.phone.trim()     || null,
+        email:          newProviderModal.email.trim()     || null,
+        relationship:   newProviderModal.specialty.trim() || null,
+        role:           'prestador_servicios',
+        proximity:      'profesional',
+        is_institution: false,
+        sort_order:     0,
+      })
+      .select('id, name, initials, role, proximity, phone, email, relationship, avatar_url, sort_order, context_summary')
+      .single()
+
+    if (error) {
+      setNewProviderModal(prev => ({ ...prev, saving: false, error: error.message }))
+      return
+    }
+
+    setContacts(prev => [...prev, newContact as Contact])
+    setNewProviderModal({
+      open: false, name: '', phone: '', email: '',
+      specialty: '', saving: false, error: null,
+    })
+    window.dispatchEvent(new CustomEvent('mhiru:context-stale'))
+  }
+
   // ── Group contacts by proximity ──────────────────────────────────────────────
 
   const groups: Record<Proximity, Contact[]> = {
     nucleo:      contacts.filter((c) => c.proximity === 'nucleo'),
     ayuda:       contacts.filter((c) => c.proximity === 'ayuda'),
-    profesional: [],
+    profesional: contacts.filter((c) => c.proximity === 'profesional'),
   }
   const totalContacts = contacts.length
 
@@ -836,10 +920,8 @@ export default function CirculoPage() {
 
                 {/* Per-ring rotator */}
                 {RINGS.map((ring) => {
-                  const isProviderRing = ring === 'profesional'
-                  const list = isProviderRing ? [] : groups[ring]
-                  const providerList = isProviderRing ? providers : []
-                  const effectiveCount = isProviderRing ? providerList.length : list.length
+                  const list = groups[ring]
+                  const effectiveCount = list.length
 
                   const rotatorClass =
                     ring === 'nucleo'      ? 'orbit-rotator orbit-r1'
@@ -869,31 +951,6 @@ export default function CirculoPage() {
                   }
 
                   const offset = ring === 'nucleo' ? 90 : ring === 'ayuda' ? 30 : 45
-
-                  if (isProviderRing) {
-                    return (
-                      <div key={ring} className={rotatorClass}>
-                        {providerList.map((p, i) => {
-                          const angle = (i * 360 / providerList.length) - offset
-                          const initials = p.name.trim().split(/\s+/).filter(Boolean)
-                            .slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()
-                          return (
-                            <Link
-                              key={p.id}
-                              href={`/circulo/prestador/${p.id}`}
-                              title={p.name}
-                              className="orbit-actor"
-                              style={{ ['--a' as string]: `${angle}deg` } as React.CSSProperties}
-                            >
-                              <div className="orbit-actor-inner">
-                                <span style={{ fontSize: '0.9rem' }}>{initials}</span>
-                              </div>
-                            </Link>
-                          )
-                        })}
-                      </div>
-                    )
-                  }
 
                   const n = list.length
                   return (
@@ -931,46 +988,71 @@ export default function CirculoPage() {
                   transform: 'translateX(-50%)',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 20,
+                  gap: 6,
                   zIndex: 10,
+                  flexWrap: 'nowrap',
+                  whiteSpace: 'nowrap',
                 }}>
                   <Link
                     href="/circulo/nuevo"
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 6,
-                      padding: '8px 18px', borderRadius: 9999,
+                      padding: '6px 10px', borderRadius: 9999,
                       background: 'white',
                       border: '1.5px solid rgba(10,126,140,0.25)',
                       color: '#0A7E8C',
-                      fontWeight: 700, fontSize: '0.8125rem',
-                      whiteSpace: 'nowrap',
-                      textDecoration: 'none',
+                      fontWeight: 700, fontSize: '0.7rem',
+                      whiteSpace: 'nowrap', textDecoration: 'none',
                     }}
                   >
                     <IconPersonAdd />
-                    Agregar personas
+                    Agregar Personas
                   </Link>
-                  <Link
-                    href="/circulo/prestador/nuevo"
+                  <button
+                    type="button"
+                    onClick={() => setNewProviderModal(prev => ({
+                      ...prev, open: true, name: '', phone: '',
+                      email: '', specialty: '', error: null,
+                    }))}
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 6,
-                      padding: '8px 18px', borderRadius: 9999,
+                      padding: '6px 10px', borderRadius: 9999,
                       background: 'white',
                       border: '1.5px solid rgba(10,126,140,0.25)',
                       color: '#0A7E8C',
-                      fontWeight: 700, fontSize: '0.8125rem',
-                      whiteSpace: 'nowrap',
-                      textDecoration: 'none',
+                      fontWeight: 700, fontSize: '0.7rem',
+                      whiteSpace: 'nowrap', cursor: 'pointer',
+                      fontFamily: 'inherit',
                     }}
                   >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
                       stroke="#0A7E8C" strokeWidth="1.8" strokeLinecap="round"
                       strokeLinejoin="round">
                       <rect x="3" y="3" width="18" height="18" rx="2" />
                       <line x1="12" y1="8" x2="12" y2="16" />
                       <line x1="8" y1="12" x2="16" y2="12" />
                     </svg>
-                    Agregar prestador
+                    Sumar prestador externo
+                  </button>
+                  <Link
+                    href="/prestadores"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '6px 10px', borderRadius: 9999,
+                      background: 'white',
+                      border: '1.5px solid rgba(10,126,140,0.25)',
+                      color: '#0A7E8C',
+                      fontWeight: 700, fontSize: '0.7rem',
+                      whiteSpace: 'nowrap', textDecoration: 'none',
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                      stroke="#0A7E8C" strokeWidth="1.8" strokeLinecap="round"
+                      strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    Buscar prestador
                   </Link>
                 </div>
               </div>
@@ -1089,14 +1171,29 @@ export default function CirculoPage() {
                 <div style={{
                   padding: '14px 8px 10px',
                   borderBottom: '1px solid rgba(10,126,140,0.08)',
+                  display: 'flex', alignItems: 'center',
+                  justifyContent: 'space-between',
                 }}>
                   <span style={{
                     fontSize: '0.7rem', fontWeight: 700,
                     letterSpacing: '0.12em', textTransform: 'uppercase',
                     color: '#5a7478',
                   }}>Personas</span>
+                  <Link
+                    href="/circulo/nuevo"
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: '#0A7E8C', fontSize: '0.75rem', fontWeight: 700,
+                      fontFamily: 'inherit', padding: '2px 8px',
+                      textDecoration: 'none',
+                    }}
+                  >
+                    + Agregar persona
+                  </Link>
                 </div>
-                {contacts.map((c) => {
+                {contacts
+                  .filter((c) => c.role !== 'prestador_servicios')
+                  .map((c) => {
                   const avatarUrl = avatarUrls[c.id] ?? null
                   const initials = (c.initials ?? initialsFrom(c.name)).slice(0, 2)
                   const roleLabel = c.role ? (ROLE_LABELS[c.role] ?? c.role) : '—'
@@ -1172,8 +1269,8 @@ export default function CirculoPage() {
               </div>
             )}
 
-            {/* Tabla de providers */}
-            {providers.length > 0 && (
+            {/* Tabla de Prestadores */}
+            {contacts.filter((c) => c.role === 'prestador_servicios').length > 0 && (
               <div style={{
                 width: '100%', maxWidth: 800,
                 background: '#FFFFFF',
@@ -1186,78 +1283,371 @@ export default function CirculoPage() {
                 <div style={{
                   padding: '14px 8px 10px',
                   borderBottom: '1px solid rgba(10,126,140,0.08)',
+                  display: 'flex', alignItems: 'center',
+                  justifyContent: 'space-between',
                 }}>
                   <span style={{
                     fontSize: '0.7rem', fontWeight: 700,
                     letterSpacing: '0.12em', textTransform: 'uppercase',
                     color: '#5a7478',
                   }}>Prestadores</span>
+                  <button
+                    type="button"
+                    onClick={() => setNewProviderModal(prev => ({
+                      ...prev, open: true, name: '', phone: '',
+                      email: '', specialty: '', error: null,
+                    }))}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: '#0A7E8C', fontSize: '0.75rem', fontWeight: 700,
+                      fontFamily: 'inherit', padding: '2px 8px',
+                    }}
+                  >
+                    + Agregar prestador externo
+                  </button>
                 </div>
-                {providers.map((p) => {
-                  const initials = p.name.trim().split(/\s+/).filter(Boolean)
-                    .slice(0, 2).map((w) => w[0]).join('').toUpperCase()
-                  return (
-                    <Link
-                      key={p.id}
-                      href={`/circulo/prestador/${p.id}`}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 16,
-                        padding: '14px 8px',
-                        borderBottom: '1px solid rgba(10,126,140,0.08)',
-                        textDecoration: 'none', color: 'inherit',
-                        transition: 'background 0.15s',
-                        borderRadius: 12,
-                      }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(10,126,140,0.03)' }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                    >
-                      {/* Avatar */}
-                      <div style={{
-                        width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-                        background: 'linear-gradient(135deg, #5a7478, #8a9fa3)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontWeight: 700, color: 'white', fontSize: '0.9rem',
-                      }}>
-                        {initials}
-                      </div>
-
-                      {/* Nombre + prestación */}
-                      <div style={{ flex: '0 0 200px', minWidth: 0 }}>
+                {contacts
+                  .filter((c) => c.role === 'prestador_servicios')
+                  .map((c) => {
+                    const avatarUrl = avatarUrls[c.id] ?? null
+                    const initials = (c.initials ?? initialsFrom(c.name)).slice(0, 2)
+                    return (
+                      <Link
+                        key={c.id}
+                        href={`/circulo/${c.id}`}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 16,
+                          padding: '14px 8px',
+                          borderBottom: '1px solid rgba(10,126,140,0.08)',
+                          textDecoration: 'none', color: 'inherit',
+                          transition: 'background 0.15s',
+                          borderRadius: 12,
+                        }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(10,126,140,0.03)' }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                      >
                         <div style={{
-                          fontSize: '0.9375rem', fontWeight: 700,
-                          color: '#1A1A2E', whiteSpace: 'nowrap',
-                          overflow: 'hidden', textOverflow: 'ellipsis',
-                        }}>{p.name}</div>
-                        {p.prestacion && (
-                          <div style={{
-                            fontSize: '0.75rem', color: '#5a7478',
-                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                          }}>{p.prestacion}</div>
-                        )}
-                      </div>
-
-                      {/* Contacto */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{
-                          fontSize: '0.8125rem', color: '#5a7478',
-                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                          width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+                          background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          overflow: 'hidden', fontWeight: 700, color: 'white', fontSize: '0.9rem',
                         }}>
-                          {p.phone ?? p.email ?? '—'}
+                          {avatarUrl ? (
+                            <img src={avatarUrl} alt={c.name}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : initials}
                         </div>
-                      </div>
-
-                      {/* Arrow */}
-                      <div style={{ flexShrink: 0, color: '#5a7478', display: 'flex' }}>
-                        <IconArrow />
-                      </div>
-                    </Link>
-                  )
-                })}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            fontSize: '0.9375rem', fontWeight: 700,
+                            color: '#1A1A2E', whiteSpace: 'nowrap',
+                            overflow: 'hidden', textOverflow: 'ellipsis',
+                          }}>{c.name}</div>
+                          {c.relationship && (
+                            <div style={{
+                              fontSize: '0.75rem', color: '#5a7478',
+                              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                            }}>{c.relationship}</div>
+                          )}
+                        </div>
+                        <div style={{ flexShrink: 0, color: '#5a7478', display: 'flex' }}>
+                          <IconArrow />
+                        </div>
+                      </Link>
+                    )
+                  })}
               </div>
             )}
+            {/* Card Obras Sociales */}
+            <div style={{
+              width: '100%', maxWidth: 800,
+              background: '#FFFFFF',
+              borderRadius: '1.5rem',
+              boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
+              overflow: 'hidden',
+              padding: '0 8px',
+              marginTop: 16,
+            }}>
+              {/* Header */}
+              <div style={{
+                padding: '14px 8px 10px',
+                borderBottom: '1px solid rgba(10,126,140,0.08)',
+                display: 'flex', alignItems: 'center',
+                justifyContent: 'space-between',
+              }}>
+                <span style={{
+                  fontSize: '0.7rem', fontWeight: 700,
+                  letterSpacing: '0.12em', textTransform: 'uppercase',
+                  color: '#5a7478',
+                }}>Obras sociales</span>
+                <button
+                  type="button"
+                  onClick={() => { setAddingOS(true); setNewOSInput('') }}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: '#0A7E8C', fontSize: '0.75rem', fontWeight: 700,
+                    fontFamily: 'inherit', padding: '2px 8px',
+                  }}
+                >
+                  + Agregar obra social
+                </button>
+              </div>
+
+              {/* Lista de obras sociales */}
+              {obrasSociales.length === 0 && !addingOS ? (
+                <div style={{ padding: '16px 8px' }}>
+                  <p style={{
+                    fontSize: '0.875rem', color: '#5a7478',
+                    fontStyle: 'italic', margin: 0,
+                  }}>
+                    No tenés obras sociales registradas.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {obrasSociales.map((os, index) => (
+                    <div
+                      key={index}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '12px 8px',
+                        borderBottom: '1px solid rgba(10,126,140,0.08)',
+                      }}
+                    >
+                      <div style={{
+                        width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                        background: 'rgba(10,126,140,0.08)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                          stroke="#0A7E8C" strokeWidth="1.8"
+                          strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                        </svg>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{
+                          fontSize: '0.9375rem', fontWeight: 700, color: '#1A1A2E',
+                        }}>{os}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveOS(index)}
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer',
+                          color: '#5a7478', padding: 4, flexShrink: 0,
+                          fontSize: '1rem', lineHeight: 1,
+                          transition: 'color 0.15s',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = '#ba1a1a' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = '#5a7478' }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {/* Input para agregar */}
+              {addingOS && (
+                <div style={{ padding: '12px 8px 16px' }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      value={newOSInput}
+                      onChange={(e) => setNewOSInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleAddOS()
+                        if (e.key === 'Escape') { setAddingOS(false); setNewOSInput('') }
+                      }}
+                      autoFocus
+                      placeholder="Ej: OSDE 210, Swiss Medical, IOMA…"
+                      style={{
+                        flex: 1,
+                        border: '1.5px solid rgba(10,126,140,0.20)',
+                        borderRadius: '0.75rem',
+                        padding: '8px 12px',
+                        fontSize: '0.875rem',
+                        outline: 'none',
+                        color: '#1A1A2E',
+                        fontFamily: 'inherit',
+                        background: '#FAF8F5',
+                      }}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = '#0A7E8C' }}
+                      onBlur={(e)  => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.20)' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddOS}
+                      disabled={savingOS || !newOSInput.trim()}
+                      style={{
+                        padding: '8px 16px', borderRadius: 9999,
+                        background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                        color: 'white', border: 'none', cursor: 'pointer',
+                        fontSize: '0.8125rem', fontWeight: 700,
+                        fontFamily: 'inherit',
+                        opacity: (savingOS || !newOSInput.trim()) ? 0.5 : 1,
+                      }}
+                    >
+                      {savingOS ? '…' : 'Agregar'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setAddingOS(false); setNewOSInput('') }}
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        color: '#5a7478', fontSize: '0.8125rem',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
           </div>}  {/* end !loading */}
         </main>
       </div>
+
+      {/* Modal: Agregar prestador externo */}
+      {newProviderModal.open && (
+        <>
+          <div
+            onClick={() => !newProviderModal.saving && setNewProviderModal(prev => ({ ...prev, open: false }))}
+            style={{
+              position: 'fixed', inset: 0,
+              background: 'rgba(0,0,0,0.40)', zIndex: 600,
+            }}
+          />
+          <div style={{
+            position: 'fixed', top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 601, width: 'min(92vw, 420px)',
+            background: '#FFFFFF', borderRadius: '1.5rem',
+            boxShadow: '0 24px 80px rgba(0,0,0,0.20)',
+            padding: '28px 28px 24px',
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'flex', alignItems: 'flex-start',
+              justifyContent: 'space-between', marginBottom: 20,
+            }}>
+              <div>
+                <p style={{
+                  fontSize: '1rem', fontWeight: 800,
+                  color: '#1A1A2E', margin: '0 0 4px',
+                }}>
+                  Agregar prestador
+                </p>
+                <p style={{
+                  fontSize: '0.8125rem', color: '#5a7478',
+                  margin: 0, lineHeight: 1.5,
+                }}>
+                  Agregá un profesional que no está en el catálogo de Mhiru.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNewProviderModal(prev => ({ ...prev, open: false }))}
+                disabled={newProviderModal.saving}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: '#5a7478', fontSize: '1.2rem', lineHeight: 1,
+                  padding: '0 0 0 12px', flexShrink: 0,
+                }}
+              >✕</button>
+            </div>
+
+            {/* Campos */}
+            {[
+              { key: 'name',      label: 'Nombre *',     placeholder: 'Ej: Dr. Juan Pérez',  type: 'text'  },
+              { key: 'specialty', label: 'Especialidad', placeholder: 'Ej: Cardiología',      type: 'text'  },
+              { key: 'phone',     label: 'Teléfono',     placeholder: '+54 11 1234-5678',     type: 'tel'   },
+              { key: 'email',     label: 'Email',        placeholder: 'doctor@ejemplo.com',   type: 'email' },
+            ].map(({ key, label, placeholder, type }) => (
+              <div key={key} style={{ marginBottom: 14 }}>
+                <p style={{
+                  fontSize: '0.7rem', fontWeight: 700,
+                  letterSpacing: '0.06em', textTransform: 'uppercase',
+                  color: '#5a7478', marginBottom: 6,
+                }}>
+                  {label}
+                </p>
+                <input
+                  type={type}
+                  value={(newProviderModal as any)[key]}
+                  onChange={(e) => setNewProviderModal(prev => ({
+                    ...prev, [key]: e.target.value, error: null,
+                  }))}
+                  placeholder={placeholder}
+                  disabled={newProviderModal.saving}
+                  style={{
+                    width: '100%', padding: '10px 14px',
+                    border: '1.5px solid rgba(10,126,140,0.20)',
+                    borderRadius: '0.75rem', fontSize: '0.875rem',
+                    outline: 'none', color: '#1A1A2E',
+                    fontFamily: 'inherit', background: '#FAF8F5',
+                    boxSizing: 'border-box',
+                    opacity: newProviderModal.saving ? 0.6 : 1,
+                  }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = '#0A7E8C' }}
+                  onBlur={(e)  => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.20)' }}
+                />
+              </div>
+            ))}
+
+            {/* Error */}
+            {newProviderModal.error && (
+              <p style={{
+                fontSize: '0.8125rem', color: '#ba1a1a', fontWeight: 600,
+                marginBottom: 12, padding: '8px 12px',
+                background: 'rgba(186,26,26,0.07)', borderRadius: '0.5rem',
+              }}>
+                {newProviderModal.error}
+              </p>
+            )}
+
+            {/* Botones */}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => setNewProviderModal(prev => ({ ...prev, open: false }))}
+                disabled={newProviderModal.saving}
+                style={{
+                  flex: 1, padding: '11px 0',
+                  background: 'rgba(10,126,140,0.07)',
+                  color: '#0A7E8C', border: 'none', borderRadius: 9999,
+                  fontWeight: 700, fontSize: '0.875rem',
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  opacity: newProviderModal.saving ? 0.5 : 1,
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleAddExternalProvider}
+                disabled={newProviderModal.saving || !newProviderModal.name.trim()}
+                style={{
+                  flex: 1, padding: '11px 0',
+                  background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                  color: 'white', border: 'none', borderRadius: 9999,
+                  fontWeight: 700, fontSize: '0.875rem',
+                  cursor: (newProviderModal.saving || !newProviderModal.name.trim())
+                    ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                  opacity: (newProviderModal.saving || !newProviderModal.name.trim()) ? 0.6 : 1,
+                }}
+              >
+                {newProviderModal.saving ? 'Guardando…' : 'Agregar'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
     </>
   )

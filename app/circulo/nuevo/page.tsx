@@ -213,6 +213,7 @@ export default function NuevoContactoPage() {
       return
     }
 
+    window.dispatchEvent(new CustomEvent('mhiru:context-stale'))
     router.replace(`/circulo/${insertedContact.id}`)
   }, [
     userId, addName, addPhone, addEmail, addRelation, addRole, addProximity,
@@ -398,32 +399,7 @@ export default function NuevoContactoPage() {
               <SSInputRow label="Teléfono" value={addPhone}    onChange={setAddPhone}    placeholder="+54 9 11 …" type="tel" />
               <SSInputRow label="Email"    value={addEmail}    onChange={setAddEmail}    placeholder="correo@ejemplo.com" type="email" />
               <SSInputRow label="Relación" value={addRelation} onChange={setAddRelation} placeholder="Ej: Amiga, Cuñado…" last />
-            </div>
-
-            {/* Rol */}
-            <p style={{
-              fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
-              textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
-            }}>Rol en el círculo</p>
-            <div style={{
-              background: '#FFFFFF', borderRadius: '1rem',
-              boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
-              padding: '13px 20px', marginBottom: 24,
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-            }}>
-              <span style={{
-                fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-              }}>Rol</span>
-              <select
-                value={addRole}
-                onChange={(e) => setAddRole(e.target.value)}
-                style={{ ...ENABLED_SELECT_STYLE, maxWidth: 220 }}
-              >
-                <option value="acompanamiento">Acompañamiento</option>
-                <option value="logistico">Logístico</option>
-              </select>
-            </div>
+            </div> 
 
             {/* Cercanía */}
             <p style={{

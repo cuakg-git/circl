@@ -95,14 +95,13 @@ function getInitials(name: string) {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface UserData {
-  name:        string
-  email:       string
-  location:    string
-  obra_social: string
-  avatarUrl:   string | null
+  name:      string
+  email:     string
+  location:  string
+  avatarUrl: string | null
 }
 
-type EditField = 'name' | 'email' | 'location' | 'obra_social'
+type EditField = 'name' | 'email' | 'location'
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -172,17 +171,16 @@ export default function ProfilePage() {
       // is a fallback for older sessions that predate the profiles column.
       const { data: profile } = await supabase
         .from('profiles')
-        .select('location, health_insurance, avatar_url')
+        .select('location, avatar_url')
         .eq('id', uid)
         .single()
 
       setUserId(uid)
       setUserData({
-        name:        m.full_name                            ?? '',
-        email:       authData.user.email                   ?? '',
-        location:    profile?.location                     ?? '',
-        obra_social: profile?.health_insurance             ?? '',
-        avatarUrl:   profile?.avatar_url ?? m.avatar_url  ?? null,
+        name:      m.full_name                           ?? '',
+        email:     authData.user.email                  ?? '',
+        location:  profile?.location                    ?? '',
+        avatarUrl: profile?.avatar_url ?? m.avatar_url ?? null,
       })
       setLoading(false)
     }
@@ -217,7 +215,7 @@ export default function ProfilePage() {
   // ── Edit helpers ─────────────────────────────────────────────────────────────
   function startEdit(field: EditField) {
     if (!userData) return
-    const val = { name: userData.name, email: userData.email, location: userData.location, obra_social: userData.obra_social }[field]
+    const val = { name: userData.name, email: userData.email, location: userData.location }[field]
     setEditing(field)
     setFieldVal(val)
     setSaveError('')
@@ -236,15 +234,13 @@ export default function ProfilePage() {
     const trimmed = fieldVal.trim()
 
     // name + email → supabase.auth.updateUser()
-    // location + obra_social (health_insurance) → profiles table UPDATE by UID
+    // location → profiles table UPDATE by UID
     const { error } =
       editing === 'email'
         ? await supabase.auth.updateUser({ email: trimmed })
         : editing === 'name'
           ? await supabase.auth.updateUser({ data: { full_name: trimmed } })
-          : editing === 'location'
-            ? await supabase.from('profiles').update({ location: trimmed }).eq('id', userId)
-            : await supabase.from('profiles').update({ health_insurance: trimmed }).eq('id', userId)
+          : await supabase.from('profiles').update({ location: trimmed }).eq('id', userId)
 
     setSaving(false)
 
@@ -256,10 +252,9 @@ export default function ProfilePage() {
 
     setUserData((prev) => {
       if (!prev) return prev
-      if (editing === 'email')       return { ...prev, email: trimmed }
-      if (editing === 'name')        return { ...prev, name: trimmed }
-      if (editing === 'location')    return { ...prev, location: trimmed }
-      if (editing === 'obra_social') return { ...prev, obra_social: trimmed }
+      if (editing === 'email')    return { ...prev, email: trimmed }
+      if (editing === 'name')     return { ...prev, name: trimmed }
+      if (editing === 'location') return { ...prev, location: trimmed }
       return prev
     })
 
@@ -628,10 +623,9 @@ export default function ProfilePage() {
                   </div>
                 ) : (
                   <>
-                    <DataRow field="name"       label="Nombre completo" icon={<IconPerson />}   placeholder="Tu nombre completo" />
-                    <DataRow field="email"       label="Email"           icon={<IconMail />}     placeholder="tu@email.com" />
-                    <DataRow field="location"    label="Ubicación"       icon={<IconLocation />} placeholder="Ej: CABA, Argentina" />
-                    <DataRow field="obra_social" label="Obra social"     icon={<IconHeart />}    placeholder="Ej: OSDE 210" isLast />
+                    <DataRow field="name"     label="Nombre completo" icon={<IconPerson />}   placeholder="Tu nombre completo" />
+                    <DataRow field="email"    label="Email"           icon={<IconMail />}     placeholder="tu@email.com" />
+                    <DataRow field="location" label="Ubicación"       icon={<IconLocation />} placeholder="Ej: CABA, Argentina" isLast />
                   </>
                 )}
               </div>

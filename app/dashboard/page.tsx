@@ -152,9 +152,9 @@ export default function DashboardPage() {
   const [ctxTurn,        setCtxTurn]        = useState(1)
   const [ctxError,       setCtxError]       = useState<string | null>(null)
 
-  const [ctxOpen,     setCtxOpen]     = useState(true)
-  const [circuloOpen, setCirculoOpen] = useState(true)
-  const [temasOpen,   setTemasOpen]   = useState(true)
+  const [ctxOpen,       setCtxOpen]       = useState(false)
+  const [circuloOpen,   setCirculoOpen]   = useState(false)
+  const [temasOpen,     setTemasOpen]     = useState(false)
 
   // ── Auth + onboarding check ───────────────────────────────────────────────
   useEffect(() => {
@@ -230,6 +230,16 @@ export default function DashboardPage() {
       }
 
       setLoading(false)
+
+      // Si no hay contexto o tiene más de 1 hora, marcar como stale
+      const lastRegen = ctxRes.data?.last_regen_at
+      if (!lastRegen) {
+        setContextStale(true)
+      } else {
+        const diffMs = Date.now() - new Date(lastRegen).getTime()
+        const diffHours = diffMs / (1000 * 60 * 60)
+        if (diffHours > 1) setContextStale(true)
+      }
     }
     init()
   }, [router])
@@ -520,13 +530,14 @@ export default function DashboardPage() {
                     width: '100%',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
+                    justifyContent: 'flex-start',
+                    gap: 8,
                     padding: '14px 24px',
                     background: 'none',
                     border: 'none',
                     borderBottom: '1px solid rgba(10,126,140,0.08)',
                     cursor: 'pointer',
-                    textAlign: 'left',
+                    textAlign: 'left', 
                   }}
                 >
                   <span style={{
@@ -837,21 +848,14 @@ export default function DashboardPage() {
                       width: 'calc(100% + 48px)',
                     }}
                   >
-                    <span style={{
-                      fontSize: '0.7rem', fontWeight: 700,
-                      letterSpacing: '0.12em', textTransform: 'uppercase',
-                      color: '#5a7478',
-                    }}>
-                      Tu círculo
-                    </span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <Link
-                        href="/circulo"
-                        onClick={e => e.stopPropagation()}
-                        style={{ fontSize: '0.75rem', color: '#0A7E8C', fontWeight: 600, textDecoration: 'none' }}
-                      >
-                        Ver todos →
-                      </Link>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{
+                        fontSize: '0.7rem', fontWeight: 700,
+                        letterSpacing: '0.12em', textTransform: 'uppercase',
+                        color: '#5a7478',
+                      }}>
+                        Tu círculo
+                      </span>
                       <svg
                         width="16" height="16" viewBox="0 0 24 24"
                         fill="none" stroke="#5a7478"
@@ -865,6 +869,13 @@ export default function DashboardPage() {
                         <polyline points="6 9 12 15 18 9" />
                       </svg>
                     </div>
+                    <Link
+                      href="/circulo"
+                      onClick={e => e.stopPropagation()}
+                      style={{ fontSize: '0.75rem', color: '#0A7E8C', fontWeight: 600, textDecoration: 'none' }}
+                    >
+                      Ver todos →
+                    </Link>
                   </button>
                   {circuloOpen && userCtx?.circle_summary && (
                     <p style={{
@@ -943,21 +954,14 @@ export default function DashboardPage() {
                       width: 'calc(100% + 48px)',
                     }}
                   >
-                    <span style={{
-                      fontSize: '0.7rem', fontWeight: 700,
-                      letterSpacing: '0.12em', textTransform: 'uppercase',
-                      color: '#5a7478',
-                    }}>
-                      Tus temas
-                    </span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <Link
-                        href="/case"
-                        onClick={e => e.stopPropagation()}
-                        style={{ fontSize: '0.75rem', color: '#0A7E8C', fontWeight: 600, textDecoration: 'none' }}
-                      >
-                        Ver todos →
-                      </Link>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{
+                        fontSize: '0.7rem', fontWeight: 700,
+                        letterSpacing: '0.12em', textTransform: 'uppercase',
+                        color: '#5a7478',
+                      }}>
+                        Tus temas
+                      </span>
                       <svg
                         width="16" height="16" viewBox="0 0 24 24"
                         fill="none" stroke="#5a7478"
@@ -971,6 +975,13 @@ export default function DashboardPage() {
                         <polyline points="6 9 12 15 18 9" />
                       </svg>
                     </div>
+                    <Link
+                      href="/case"
+                      onClick={e => e.stopPropagation()}
+                      style={{ fontSize: '0.75rem', color: '#0A7E8C', fontWeight: 600, textDecoration: 'none' }}
+                    >
+                      Ver todos →
+                    </Link>
                   </button>
                   {temasOpen && userCtx?.themes_summary && (
                     <p style={{

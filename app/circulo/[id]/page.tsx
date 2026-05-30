@@ -139,6 +139,7 @@ export default function ContactoDetailPage() {
   const [ctxLoading,     setCtxLoading]     = useState(false)
   const [ctxError,       setCtxError]       = useState<string | null>(null)
   const [ctxDone,        setCtxDone]        = useState(false)
+  const [ctxDescOpen,    setCtxDescOpen]    = useState(true)
 
   // ── Load ──────────────────────────────────────────────────────────────────────
 
@@ -175,12 +176,30 @@ export default function ContactoDetailPage() {
         setCtxSuggestions([])
         setCtxDone(false)
       } else {
-        setCtxQuestion(`¿Quién es ${c.name} en tu vida?`)
-        setCtxSuggestions([
-          'Es familiar directo',
-          'Es amistad cercana',
-          'Es un vínculo profesional',
-        ])
+        // Generar primera pregunta dinámicamente
+        fetch('/api/contact-context', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id:          user.id,
+            contact_id:       contactId,
+            current_question: null,
+            user_response:    null,
+            generate_first_question: true,
+          }),
+        })
+          .then(r => r.json())
+          .then(json => {
+            if (json.next_question) {
+              setCtxQuestion(json.next_question)
+              setCtxSuggestions(json.suggestions ?? [])
+            }
+          })
+          .catch(() => {
+            // fallback si el endpoint falla
+            setCtxQuestion(`¿Quién es ${c.name} en tu vida?`)
+            setCtxSuggestions([])
+          })
         setCtxDone(false)
       }
 
@@ -490,178 +509,33 @@ export default function ContactoDetailPage() {
                   }}>{roleLabel}</span>
                 </div>
 
-                {/* ── Módulo Lo que sé ─────────────────────────────── */}
+                {/* ── Módulo Lo que sé (unificado) ─────────────────────────────── */}
                 <div style={{
                   background: '#FFFFFF',
                   borderRadius: '1.5rem',
                   boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
-                  marginBottom: 16,
+                  marginBottom: 24,
                   overflow: 'hidden',
                 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-
-                    {/* Mini-chat */}
-                    <div style={{ padding: '16px 20px' }}>
-
-                      {ctxDone ? (
-                        <p style={{
-                          fontSize: '0.8125rem', color: '#5a7478',
-                          fontStyle: 'italic', margin: 0,
-                        }}>
-                          Por ahora ya tengo bastante contexto sobre {contact.name.split(' ')[0]}.
-                          Volvé cuando quieras agregar más.
-                        </p>
-                      ) : (
-                        <>
-                          {/* Pregunta actual */}
-                          <p style={{
-                            fontSize: '0.875rem', fontWeight: 600,
-                            color: '#1A1A2E', marginBottom: 12, marginTop: 0,
-                          }}>
-                            {ctxQuestion}
-                          </p>
-
-                          {/* Sugerencias */}
-                          {ctxSuggestions.length > 0 && (
-                            <div style={{
-                              display: 'flex', flexWrap: 'wrap', gap: 8,
-                              marginBottom: 12,
-                            }}>
-                              {ctxSuggestions.map((s, i) => (
-                                <button
-                                  key={i}
-                                  onClick={() => handleCtxSubmit(s)}
-                                  disabled={ctxLoading}
-                                  style={{
-                                    padding: '6px 14px',
-                                    borderRadius: 9999,
-                                    border: '1.5px solid rgba(10,126,140,0.25)',
-                                    background: 'white',
-                                    color: '#0A7E8C',
-                                    fontSize: '0.8125rem',
-                                    fontWeight: 600,
-                                    cursor: ctxLoading ? 'not-allowed' : 'pointer',
-                                    opacity: ctxLoading ? 0.5 : 1,
-                                    transition: 'background 0.15s',
-                                    fontFamily: 'inherit',
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    if (!ctxLoading)
-                                      e.currentTarget.style.background = 'rgba(10,126,140,0.06)'
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = 'white'
-                                  }}
-                                >
-                                  {s}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Input libre */}
-                          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                            <textarea
-                              value={ctxInput}
-                              onChange={(e) => setCtxInput(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                  e.preventDefault()
-                                  handleCtxSubmit(ctxInput)
-                                }
-                              }}
-                              disabled={ctxLoading}
-                              placeholder="O escribí tu respuesta…"
-                              rows={1}
-                              style={{
-                                flex: 1,
-                                border: '1.5px solid rgba(10,126,140,0.12)',
-                                borderRadius: '1rem',
-                                padding: '10px 14px',
-                                fontSize: '0.875rem',
-                                lineHeight: 1.5,
-                                resize: 'none',
-                                outline: 'none',
-                                fontFamily: 'inherit',
-                                color: '#1A1A2E',
-                                background: '#FAF8F5',
-                                minHeight: 42,
-                                maxHeight: 100,
-                                transition: 'border-color 0.2s',
-                              }}
-                              onFocus={(e) => { e.currentTarget.style.borderColor = '#0A7E8C' }}
-                              onBlur={(e)  => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)' }}
-                            />
-                            <button
-                              onClick={() => handleCtxSubmit(ctxInput)}
-                              disabled={ctxLoading || !ctxInput.trim()}
-                              style={{
-                                width: 42, height: 42, borderRadius: '50%',
-                                border: 'none',
-                                cursor: ctxLoading || !ctxInput.trim() ? 'not-allowed' : 'pointer',
-                                background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                                color: 'white',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                flexShrink: 0,
-                                opacity: ctxLoading || !ctxInput.trim() ? 0.4 : 1,
-                                transition: 'opacity 0.15s',
-                              }}
-                            >
-                              {ctxLoading ? (
-                                <span style={{ fontSize: 10 }}>…</span>
-                              ) : (
-                                <svg width="16" height="16" viewBox="0 0 24 24"
-                                  fill="none" stroke="currentColor"
-                                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <line x1="22" y1="2" x2="11" y2="13" />
-                                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                                </svg>
-                              )}
-                            </button>
-                          </div>
-
-                          {/* Error */}
-                          {ctxError && (
-                            <div style={{
-                              marginTop: 10, padding: '8px 14px',
-                              borderRadius: '0.75rem',
-                              background: 'rgba(186,26,26,0.07)',
-                              border: '1px solid rgba(186,26,26,0.18)',
-                              fontSize: '0.8125rem', color: '#ba1a1a', fontWeight: 600,
-                              display: 'flex', alignItems: 'center',
-                              justifyContent: 'space-between', gap: 8,
-                            }}>
-                              <span>{ctxError}</span>
-                              <button
-                                onClick={() => setCtxError(null)}
-                                style={{
-                                  background: 'none', border: 'none', cursor: 'pointer',
-                                  color: '#ba1a1a', fontSize: '1rem', lineHeight: 1,
-                                }}
-                              >✕</button>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                {/* ── fin módulo Lo que sé ──────────────────────────── */}
-
-                {/* Card Lo que sé de {nombre} */}
-                {c.context_description && (
-                  <div style={{
-                    background: '#FFFFFF',
-                    borderRadius: '1.5rem',
-                    boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
-                    marginTop: 16,
-                    marginBottom: 24,
-                    overflow: 'hidden',
-                  }}>
-                    <div style={{
-                      padding: '14px 20px',
-                      borderBottom: '1px solid rgba(10,126,140,0.08)',
-                    }}>
+                  {/* Header colapsable — solo visible si hay context_description */}
+                  {c.context_description && (
+                    <button
+                      type="button"
+                      onClick={() => setCtxDescOpen(prev => !prev)}
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'flex-start',
+                        gap: 8,
+                        padding: '14px 20px',
+                        background: 'none',
+                        border: 'none',
+                        borderBottom: '1px solid rgba(10,126,140,0.08)',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                    >
                       <span style={{
                         fontSize: '0.7rem', fontWeight: 700,
                         letterSpacing: '0.12em', textTransform: 'uppercase',
@@ -669,87 +543,194 @@ export default function ContactoDetailPage() {
                       }}>
                         Lo que sé de {firstName}
                       </span>
-                    </div>
-                    <div style={{ padding: '16px 20px' }}>
-                      {c.context_description.split('\n\n').filter(Boolean).map((paragraph, i, arr) => (
-                        <p key={i} style={{
-                          fontSize: '0.875rem', lineHeight: 1.75,
-                          color: '#5a7478', margin: i < arr.length - 1 ? '0 0 12px' : '0',
+                      <svg
+                        width="16" height="16" viewBox="0 0 24 24"
+                        fill="none" stroke="#5a7478"
+                        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                        style={{
+                          flexShrink: 0,
+                          transition: 'transform 0.2s',
+                          transform: ctxDescOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+                        }}
+                      >
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </button>
+                  )}
+
+                  {/* Bloque de contexto — colapsable */}
+                  {ctxDescOpen && c.context_description && (
+                    <p style={{
+                      fontSize: '0.8125rem',
+                      color: '#5a7478',
+                      lineHeight: 1.55,
+                      margin: 0,
+                      padding: '16px 20px',
+                      borderBottom: '1px solid rgba(10,126,140,0.08)',
+                      background: 'rgba(10,126,140,0.03)',
+                      whiteSpace: 'pre-wrap',
+                    }}>
+                      {c.context_description}
+                    </p>
+                  )}
+
+                  {/* Mini-chat — siempre visible */}
+                  <div style={{ padding: '16px 20px' }}>
+                    {ctxDone ? (
+                      <p style={{
+                        fontSize: '0.8125rem', color: '#5a7478',
+                        fontStyle: 'italic', margin: 0,
+                      }}>
+                        Por ahora ya tengo bastante contexto sobre {contact.name.split(' ')[0]}.
+                        Volvé cuando quieras agregar más.
+                      </p>
+                    ) : (
+                      <>
+                        {/* Pregunta actual */}
+                        <p style={{
+                          fontSize: '0.875rem', fontWeight: 600,
+                          color: '#1A1A2E', marginBottom: 12, marginTop: 0,
                         }}>
-                          {paragraph}
+                          {ctxQuestion}
                         </p>
-                      ))}
-                    </div>
+
+                        {/* Sugerencias */}
+                        {ctxSuggestions.length > 0 && (
+                          <div style={{
+                            display: 'flex', flexWrap: 'wrap', gap: 8,
+                            marginBottom: 12,
+                          }}>
+                            {ctxSuggestions.map((s, i) => (
+                              <button
+                                key={i}
+                                onClick={() => handleCtxSubmit(s)}
+                                disabled={ctxLoading}
+                                style={{
+                                  padding: '6px 14px',
+                                  borderRadius: 9999,
+                                  border: '1.5px solid rgba(10,126,140,0.25)',
+                                  background: 'white',
+                                  color: '#0A7E8C',
+                                  fontSize: '0.8125rem',
+                                  fontWeight: 600,
+                                  cursor: ctxLoading ? 'not-allowed' : 'pointer',
+                                  opacity: ctxLoading ? 0.5 : 1,
+                                  transition: 'background 0.15s',
+                                  fontFamily: 'inherit',
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (!ctxLoading)
+                                    e.currentTarget.style.background = 'rgba(10,126,140,0.06)'
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = 'white'
+                                }}
+                              >
+                                {s}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Input libre */}
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                          <textarea
+                            value={ctxInput}
+                            onChange={(e) => setCtxInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault()
+                                handleCtxSubmit(ctxInput)
+                              }
+                            }}
+                            disabled={ctxLoading}
+                            placeholder="O escribí tu respuesta…"
+                            rows={1}
+                            style={{
+                              flex: 1,
+                              border: '1.5px solid rgba(10,126,140,0.12)',
+                              borderRadius: '1rem',
+                              padding: '10px 14px',
+                              fontSize: '0.875rem',
+                              lineHeight: 1.5,
+                              resize: 'none',
+                              outline: 'none',
+                              fontFamily: 'inherit',
+                              color: '#1A1A2E',
+                              background: '#FAF8F5',
+                              minHeight: 42,
+                              maxHeight: 100,
+                              transition: 'border-color 0.2s',
+                            }}
+                            onFocus={(e) => { e.currentTarget.style.borderColor = '#0A7E8C' }}
+                            onBlur={(e)  => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)' }}
+                          />
+                          <button
+                            onClick={() => handleCtxSubmit(ctxInput)}
+                            disabled={ctxLoading || !ctxInput.trim()}
+                            style={{
+                              width: 42, height: 42, borderRadius: '50%',
+                              border: 'none',
+                              cursor: ctxLoading || !ctxInput.trim() ? 'not-allowed' : 'pointer',
+                              background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                              color: 'white',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              flexShrink: 0,
+                              opacity: ctxLoading || !ctxInput.trim() ? 0.4 : 1,
+                              transition: 'opacity 0.15s',
+                            }}
+                          >
+                            {ctxLoading ? (
+                              <span style={{ fontSize: 10 }}>…</span>
+                            ) : (
+                              <svg width="16" height="16" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor"
+                                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="22" y1="2" x2="11" y2="13" />
+                                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Error */}
+                        {ctxError && (
+                          <div style={{
+                            marginTop: 10, padding: '8px 14px',
+                            borderRadius: '0.75rem',
+                            background: 'rgba(186,26,26,0.07)',
+                            border: '1px solid rgba(186,26,26,0.18)',
+                            fontSize: '0.8125rem', color: '#ba1a1a', fontWeight: 600,
+                            display: 'flex', alignItems: 'center',
+                            justifyContent: 'space-between', gap: 8,
+                          }}>
+                            <span>{ctxError}</span>
+                            <button
+                              onClick={() => setCtxError(null)}
+                              style={{
+                                background: 'none', border: 'none', cursor: 'pointer',
+                                color: '#ba1a1a', fontSize: '1rem', lineHeight: 1,
+                              }}
+                            >✕</button>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
-                )}
+                </div>
+                {/* ── fin módulo Lo que sé (unificado) ──────────────────────────── */}
 
               </div>
 
               <div>
               
-              {/* 3. Cercanía */}
-              <div style={{ marginBottom: 24 }}>
-                <p style={{
-                  fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
-                  textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
-                }}>Cercanía</p>
-                <div style={{
-                  background: '#FFFFFF', borderRadius: '1rem',
-                  boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
-                  padding: '0 20px',
-                }}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '13px 0', gap: 12,
-                  }}>
-                    <span style={{
-                      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
-                      textTransform: 'uppercase', color: '#5a7478', minWidth: 80,
-                    }}>Cercanía</span>
-                    <select
-                      value={c.proximity ?? ''}
-                      disabled={proximityLoading}
-                      onChange={(e) => handleProximityChange(e.target.value)}
-                      style={proximityLoading
-                        ? { ...DISABLED_SELECT_STYLE, maxWidth: 260 }
-                        : { ...ENABLED_SELECT_STYLE, maxWidth: 260 }}
-                    >
-                      <option value="nucleo">Es parte de mi núcleo</option>
-                      <option value="ayuda">Es alguien que me ayuda o puede ayudar</option>
-                      <option value="profesional">Es un proveedor de servicios o un profesional</option>
-                      <option value="">—</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Proximity error banner */}
-                {proximityError && (
-                  <div style={{
-                    marginTop: 10, padding: '10px 16px',
-                    borderRadius: '0.75rem',
-                    background: 'rgba(186,26,26,0.07)',
-                    border: '1px solid rgba(186,26,26,0.18)',
-                    fontSize: '0.8125rem', color: '#ba1a1a', fontWeight: 600,
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                  }}>
-                    <span>{proximityError}</span>
-                    <button
-                      onClick={() => setProximityError(null)}
-                      style={{
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        color: '#ba1a1a', fontSize: '1rem', lineHeight: 1, flexShrink: 0,
-                      }}
-                    >✕</button>
-                  </div>
-                )}
-              </div>
  
-              {/* 2. Datos personales */}
+              {/* 2. Datos */}
               <div style={{ marginBottom: 24 }}>
                 <p style={{
                   fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
                   textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
-                }}>Datos personales</p>
+                }}>Datos</p>
 
                 {dataError && (
                   <div style={{
@@ -907,7 +888,7 @@ export default function ContactoDetailPage() {
                     <span style={{
                       fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
                       textTransform: 'uppercase', color: '#5a7478', minWidth: 80, flexShrink: 0,
-                    }}>Relación</span>
+                    }}>Servicio/Profesión</span>
                     {editingRelation ? (
                       <div style={{ flex: 1, display: 'flex', gap: 8, alignItems: 'center' }}>
                         <input

@@ -66,6 +66,19 @@ function IconPerson() {
   )
 }
 
+function IconProviders() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="1.6"
+      strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  )
+}
+
 // Circl orbit mark — floating button above the mobile bottom nav
 function IconCirclOrbit() {
   return (
@@ -119,19 +132,20 @@ function HablarNavButton({ pathname }: { pathname: string }) {
 // ─── Nav items ────────────────────────────────────────────────────────────────
 
 const SIDEBAR_NAV = [
-  { label: 'Inicio',   href: '/dashboard', Icon: IconGrid    },
-  { label: 'Círculo',  href: '/circulo',   Icon: IconGroup   },
-  { label: 'Temas',    href: '/case',      Icon: IconWarning },
-  { label: 'Hablar',   href: '/chat',      Icon: IconChat    },
+  { label: 'Inicio',       href: '/dashboard',   Icon: IconGrid      },
+  { label: 'Círculo',      href: '/circulo',     Icon: IconGroup     },
+  { label: 'Temas',        href: '/case',        Icon: IconWarning   },
+  { label: 'Prestadores',  href: '/prestadores', Icon: IconProviders },
+  { label: 'Hablar',       href: '/chat',        Icon: IconChat      },
 ]
 
-// Mobile order: Inicio · Gestión · Hablar (center, elevated) · Círculo · Perfil
+// Mobile order: Inicio · Temas · Hablar (center, elevated) · Círculo · Prestadores
 const BOTTOM_NAV = [
-  { label: 'Inicio',   href: '/dashboard', Icon: IconGrid,    center: false },
-  { label: 'Temas',    href: '/case',      Icon: IconWarning, center: false },
-  { label: 'Hablar',   href: '/chat',      Icon: IconChat,    center: true  },
-  { label: 'Círculo',  href: '/circulo',   Icon: IconGroup,   center: false },
-  { label: 'Perfil',   href: '/profile',   Icon: IconPerson,  center: false },
+  { label: 'Inicio',      href: '/dashboard',   Icon: IconGrid,      center: false },
+  { label: 'Temas',       href: '/case',        Icon: IconWarning,   center: false },
+  { label: 'Hablar',      href: '/chat',        Icon: IconChat,      center: true  },
+  { label: 'Círculo',     href: '/circulo',     Icon: IconGroup,     center: false },
+  { label: 'Prestadores', href: '/prestadores', Icon: IconProviders, center: false },
 ]
 
 // ─── User info ────────────────────────────────────────────────────────────────
@@ -152,11 +166,16 @@ export default function Sidebar() {
   const pathname = usePathname()
   const [user, setUser] = useState<UserInfo | null>(null)
 
-  const [devVisible,   setDevVisible]   = useState(false)
-  const [regenLoading, setRegenLoading] = useState(false)
-  const [regenMsg,     setRegenMsg]     = useState<string | null>(null)
-  const [suggLoading,  setSuggLoading]  = useState(false)
-  const [suggMsg,      setSuggMsg]      = useState<string | null>(null)
+  const [devVisible,      setDevVisible]      = useState(false)
+  const [regenLoading,    setRegenLoading]    = useState(false)
+  const [regenMsg,        setRegenMsg]        = useState<string | null>(null)
+  const [suggLoading,     setSuggLoading]     = useState(false)
+  const [suggMsg,         setSuggMsg]         = useState<string | null>(null)
+  const [contextPending,  setContextPending]  = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('mhiru:context-pending') === 'true'
+  })
+  const [updatingCtx,     setUpdatingCtx]     = useState(false)
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -168,6 +187,47 @@ export default function Sidebar() {
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [])
+
+  function setContextPendingPersisted(val: boolean) {
+    setContextPending(val)
+    if (typeof window !== 'undefined') {
+      if (val) {
+        localStorage.setItem('mhiru:context-pending', 'true')
+      } else {
+        localStorage.removeItem('mhiru:context-pending')
+      }
+    }
+  }
+
+  useEffect(() => {
+    function onStale() { setContextPendingPersisted(true) }
+    window.addEventListener('mhiru:context-stale', onStale)
+    return () => window.removeEventListener('mhiru:context-stale', onStale)
+  }, [])
+
+  async function handleUpdateContext() {
+    if (updatingCtx) return
+    setUpdatingCtx(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token ?? ''
+      await fetch('/api/user-context/regenerate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({}),
+      })
+      setContextPendingPersisted(false)
+      // Notificar al dashboard que el contexto se regeneró
+      window.dispatchEvent(new CustomEvent('mhiru:context-regenerated'))
+    } catch {
+      // silenciar
+    } finally {
+      setUpdatingCtx(false)
+    }
+  }
 
   async function handleRegenContext() {
     if (regenLoading) return
@@ -188,6 +248,7 @@ export default function Sidebar() {
       const data = await res.json()
       if (res.ok) {
         setRegenMsg('Contexto regenerado ✓')
+        setContextPendingPersisted(false)
       } else {
         setRegenMsg(data.error ?? 'Error al regenerar')
       }
@@ -353,16 +414,83 @@ export default function Sidebar() {
           ))}
         </nav>
 
-        {/* User footer */}
-        <div className="px-5 pt-4 pb-12 mt-3" style={{ borderTop: '1px solid rgba(10,126,140,0.08)' }}>
+        {/* ── Notificación de contexto pendiente ── */}
+        {contextPending && (
+          <div style={{
+            margin: '0 12px 8px',
+            padding: '10px 12px',
+            background: 'rgba(232,145,58,0.08)',
+            border: '1px solid rgba(232,145,58,0.25)',
+            borderRadius: '0.875rem',
+          }}>
+            <p style={{
+              fontSize: '0.7rem',
+              color: '#b86a10',
+              lineHeight: 1.5,
+              margin: '0 0 8px',
+              fontWeight: 600,
+            }}>
+              Hay cambios sin reflejar en tu contexto.
+            </p>
+            <button
+              type="button"
+              onClick={handleUpdateContext}
+              disabled={updatingCtx}
+              style={{
+                width: '100%',
+                padding: '7px 0',
+                background: updatingCtx
+                  ? 'rgba(232,145,58,0.35)'
+                  : 'linear-gradient(135deg, #E8913A, #f4ab66)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 9999,
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                cursor: updatingCtx ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+                transition: 'opacity 0.15s',
+              }}
+            >
+              {updatingCtx ? 'Actualizando…' : '⚡ Actualizar contexto'}
+            </button>
+          </div>
+        )}
+
+        {/* ── User footer — se pinta de naranja cuando hay pendiente ── */}
+        <div
+          className="px-5 pt-4 pb-12 mt-3"
+          style={{
+            borderTop: contextPending
+              ? '1px solid rgba(232,145,58,0.30)'
+              : '1px solid rgba(10,126,140,0.08)',
+            background: contextPending
+              ? 'rgba(232,145,58,0.05)'
+              : 'transparent',
+            borderRadius: contextPending ? '0 0 1rem 1rem' : 0,
+            transition: 'all 0.3s ease',
+          }}
+        >
           <Link href="/profile" className="flex items-center gap-3 no-underline">
-            {avatar}
+            {/* Avatar con borde naranja cuando hay pendiente */}
+            <div style={{
+              borderRadius: '50%',
+              outline: contextPending
+                ? '2px solid rgba(232,145,58,0.6)'
+                : 'none',
+              outlineOffset: 2,
+              transition: 'outline 0.3s ease',
+            }}>
+              {avatar}
+            </div>
             {user ? (
               <div className="min-w-0">
-                <div className="text-sm font-bold text-[#1A1A2E] truncate leading-tight">
+                <div className="text-sm font-bold truncate leading-tight"
+                  style={{ color: contextPending ? '#b86a10' : '#1A1A2E' }}>
                   {user.name}
                 </div>
-                <div className="text-xs text-[#5a7478] truncate mt-[2px] leading-tight">
+                <div className="text-xs truncate mt-[2px] leading-tight"
+                  style={{ color: contextPending ? '#c97420' : '#5a7478' }}>
                   {user.email}
                 </div>
               </div>
@@ -454,6 +582,86 @@ export default function Sidebar() {
       {/* ══════════════════════════════════════════════════════════════════
           BOTTOM NAV — mobile only
       ══════════════════════════════════════════════════════════════════ */}
+
+      {/* Perfil mobile — top right */}
+      <div className="md:hidden" style={{
+        position: 'fixed', top: 12, right: 16, zIndex: 200,
+      }}>
+        <Link href="/profile" style={{ textDecoration: 'none' }}>
+          <div style={{
+            width: 38, height: 38, borderRadius: '50%',
+            overflow: 'hidden',
+            border: contextPending
+              ? '2px solid #E8913A'
+              : '2px solid rgba(10,126,140,0.20)',
+            boxShadow: contextPending
+              ? '0 0 0 3px rgba(232,145,58,0.20)'
+              : '0 2px 8px rgba(0,0,0,0.10)',
+            transition: 'all 0.3s ease',
+            background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            {user?.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={user.avatarUrl}
+                alt={user.name}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            ) : (
+              <span style={{
+                fontSize: '0.75rem', fontWeight: 700, color: 'white',
+              }}>
+                {user ? getInitials(user.name) : ''}
+              </span>
+            )}
+          </div>
+        </Link>
+      </div>
+
+      {/* Banner de contexto pendiente — mobile, encima del bottom nav */}
+      {contextPending && (
+        <div className="md:hidden" style={{
+          position: 'fixed',
+          bottom: 'calc(56px + env(safe-area-inset-bottom))',
+          left: 0, right: 0,
+          background: 'rgba(232,145,58,0.95)',
+          padding: '8px 16px',
+          display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between',
+          zIndex: 99,
+          gap: 12,
+        }}>
+          <span style={{
+            fontSize: '0.7rem', color: 'white',
+            fontWeight: 600, lineHeight: 1.4, flex: 1,
+          }}>
+            Hay cambios sin reflejar en tu contexto.
+          </span>
+          <button
+            type="button"
+            onClick={handleUpdateContext}
+            disabled={updatingCtx}
+            style={{
+              padding: '5px 12px',
+              background: 'white',
+              border: 'none',
+              borderRadius: 9999,
+              fontSize: '0.7rem',
+              fontWeight: 700,
+              color: '#b86a10',
+              cursor: updatingCtx ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit',
+              flexShrink: 0,
+              opacity: updatingCtx ? 0.6 : 1,
+            }}
+          >
+            {updatingCtx ? 'Actualizando…' : 'Actualizar'}
+          </button>
+        </div>
+      )}
+
       <nav
         className="md:hidden fixed bottom-0 left-0 right-0 bg-white z-[100] overflow-visible"
         style={{

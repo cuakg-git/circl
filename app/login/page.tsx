@@ -65,6 +65,20 @@ export default function LoginPage() {
       return
     }
 
+    // Fire and forget — regenerate contexto del usuario en background
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.access_token) {
+        fetch('/api/user-context/regenerate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({}),
+        }).catch(() => {}) // silenciar errores — es background
+      }
+    })
+
     router.push('/dashboard')
   }
 
