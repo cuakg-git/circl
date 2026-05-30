@@ -469,6 +469,7 @@ export default function PrestadoresPage() {
           }
         }
         .prestadores-bg { animation: heroBgDrift 30s ease-in-out infinite; }
+        .filter-chips::-webkit-scrollbar { display: none; }
       `}</style>
 
       <div className="prestadores-bg flex min-h-screen">
@@ -490,33 +491,84 @@ export default function PrestadoresPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 28 }}>
 
             {/* Categoría */}
-            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-              <span style={filterLabel('')}>Categoría</span>
-              <Pill label="Todos" active={filterCat === ''} onClick={() => setFilterCat('')} />
-              {CATEGORIES.map((c) => (
-                <Pill key={c} label={c} active={filterCat === c}
-                  onClick={() => setFilterCat(prev => prev === c ? '' : c)} />
-              ))}
+            <div style={{ marginBottom: 4 }}>
+              <p style={{
+                fontSize: '0.65rem', fontWeight: 700,
+                letterSpacing: '0.10em', textTransform: 'uppercase',
+                color: '#5a7478', marginBottom: 8, marginTop: 0,
+              }}>
+                Categoría
+              </p>
+              <div className="filter-chips" style={{
+                display: 'flex',
+                flexDirection: 'row',
+                gap: 8,
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+                paddingBottom: 4,
+              }}>
+                <Pill label="Todos" active={filterCat === ''} onClick={() => setFilterCat('')} />
+                {CATEGORIES.map((c) => (
+                  <Pill key={c} label={c} active={filterCat === c}
+                    onClick={() => setFilterCat(prev => prev === c ? '' : c)} />
+                ))}
+              </div>
             </div>
 
             {/* Obra social */}
-            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-              <span style={filterLabel('')}>Obra social</span>
-              <Pill label="Todas" active={filterHI === ''} onClick={() => setFilterHI('')} />
-              {HEALTH_INSURANCES.map((hi) => (
-                <Pill key={hi} label={hi} active={filterHI === hi}
-                  onClick={() => setFilterHI(prev => prev === hi ? '' : hi)} />
-              ))}
+            <div style={{ marginBottom: 4 }}>
+              <p style={{
+                fontSize: '0.65rem', fontWeight: 700,
+                letterSpacing: '0.10em', textTransform: 'uppercase',
+                color: '#5a7478', marginBottom: 8, marginTop: 0,
+              }}>
+                Obra social
+              </p>
+              <div className="filter-chips" style={{
+                display: 'flex',
+                flexDirection: 'row',
+                gap: 8,
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+                paddingBottom: 4,
+              }}>
+                <Pill label="Todas" active={filterHI === ''} onClick={() => setFilterHI('')} />
+                {HEALTH_INSURANCES.map((hi) => (
+                  <Pill key={hi} label={hi} active={filterHI === hi}
+                    onClick={() => setFilterHI(prev => prev === hi ? '' : hi)} />
+                ))}
+              </div>
             </div>
 
             {/* Zona */}
-            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-              <span style={filterLabel('')}>Zona</span>
-              <Pill label="Todas" active={filterZone === ''} onClick={() => setFilterZone('')} />
-              {ZONES.map((z) => (
-                <Pill key={z} label={z} active={filterZone === z}
-                  onClick={() => setFilterZone(prev => prev === z ? '' : z)} />
-              ))}
+            <div style={{ marginBottom: 4 }}>
+              <p style={{
+                fontSize: '0.65rem', fontWeight: 700,
+                letterSpacing: '0.10em', textTransform: 'uppercase',
+                color: '#5a7478', marginBottom: 8, marginTop: 0,
+              }}>
+                Zona
+              </p>
+              <div className="filter-chips" style={{
+                display: 'flex',
+                flexDirection: 'row',
+                gap: 8,
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+                paddingBottom: 4,
+              }}>
+                <Pill label="Todas" active={filterZone === ''} onClick={() => setFilterZone('')} />
+                {ZONES.map((z) => (
+                  <Pill key={z} label={z} active={filterZone === z}
+                    onClick={() => setFilterZone(prev => prev === z ? '' : z)} />
+                ))}
+              </div>
             </div>
 
           </div>

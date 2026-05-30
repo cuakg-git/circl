@@ -171,11 +171,15 @@ export default function Sidebar() {
   const [regenMsg,        setRegenMsg]        = useState<string | null>(null)
   const [suggLoading,     setSuggLoading]     = useState(false)
   const [suggMsg,         setSuggMsg]         = useState<string | null>(null)
-  const [contextPending,  setContextPending]  = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false
-    return localStorage.getItem('mhiru:context-pending') === 'true'
-  })
+  const [contextPending,  setContextPending]  = useState(false)
   const [updatingCtx,     setUpdatingCtx]     = useState(false)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('mhiru:context-pending')
+      if (stored === 'true') setContextPending(true)
+    }
+  }, [])
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -220,7 +224,7 @@ export default function Sidebar() {
         body: JSON.stringify({}),
       })
       setContextPendingPersisted(false)
-      // Notificar al dashboard que el contexto se regeneró
+      window.dispatchEvent(new CustomEvent('mhiru:context-cleared'))
       window.dispatchEvent(new CustomEvent('mhiru:context-regenerated'))
     } catch {
       // silenciar
@@ -582,85 +586,6 @@ export default function Sidebar() {
       {/* ══════════════════════════════════════════════════════════════════
           BOTTOM NAV — mobile only
       ══════════════════════════════════════════════════════════════════ */}
-
-      {/* Perfil mobile — top right */}
-      <div className="md:hidden" style={{
-        position: 'fixed', top: 12, right: 16, zIndex: 200,
-      }}>
-        <Link href="/profile" style={{ textDecoration: 'none' }}>
-          <div style={{
-            width: 38, height: 38, borderRadius: '50%',
-            overflow: 'hidden',
-            border: contextPending
-              ? '2px solid #E8913A'
-              : '2px solid rgba(10,126,140,0.20)',
-            boxShadow: contextPending
-              ? '0 0 0 3px rgba(232,145,58,0.20)'
-              : '0 2px 8px rgba(0,0,0,0.10)',
-            transition: 'all 0.3s ease',
-            background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-          }}>
-            {user?.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={user.avatarUrl}
-                alt={user.name}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-            ) : (
-              <span style={{
-                fontSize: '0.75rem', fontWeight: 700, color: 'white',
-              }}>
-                {user ? getInitials(user.name) : ''}
-              </span>
-            )}
-          </div>
-        </Link>
-      </div>
-
-      {/* Banner de contexto pendiente — mobile, encima del bottom nav */}
-      {contextPending && (
-        <div className="md:hidden" style={{
-          position: 'fixed',
-          bottom: 'calc(56px + env(safe-area-inset-bottom))',
-          left: 0, right: 0,
-          background: 'rgba(232,145,58,0.95)',
-          padding: '8px 16px',
-          display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between',
-          zIndex: 99,
-          gap: 12,
-        }}>
-          <span style={{
-            fontSize: '0.7rem', color: 'white',
-            fontWeight: 600, lineHeight: 1.4, flex: 1,
-          }}>
-            Hay cambios sin reflejar en tu contexto.
-          </span>
-          <button
-            type="button"
-            onClick={handleUpdateContext}
-            disabled={updatingCtx}
-            style={{
-              padding: '5px 12px',
-              background: 'white',
-              border: 'none',
-              borderRadius: 9999,
-              fontSize: '0.7rem',
-              fontWeight: 700,
-              color: '#b86a10',
-              cursor: updatingCtx ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
-              flexShrink: 0,
-              opacity: updatingCtx ? 0.6 : 1,
-            }}
-          >
-            {updatingCtx ? 'Actualizando…' : 'Actualizar'}
-          </button>
-        </div>
-      )}
 
       <nav
         className="md:hidden fixed bottom-0 left-0 right-0 bg-white z-[100] overflow-visible"

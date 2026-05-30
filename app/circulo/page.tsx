@@ -30,9 +30,12 @@ type Contact = {
 
 
 type Suggestion = {
-  name:       string
-  prestacion: string
-  razon:      string
+  id?:         string
+  type:        'provider' | 'chat'
+  title:       string
+  description: string | null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata:    any
 }
 
 type CrisisRow = {
@@ -456,7 +459,6 @@ export default function CirculoPage() {
   const [contacts,    setContacts]    = useState<Contact[]>([])
   const [avatarUrls,  setAvatarUrls]  = useState<Record<string, string>>({})
   const [suggestions,        setSuggestions]        = useState<Suggestion[]>([])
-  const [suggestionsLoading, setSuggestionsLoading] = useState(false)
   const [userName,    setUserName]    = useState('')
   const [userAvatar,  setUserAvatar]  = useState<string | null>(null)
   const [obrasSociales, setObrasSociales] = useState<string[]>([])
@@ -479,31 +481,6 @@ export default function CirculoPage() {
   // Mobile orbit scaling
   const orbitWrapRef = useRef<HTMLDivElement | null>(null)
   const [orbitScale, setOrbitScale] = useState(1)
-
-  // ── Suggestions ──────────────────────────────────────────────────────────────
-
-  async function fetchSuggestions(user: { id: string }) {
-    setSuggestionsLoading(true)
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const accessToken = session?.access_token ?? ''
-      const res = await fetch('/api/suggestions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({}),
-      })
-      const json = await res.json()
-      if (json.providers?.length > 0) {
-        setSuggestions(json.providers)
-      }
-    } catch (e) {
-      console.error('[fetchSuggestions]', e)
-    }
-    setSuggestionsLoading(false)
-  }
 
   // ── Load data ────────────────────────────────────────────────────────────────
 
@@ -560,8 +537,31 @@ export default function CirculoPage() {
 
       setObrasSociales(profileData?.health_insurances ?? [])
 
+      // Load suggestions from Supabase
+      const { data: sugData } = await supabase
+        .from('suggestions')
+        .select('id, type, title, description, status, metadata')
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+        .in('type', ['provider', 'chat'])
+        .order('generated_at', { ascending: false })
+        .limit(6)
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const loadedSuggestions = (sugData ?? []).map((s: any) => ({
+        id:          s.id,
+        type:        s.type as 'provider' | 'chat',
+        title:       s.type === 'provider'
+          ? (s.metadata?.name ?? s.title ?? '')
+          : (s.title ?? ''),
+        description: s.type === 'provider'
+          ? (s.metadata?.razon ?? s.description ?? null)
+          : (s.description ?? null),
+        metadata:    s.metadata,
+      }))
+      setSuggestions(loadedSuggestions)
+
       setLoading(false)
-      fetchSuggestions(user)
     }
     load()
   }, [router])
@@ -828,10 +828,10 @@ export default function CirculoPage() {
         }
       `}</style>
 
-      <div className="circulo-bg flex min-h-screen">
+      <div className="circulo-bg flex min-h-screen" style={{ overflowX: 'hidden' }}>
         <Sidebar />
 
-        <main className="flex-1 ml-0 md:ml-[240px] min-h-screen px-5 py-8 pb-28 md:px-10 md:py-10 md:pb-10 min-w-0">
+        <main className="flex-1 ml-0 md:ml-[240px] min-h-screen px-5 py-8 pb-28 md:px-10 md:py-10 md:pb-10 min-w-0" style={{ overflowX: 'hidden' }}>
           <SkeletonStyles />
 
           {/* Page header */}
@@ -899,11 +899,8 @@ export default function CirculoPage() {
             {/* ── Left: Orbit stage ───────────────────────────────────────── */}
             <div
               ref={orbitWrapRef}
-              style={{
-                flex: '0 0 auto', display: 'flex',
-                alignItems: 'center', justifyContent: 'center', width: '100%',
-              }}
-              className="md:!w-auto"
+              className="md:!w-auto flex flex-col md:!flex-row items-center justify-center w-full overflow-hidden"
+              style={{ flex: '0 0 auto' }}
             >
               <div
                 className="orbit-stage"
@@ -979,87 +976,90 @@ export default function CirculoPage() {
                     <span>{userName ? initialsFrom(userName) : ''}</span>
                   )}
                 </div>
+              </div>
 
-                {/* Add buttons inside orbit */}
-                <div style={{
-                  position: 'absolute',
-                  bottom: 16,
-                  left: '50%',
-                  transform: 'translateX(-50%)',
+              {/* Botones — fuera del orbit-stage */}
+              <div
+                style={{
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
-                  gap: 6,
-                  zIndex: 10,
-                  flexWrap: 'nowrap',
-                  whiteSpace: 'nowrap',
-                }}>
-                  <Link
-                    href="/circulo/nuevo"
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 6,
-                      padding: '6px 10px', borderRadius: 9999,
-                      background: 'white',
-                      border: '1.5px solid rgba(10,126,140,0.25)',
-                      color: '#0A7E8C',
-                      fontWeight: 700, fontSize: '0.7rem',
-                      whiteSpace: 'nowrap', textDecoration: 'none',
-                    }}
-                  >
-                    <IconPersonAdd />
-                    Agregar Personas
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => setNewProviderModal(prev => ({
-                      ...prev, open: true, name: '', phone: '',
-                      email: '', specialty: '', error: null,
-                    }))}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 6,
-                      padding: '6px 10px', borderRadius: 9999,
-                      background: 'white',
-                      border: '1.5px solid rgba(10,126,140,0.25)',
-                      color: '#0A7E8C',
-                      fontWeight: 700, fontSize: '0.7rem',
-                      whiteSpace: 'nowrap', cursor: 'pointer',
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                      stroke="#0A7E8C" strokeWidth="1.8" strokeLinecap="round"
-                      strokeLinejoin="round">
-                      <rect x="3" y="3" width="18" height="18" rx="2" />
-                      <line x1="12" y1="8" x2="12" y2="16" />
-                      <line x1="8" y1="12" x2="16" y2="12" />
-                    </svg>
-                    Sumar prestador externo
-                  </button>
-                  <Link
-                    href="/prestadores"
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 6,
-                      padding: '6px 10px', borderRadius: 9999,
-                      background: 'white',
-                      border: '1.5px solid rgba(10,126,140,0.25)',
-                      color: '#0A7E8C',
-                      fontWeight: 700, fontSize: '0.7rem',
-                      whiteSpace: 'nowrap', textDecoration: 'none',
-                    }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                      stroke="#0A7E8C" strokeWidth="1.8" strokeLinecap="round"
-                      strokeLinejoin="round">
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
-                    Buscar prestador
-                  </Link>
-                </div>
+                  gap: 8,
+                  width: '100%',
+                  padding: '12px 24px 0',
+                  boxSizing: 'border-box',
+                }}
+                className="flex flex-col items-center"
+              >
+                <Link
+                  href="/circulo/nuevo"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center',
+                    justifyContent: 'center', gap: 6,
+                    padding: '8px 16px', borderRadius: 9999,
+                    background: 'white',
+                    border: '1.5px solid rgba(10,126,140,0.25)',
+                    color: '#0A7E8C', fontWeight: 700, fontSize: '0.8rem',
+                    whiteSpace: 'nowrap', textDecoration: 'none',
+                    width: '100%', maxWidth: 260, boxSizing: 'border-box',
+                  }}
+                >
+                  <IconPersonAdd />
+                  + Personas
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setNewProviderModal(prev => ({
+                    ...prev, open: true, name: '', phone: '',
+                    email: '', specialty: '', error: null,
+                  }))}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center',
+                    justifyContent: 'center', gap: 6,
+                    padding: '8px 16px', borderRadius: 9999,
+                    background: 'white',
+                    border: '1.5px solid rgba(10,126,140,0.25)',
+                    color: '#0A7E8C', fontWeight: 700, fontSize: '0.8rem',
+                    whiteSpace: 'nowrap', cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    width: '100%', maxWidth: 260, boxSizing: 'border-box',
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="#0A7E8C" strokeWidth="1.8" strokeLinecap="round"
+                    strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <line x1="12" y1="8" x2="12" y2="16" />
+                    <line x1="8" y1="12" x2="16" y2="12" />
+                  </svg>
+                  + Prestador externo
+                </button>
+                <Link
+                  href="/prestadores"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center',
+                    justifyContent: 'center', gap: 6,
+                    padding: '8px 16px', borderRadius: 9999,
+                    background: 'white',
+                    border: '1.5px solid rgba(10,126,140,0.25)',
+                    color: '#0A7E8C', fontWeight: 700, fontSize: '0.8rem',
+                    whiteSpace: 'nowrap', textDecoration: 'none',
+                    width: '100%', maxWidth: 260, boxSizing: 'border-box',
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="#0A7E8C" strokeWidth="1.8" strokeLinecap="round"
+                    strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  Buscar prestador
+                </Link>
               </div>
             </div>
 
             {/* ── Sugerencias de prestadores ─────────────────────────────── */}
-            {(suggestionsLoading || suggestions.length > 0) && (
+            {suggestions.length > 0 && (
               <div style={{ width: '100%', maxWidth: 800, marginBottom: 8 }}>
                 <p style={{
                   fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
@@ -1069,64 +1069,73 @@ export default function CirculoPage() {
                   Sugerencias para tu círculo
                 </p>
 
-                {suggestionsLoading ? (
-                  <div style={{ display: 'flex', gap: 12, flexDirection: 'column' }}
-                    className="md:!flex-row md:!flex-wrap">
-                    {[0, 1, 2].map((i) => (
-                      <div key={i} style={{
-                        flex: '1 1 180px', minWidth: 0,
-                        borderRadius: '1rem', height: 110,
-                        background: 'linear-gradient(90deg, #f0f4f8 25%, #e8edf0 50%, #f0f4f8 75%)',
-                        backgroundSize: '200% 100%',
-                        animation: 'shimmer 1.5s infinite',
-                      }} />
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', gap: 12, flexDirection: 'column' }}
-                    className="md:!flex-row md:!flex-wrap">
-                    {suggestions.map((s, i) => (
+                <div style={{
+                  background: '#FFFFFF', borderRadius: '1.5rem',
+                  boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
+                  padding: 24,
+                  display: 'flex', flexDirection: 'column', gap: 10,
+                }}>
+                  {suggestions.map((s, i) => (
                       <div
                         key={i}
                         style={{
-                          flex: '1 1 180px', minWidth: 0,
-                          background: '#FFFFFF', borderRadius: '1rem',
-                          boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
-                          padding: '16px 18px',
-                          display: 'flex', flexDirection: 'column', gap: 6,
+                          display: 'flex', alignItems: 'flex-start', gap: 10,
+                          padding: '10px 12px',
+                          background: 'rgb(255 255 255)',
+                          borderRadius: '0.75rem',
                         }}
                       >
                         <div style={{
-                          fontSize: '0.875rem', fontWeight: 700, color: '#1A1A2E',
-                          lineHeight: 1.3,
-                        }}>{s.name}</div>
-                        <div style={{
-                          fontSize: '0.7rem', fontWeight: 700,
-                          letterSpacing: '0.06em', textTransform: 'uppercase',
-                          color: '#0A7E8C',
-                        }}>{s.prestacion}</div>
-                        <div style={{
-                          fontSize: '0.75rem', color: '#5a7478',
-                          lineHeight: 1.5, flex: 1,
-                        }}>{s.razon}</div>
-                        <Link
-                          href={`/circulo/prestador/nuevo?name=${encodeURIComponent(s.name)}&prestacion=${encodeURIComponent(s.prestacion)}`}
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            marginTop: 4, padding: '6px 14px', borderRadius: 9999,
-                            background: 'rgba(10,126,140,0.08)',
-                            color: '#0A7E8C', fontWeight: 700, fontSize: '0.75rem',
-                            textDecoration: 'none', transition: 'background 0.15s',
+                          width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                          background: s.type === 'chat'
+                            ? 'rgba(10,126,140,0.10)'
+                            : 'rgba(232,145,58,0.10)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '0.85rem',
+                        }}>
+                          {s.type === 'chat' ? '💬' : '🔗'}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            fontSize: '0.8125rem', fontWeight: 700,
+                            color: '#1A1A2E', marginBottom: 2,
+                          }}>
+                            {s.title}
+                          </div>
+                          {s.description && (
+                            <div style={{
+                              fontSize: '0.75rem', color: '#5a7478', lineHeight: 1.4,
+                            }}>
+                              {s.description}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (s.id) {
+                              supabase
+                                .from('suggestions')
+                                .update({ status: 'dismissed' })
+                                .eq('id', s.id)
+                                .then(() => {})
+                            }
+                            setSuggestions(prev => prev.filter((_, j) => j !== i))
                           }}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(10,126,140,0.15)' }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(10,126,140,0.08)' }}
+                          style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            color: '#5a7478', padding: 2, flexShrink: 0,
+                            fontSize: '1rem', lineHeight: 1,
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.color = '#ba1a1a' }}
+                          onMouseLeave={e => { e.currentTarget.style.color = '#5a7478' }}
+                          title="Descartar"
                         >
-                          + Agregar
-                        </Link>
+                          ×
+                        </button>
                       </div>
                     ))}
-                  </div>
-                )}
+                </div>
               </div>
             )}
             {/* ── fin sugerencias ──────────────────────────────────────────── */}

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import MobileContextBanner from "@/components/MobileContextBanner";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-plus-jakarta-sans",
@@ -54,7 +55,10 @@ export default function RootLayout({
       lang="es"
       className={`${plusJakartaSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
-      <body className={`${plusJakartaSans.className} min-h-full flex flex-col`}>{children}</body>
+      <body className={`${plusJakartaSans.className} min-h-full flex flex-col`}>
+        <MobileContextBanner />
+        {children}
+      </body>
     </html>
   );
 }
