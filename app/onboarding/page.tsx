@@ -823,32 +823,40 @@ export default function OnboardingPage() {
                   <BtnBack onClick={() => setStep(3)} />
                   <div className="flex items-center gap-2">
                     <BtnSkip onClick={async () => {
-                      const { data: { session } } = await supabase.auth.getSession()
-                      const token = session?.access_token ?? ''
-                      fetch('/api/user-context/regenerate', {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                          'Authorization': `Bearer ${token}`,
-                        },
-                        body: JSON.stringify({}),
-                      }).catch(() => {})
-                      await supabase.from('profiles').update({ onboarding_completed: true }).eq('id', userId)
-                      router.push('/dashboard')
-                    }} label="Omitir" />
-                    <button
-                      type="button"
-                      onClick={async () => {
+                      try {
                         const { data: { session } } = await supabase.auth.getSession()
                         const token = session?.access_token ?? ''
-                        fetch('/api/user-context/regenerate', {
+                        await fetch('/api/user-context/regenerate', {
                           method: 'POST',
                           headers: {
                             'Content-Type': 'application/json',
                             'Authorization': `Bearer ${token}`,
                           },
                           body: JSON.stringify({}),
-                        }).catch(() => {})
+                        })
+                      } catch {
+                        // silenciar — el dashboard igual funciona sin contexto
+                      }
+                      await supabase.from('profiles').update({ onboarding_completed: true }).eq('id', userId)
+                      router.push('/dashboard')
+                    }} label="Omitir" />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const { data: { session } } = await supabase.auth.getSession()
+                          const token = session?.access_token ?? ''
+                          await fetch('/api/user-context/regenerate', {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${token}`,
+                            },
+                            body: JSON.stringify({}),
+                          })
+                        } catch {
+                          // silenciar — el dashboard igual funciona sin contexto
+                        }
                         await supabase.from('profiles').update({ onboarding_completed: true }).eq('id', userId)
                         router.push('/dashboard')
                       }}

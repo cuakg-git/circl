@@ -73,15 +73,30 @@ Las suggestions son respuestas cortas que ${firstName} podría dar (máx 6 palab
       throw new Error('Sin respuesta')
     }
 
-    try {
-      const parsed = JSON.parse(textBlock.text.replace(/```json|```/g, '').trim())
+    const raw = textBlock.text.trim()
+
+    // Extraer JSON — buscar el primer { y el último }
+    const start = raw.indexOf('{')
+    const end   = raw.lastIndexOf('}')
+
+    if (start === -1 || end === -1) {
       return NextResponse.json({
-        reply:       parsed.reply       ?? '',
+        reply:       raw,
+        suggestions: [],
+      })
+    }
+
+    const jsonStr = raw.slice(start, end + 1)
+
+    try {
+      const parsed = JSON.parse(jsonStr)
+      return NextResponse.json({
+        reply:       parsed.reply       ?? raw,
         suggestions: parsed.suggestions ?? [],
       })
     } catch {
       return NextResponse.json({
-        reply:       textBlock.text,
+        reply:       raw,
         suggestions: [],
       })
     }
