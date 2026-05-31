@@ -6,15 +6,6 @@ import { supabase } from '@/lib/supabase'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const AGENT_ENDPOINT = process.env.NEXT_PUBLIC_AGENT_ENDPOINT as string
-
-// Human-readable labels for proximity
-// (used when building the contacts message for the agent in step 3).
-const PROXIMITY_LABELS: Record<string, string> = {
-  nucleo:       'núcleo',
-  ayuda:        'ayuda o puede ayudar',
-  profesional:  'proveedor o profesional',
-}
 
 const LINE2_CHARS = Array.from('Estoy para acompañarte.')
 
@@ -156,26 +147,6 @@ export default function OnboardingPage() {
     if (el) el.scrollTop = el.scrollHeight
   }, [chatMsgs, isTyping])
 
-  // ── Agent call (steps 2 & 3 — crisis / contacts) ─────────────────────────
-  // Sends { user_id, message } to the external agent endpoint.
-  // Returns the reply string on success, or null on error / missing userId.
-  // All errors are swallowed so a network failure never breaks the UX.
-  const sendToAgent = useCallback(async (message: string): Promise<string | null> => {
-    if (!userId) return null
-    try {
-      const res = await fetch(AGENT_ENDPOINT, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ user_id: userId, message }),
-      })
-      if (!res.ok) return null
-      const data = await res.json() as { reply?: string }
-      return data.reply ?? null
-    } catch {
-      return null
-    }
-  }, [userId])
-
   // ── Onboarding chat (step 4 only) ─────────────────────────────────────────
   // Calls our own /api/onboarding/chat endpoint which returns structured JSON
   // with reply text + suggestion chips.
@@ -234,25 +205,39 @@ export default function OnboardingPage() {
     initChat()
   }, [step, userId, sendToOnboardingChat])
 
-  // ── Step 2 continue — send crisis text, fire-and-forget ──────────────────
+  // ── Step 2 continue — insert crisis in Supabase, fire-and-forget ─────────
   function handleStep2Next() {
-    if (crisis.trim()) {
-      const mensaje = `El usuario acaba de describir su situación durante el onboarding. Registrá esto como una nueva crisis activa usando la tool crear_crisis. La descripción es: "${crisis.trim()}"`
-      sendToAgent(mensaje)   // intentionally not awaited
+    if (crisis.trim() && userId) {
+      supabase
+        .from('cases')
+        .insert({
+          user_id:     userId,
+          name:        crisis.trim().slice(0, 80),
+          description: crisis.trim(),
+          status:      'activa',
+          category:    'crisis_indefinida',
+          started_at:  new Date().toISOString().split('T')[0],
+        })
+        .then(() => {})  // fire and forget
     }
     setStep(3)
   }
 
-  // ── Step 3 continue — build contacts message, fire-and-forget ────────────
+  // ── Step 3 continue — insert contacts in Supabase, fire-and-forget ───────
   function handleStep3Next() {
     const filled = contacts.filter(c => c.name.trim())
-    if (filled.length > 0) {
-      const contactosTexto = filled.map(c => {
-          const cercania = c.proximity ? (PROXIMITY_LABELS[c.proximity] ?? c.proximity) : 'sin especificar'
-          return `${c.name.trim()} (cercanía: ${cercania})`
-        }).join(', ')
-      const mensaje = `El usuario completó el paso de círculo en el onboarding. Registrá cada persona como contacto usando crear_contacto y vincinalos a la crisis activa. Antes de crear cada contacto, verificá si ya existe un contacto con ese nombre exacto para este usuario — si ya existe, no lo crees de nuevo. Las personas son: ${contactosTexto}`
-      sendToAgent(mensaje)   // intentionally not awaited
+    if (filled.length > 0 && userId) {
+      const toInsert = filled.map((c, i) => ({
+        user_id:    userId,
+        name:       c.name.trim(),
+        proximity:  c.proximity || 'ayuda',
+        role:       'acompanamiento',
+        sort_order: i,
+      }))
+      supabase
+        .from('contacts')
+        .insert(toInsert)
+        .then(() => {})  // fire and forget
     }
     setStep(4)
   }
@@ -506,6 +491,16 @@ export default function OnboardingPage() {
               type="button"
               onClick={async () => {
                 if (userId) {
+                  const { data: { session } } = await supabase.auth.getSession()
+                  const token = session?.access_token ?? ''
+                  fetch('/api/user-context/regenerate', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({}),
+                  }).catch(() => {})
                   await supabase
                     .from('profiles')
                     .update({ onboarding_completed: true })
@@ -828,12 +823,32 @@ export default function OnboardingPage() {
                   <BtnBack onClick={() => setStep(3)} />
                   <div className="flex items-center gap-2">
                     <BtnSkip onClick={async () => {
+                      const { data: { session } } = await supabase.auth.getSession()
+                      const token = session?.access_token ?? ''
+                      fetch('/api/user-context/regenerate', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({}),
+                      }).catch(() => {})
                       await supabase.from('profiles').update({ onboarding_completed: true }).eq('id', userId)
                       router.push('/dashboard')
                     }} label="Omitir" />
                     <button
                       type="button"
                       onClick={async () => {
+                        const { data: { session } } = await supabase.auth.getSession()
+                        const token = session?.access_token ?? ''
+                        fetch('/api/user-context/regenerate', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`,
+                          },
+                          body: JSON.stringify({}),
+                        }).catch(() => {})
                         await supabase.from('profiles').update({ onboarding_completed: true }).eq('id', userId)
                         router.push('/dashboard')
                       }}
