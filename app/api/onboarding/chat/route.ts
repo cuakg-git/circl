@@ -11,7 +11,7 @@ const supabase  = createClient(
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { user_id, message, step, context } = body
+    const { user_id, message, step, context, crisis, circle } = body
 
     if (!user_id) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
@@ -26,8 +26,14 @@ export async function POST(req: NextRequest) {
 
     const firstName = profile?.full_name?.split(' ')[0] ?? 'vos'
 
+    const contextBlock = [
+      crisis  ? `Situación que describió el usuario: "${crisis}"` : null,
+      circle  ? `Personas en su círculo: ${circle}` : null,
+    ].filter(Boolean).join('\n')
+
     const systemPrompt = `Sos Mhiru, un asistente que ayuda a coordinar situaciones de salud.
 Estás conociendo a ${firstName} en su primer contacto con la plataforma.
+${contextBlock ? `\nCONTEXTO DEL USUARIO:\n${contextBlock}\n` : ''}
 
 VOZ Y TONO — reglas no negociables:
 - Presencia tranquila. No inspirás, no emocionás: aliviás.

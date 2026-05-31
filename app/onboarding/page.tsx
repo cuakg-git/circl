@@ -185,17 +185,29 @@ export default function OnboardingPage() {
   ): Promise<{ reply: string; suggestions: string[] } | null> => {
     if (!userId) return null
     try {
+      const filledContacts = contacts
+        .filter(c => c.name.trim())
+        .map(c => `${c.name.trim()}${c.proximity ? ` (${c.proximity})` : ''}`)
+        .join(', ')
+
       const res = await fetch('/api/onboarding/chat', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ user_id: userId, message, step, context }),
+        body:    JSON.stringify({
+          user_id:  userId,
+          message,
+          step,
+          context,
+          crisis:   crisis.trim() || null,
+          circle:   filledContacts || null,
+        }),
       })
       if (!res.ok) return null
       return await res.json()
     } catch {
       return null
     }
-  }, [userId, step])
+  }, [userId, step, crisis, contacts])
 
   // ── Chat init when entering step 4 ───────────────────────────────────────
   // Waits for both step===4 AND userId to be ready (userId is fetched async).
