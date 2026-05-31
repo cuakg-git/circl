@@ -156,8 +156,8 @@ export default function OnboardingPage() {
     if (el) el.scrollTop = el.scrollHeight
   }, [chatMsgs, isTyping])
 
-  // ── Agent call ────────────────────────────────────────────────────────────
-  // Sends { user_id, message } to the agent endpoint.
+  // ── Agent call (steps 2 & 3 — crisis / contacts) ─────────────────────────
+  // Sends { user_id, message } to the external agent endpoint.
   // Returns the reply string on success, or null on error / missing userId.
   // All errors are swallowed so a network failure never breaks the UX.
   const sendToAgent = useCallback(async (message: string): Promise<string | null> => {
@@ -176,6 +176,27 @@ export default function OnboardingPage() {
     }
   }, [userId])
 
+  // ── Onboarding chat (step 4 only) ─────────────────────────────────────────
+  // Calls our own /api/onboarding/chat endpoint which returns structured JSON
+  // with reply text + suggestion chips.
+  const sendToOnboardingChat = useCallback(async (
+    message: string,
+    context?: string
+  ): Promise<{ reply: string; suggestions: string[] } | null> => {
+    if (!userId) return null
+    try {
+      const res = await fetch('/api/onboarding/chat', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ user_id: userId, message, step, context }),
+      })
+      if (!res.ok) return null
+      return await res.json()
+    } catch {
+      return null
+    }
+  }, [userId, step])
+
   // ── Chat init when entering step 4 ───────────────────────────────────────
   // Waits for both step===4 AND userId to be ready (userId is fetched async).
   // Guards with chatInited.current so it only fires once even if deps change.
@@ -187,30 +208,19 @@ export default function OnboardingPage() {
 
     async function initChat() {
       setIsTyping(true)
-      const reply = await sendToAgent(
-        'Hola, entiendo. Generá una pregunta abierta para conocer mejor el contexto del usuario y devolvé exactamente este JSON (sin markdown, sin texto extra): {"message": "tu pregunta aquí", "suggestions": ["opción 1", "opción 2", "opción 3"]}'
+      const result = await sendToOnboardingChat(
+        '¿Qué más me podés contar sobre tu situación?'
       )
       setIsTyping(false)
-      if (reply) {
-        try {
-          const parsed = JSON.parse(reply)
-          const id = ++chatMsgId.current
-          setChatMsgs([{ id, from: 'circl', text: parsed.message ?? reply }])
-          setChatSuggestions(parsed.suggestions ?? [])
-        } catch {
-          const id = ++chatMsgId.current
-          setChatMsgs([{ id, from: 'circl', text: reply }])
-          setChatSuggestions([
-            'Estoy manejando una situación médica',
-            'Necesito organizar el cuidado de alguien',
-            'Estoy coordinando una situación familiar',
-          ])
-        }
+      if (result) {
+        const id = ++chatMsgId.current
+        setChatMsgs([{ id, from: 'circl', text: result.reply }])
+        setChatSuggestions(result.suggestions ?? [])
       }
     }
 
     initChat()
-  }, [step, userId, sendToAgent])
+  }, [step, userId, sendToOnboardingChat])
 
   // ── Step 2 continue — send crisis text, fire-and-forget ──────────────────
   function handleStep2Next() {
@@ -248,16 +258,15 @@ export default function OnboardingPage() {
     setChatInput('')
 
     setIsTyping(true)
-    const reply = await sendToAgent(text)
+    const result = await sendToOnboardingChat(text)
     setIsTyping(false)
 
-    setChatSuggestions([])
-
-    if (reply) {
+    if (result) {
       const replyId = ++chatMsgId.current
-      setChatMsgs(prev => [...prev, { id: replyId, from: 'circl', text: reply }])
+      setChatMsgs(prev => [...prev, { id: replyId, from: 'circl', text: result.reply }])
+      setChatSuggestions(result.suggestions ?? [])
     }
-  }, [chatInput, isTyping, sendToAgent])
+  }, [chatInput, isTyping, sendToOnboardingChat])
 
   // ── Contact helpers ───────────────────────────────────────────────────────
 
@@ -445,7 +454,7 @@ export default function OnboardingPage() {
             <h1
               className="font-extrabold tracking-tight text-center mb-12"
               style={{
-                fontSize: 'clamp(2.5rem, 6.5vw, 4.75rem)',
+                fontSize: 'clamp(1.75rem, 6.5vw, 4.75rem)',
                 lineHeight: 1.1,
                 letterSpacing: '-0.035em',
                 color: '#1A1A2E',
