@@ -99,7 +99,7 @@ export default function RegisterPage() {
       return
     }
 
-    router.push(`/register/verify?email=${encodeURIComponent(email)}`)
+    router.push('/onboarding')
   }
 
   const handleGoogle = async () => {
