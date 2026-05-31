@@ -59,9 +59,10 @@ export default function OnboardingPage() {
   const nextContactId = useRef(2)
 
   // ── Chat ──────────────────────────────────────────────────────────────────
-  const [chatMsgs, setChatMsgs]   = useState<ChatMsg[]>([])
-  const [chatInput, setChatInput] = useState('')
-  const [isTyping, setIsTyping]   = useState(false)
+  const [chatMsgs, setChatMsgs]         = useState<ChatMsg[]>([])
+  const [chatInput, setChatInput]       = useState('')
+  const [isTyping, setIsTyping]         = useState(false)
+  const [chatSuggestions, setChatSuggestions] = useState<string[]>([])
   const chatInited                = useRef(false)
   const chatMsgId                 = useRef(0)
   const chatLogRef                = useRef<HTMLDivElement>(null)
@@ -186,11 +187,25 @@ export default function OnboardingPage() {
 
     async function initChat() {
       setIsTyping(true)
-      const reply = await sendToAgent('Hola, entiendo.')
+      const reply = await sendToAgent(
+        'Hola, entiendo. Generá una pregunta abierta para conocer mejor el contexto del usuario y devolvé exactamente este JSON (sin markdown, sin texto extra): {"message": "tu pregunta aquí", "suggestions": ["opción 1", "opción 2", "opción 3"]}'
+      )
       setIsTyping(false)
       if (reply) {
-        const id = ++chatMsgId.current
-        setChatMsgs([{ id, from: 'circl', text: reply }])
+        try {
+          const parsed = JSON.parse(reply)
+          const id = ++chatMsgId.current
+          setChatMsgs([{ id, from: 'circl', text: parsed.message ?? reply }])
+          setChatSuggestions(parsed.suggestions ?? [])
+        } catch {
+          const id = ++chatMsgId.current
+          setChatMsgs([{ id, from: 'circl', text: reply }])
+          setChatSuggestions([
+            'Estoy manejando una situación médica',
+            'Necesito organizar el cuidado de alguien',
+            'Estoy coordinando una situación familiar',
+          ])
+        }
       }
     }
 
@@ -235,6 +250,8 @@ export default function OnboardingPage() {
     setIsTyping(true)
     const reply = await sendToAgent(text)
     setIsTyping(false)
+
+    setChatSuggestions([])
 
     if (reply) {
       const replyId = ++chatMsgId.current
@@ -721,6 +738,39 @@ export default function OnboardingPage() {
                       </div>
                     )}
                   </div>
+
+                  {/* Chips de sugerencia */}
+                  {chatSuggestions.length > 0 && !isTyping && (
+                    <div style={{
+                      display: 'flex', flexWrap: 'wrap', gap: 8,
+                      padding: '8px 12px',
+                      borderTop: '1px solid rgba(10,126,140,0.08)',
+                      background: '#FAF8F5',
+                    }}>
+                      {chatSuggestions.map((s, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => {
+                            setChatInput(s)
+                            setChatSuggestions([])
+                          }}
+                          style={{
+                            padding: '6px 14px', borderRadius: 9999,
+                            border: '1.5px solid rgba(10,126,140,0.25)',
+                            background: 'white', color: '#0A7E8C',
+                            fontSize: '0.8125rem', fontWeight: 600,
+                            cursor: 'pointer', fontFamily: 'inherit',
+                            transition: 'background 0.15s',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(10,126,140,0.06)' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'white' }}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Input row */}
                   <div

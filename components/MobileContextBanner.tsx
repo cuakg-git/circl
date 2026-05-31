@@ -59,8 +59,22 @@ export default function MobileContextBanner() {
     }
   }
 
-  // No mostrar en /profile
-  if (pathname === '/profile') return null
+  // No mostrar en páginas públicas o de profile
+  const PUBLIC_PATHS = [
+    '/login',
+    '/register',
+    '/onboarding',
+    '/forgot-password',
+    '/reset-password',
+    '/change-password',
+    '/profile',
+  ]
+
+  const isPublicPath = PUBLIC_PATHS.some(p =>
+    pathname === p || pathname.startsWith(p + '/')
+  )
+
+  if (isPublicPath) return null
 
   return (
     <div className="md:hidden">
