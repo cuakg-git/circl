@@ -118,6 +118,16 @@ RESTRICCIONES
   (eliminar una tarea, modificar un contacto, mover una fecha), decilo directamente:
   "no tengo cómo hacer eso desde acá, te recomiendo hacerlo desde el panel."
   NUNCA inventes que alguien lo procesa por detrás o que el equipo lo resuelve.
+- Para cerrar un tema, siempre pedís confirmación explícita
+  antes de llamar la tool. Nunca lo hacés sin que el usuario
+  lo diga claramente.
+- No podés reabrir temas desde acá. Si el usuario quiere
+  reabrir un tema cerrado, le decís que puede hacerlo desde
+  la sección Temas y le compartís el link directo al tema.
+  El link es: para temas propios https://www.hellomhiru.com/case/{case_id},
+  para temas compartidos https://www.hellomhiru.com/case/shared/{case_id}.
+  Si no sabés el case_id del tema cerrado, decile que lo
+  busque en la sección Temas desde el listado de resueltos.
 
 PROTOCOLO DE CRISIS EMOCIONAL
 
@@ -326,6 +336,31 @@ const TOOLS: Anthropic.Tool[] = [
         },
       },
       required: ['case_id', 'nuevo_ai_summary', 'nuevo_ai_next_step'],
+    },
+  },
+
+  {
+    name: 'cerrar_caso',
+    description:
+      'Cierra un caso (tema) marcándolo como resuelto. ' +
+      'Usar cuando el usuario pida explícitamente cerrar o resolver un tema. ' +
+      "Ejemplos: 'cerrá este tema', 'lo resolvimos', 'ya terminamos con esto'. " +
+      'Nunca llamar sin confirmación explícita del usuario. ' +
+      'Funciona con temas propios y compartidos.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        case_id: {
+          type: 'string',
+          description: 'ID del caso a cerrar.',
+        },
+        case_type: {
+          type: 'string',
+          enum: ['propio', 'compartido'],
+          description: 'Tipo del caso. Inferir del contexto.',
+        },
+      },
+      required: ['case_id', 'case_type'],
     },
   },
 ]
@@ -784,6 +819,9 @@ async function executeTool(
       case 'actualizar_resumen_caso':
         result = await toolActualizarResumenCaso(input)
         break
+      case 'cerrar_caso':
+        result = await toolCerrarCaso(input)
+        break
       default:
         result = { success: false, error: `Tool desconocido: ${name}` }
     }
@@ -1063,6 +1101,53 @@ async function toolActualizarResumenCaso(
   return {
     success: true,
     summary: 'Resumen y próximo paso del caso actualizados correctamente.',
+  }
+}
+
+async function toolCerrarCaso(
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const case_id   = String(input.case_id   ?? '')
+  const case_type = String(input.case_type ?? '')
+
+  if (!case_id || !case_type) {
+    return { success: false, error: 'Faltan parámetros obligatorios.' }
+  }
+
+  const tabla        = case_type === 'compartido' ? 'shared_cases' : 'cases'
+  const historyTabla = case_type === 'compartido' ? 'shared_case_history' : 'case_history'
+  const historyField = case_type === 'compartido' ? 'shared_case_id' : 'case_id'
+
+  const { error: updateErr } = await supabaseAdmin
+    .from(tabla)
+    .update({ status: 'resuelta' })
+    .eq('id', case_id)
+
+  if (updateErr) {
+    return {
+      success: false,
+      error:   updateErr.message ?? 'Error al cerrar el caso.',
+    }
+  }
+
+  await supabaseAdmin
+    .from(historyTabla)
+    .insert({
+      [historyField]: case_id,
+      event_type:     'actualizacion_general',
+      title:          'Tema marcado como resuelto',
+    })
+
+  const urlTema = case_type === 'compartido'
+    ? `https://www.hellomhiru.com/case/shared/${case_id}`
+    : `https://www.hellomhiru.com/case/${case_id}`
+
+  return {
+    success:  true,
+    case_id,
+    case_type,
+    url_tema: urlTema,
+    summary:  `Tema cerrado correctamente. Si querés reabrirlo, podés hacerlo desde Temas: ${urlTema}`,
   }
 }
 

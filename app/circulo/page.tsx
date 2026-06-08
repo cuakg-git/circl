@@ -335,7 +335,7 @@ function RingCarousel({
         <span style={{
           fontSize: '0.75rem', fontWeight: 700,
           letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5a7478',
-        }}>{RING_LABEL[ring]}</span>
+        }}>{RING_LABEL[ring as keyof typeof RING_LABEL]}</span>
         <span style={{
           fontSize: 10, fontWeight: 700, color: 'white',
           background: '#0A7E8C', borderRadius: 9999,
