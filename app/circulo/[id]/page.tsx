@@ -11,7 +11,7 @@ import {
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Proximity = 'nucleo' | 'ayuda' | 'profesional'
+type Proximity = 'nucleo' | 'segundo_nivel' | 'tercer_nivel' | 'prestador'
 
 type Contact = {
   id:                  string
@@ -55,9 +55,10 @@ const ROLE_BADGE: Record<string, { bg: string; color: string }> = {
 }
 
 const PROXIMITY_LABELS: Record<Proximity, string> = {
-  nucleo:      'Es parte de mi núcleo',
-  ayuda:       'Es alguien que me ayuda o puede ayudar',
-  profesional: 'Es un proveedor de servicios o un profesional',
+  nucleo:        'Es parte de mi núcleo',
+  segundo_nivel: 'Segundo nivel de cercanía',
+  tercer_nivel:  'Tercer nivel de cercanía',
+  prestador:     'Es un proveedor de servicios o profesional',
 }
 
 const SELECT_BASE: React.CSSProperties = {
@@ -941,6 +942,54 @@ export default function ContactoDetailPage() {
                       </>
                     )}
                   </div>
+                </div>
+              </div>
+
+              {/* 3. Cercanía */}
+              <div style={{ marginBottom: 24 }}>
+                <p style={{
+                  fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em',
+                  textTransform: 'uppercase', color: '#5a7478', marginBottom: 12,
+                }}>Cercanía</p>
+
+                {proximityError && (
+                  <div style={{
+                    marginBottom: 10, padding: '8px 14px',
+                    borderRadius: '0.75rem',
+                    background: 'rgba(186,26,26,0.07)',
+                    border: '1px solid rgba(186,26,26,0.18)',
+                    fontSize: '0.8125rem', color: '#ba1a1a', fontWeight: 600,
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                  }}>
+                    <span>{proximityError}</span>
+                    <button onClick={() => setProximityError(null)} style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: '#ba1a1a', fontSize: '1rem', lineHeight: 1,
+                    }}>✕</button>
+                  </div>
+                )}
+
+                <div style={{
+                  background: '#FFFFFF', borderRadius: '1rem',
+                  boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
+                  padding: '13px 20px',
+                  display: 'flex', alignItems: 'center', gap: 12, minHeight: 52,
+                }}>
+                  <span style={{
+                    fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em',
+                    textTransform: 'uppercase', color: '#5a7478', minWidth: 80, flexShrink: 0,
+                  }}>Nivel</span>
+                  <select
+                    value={c.proximity ?? ''}
+                    onChange={(e) => handleProximityChange(e.target.value)}
+                    disabled={proximityLoading}
+                    style={proximityLoading ? DISABLED_SELECT_STYLE : ENABLED_SELECT_STYLE}
+                  >
+                    <option value="">Sin especificar</option>
+                    <option value="nucleo">Es parte de mi núcleo</option>
+                    <option value="segundo_nivel">Segundo nivel de cercanía</option>
+                    <option value="tercer_nivel">Tercer nivel de cercanía</option>
+                  </select>
                 </div>
               </div>
 

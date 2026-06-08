@@ -205,15 +205,16 @@ const TOOLS: Anthropic.Tool[] = [
       'rol acompanamiento: apoyo emocional. ' +
       'rol prestador_servicios: profesionales. ' +
       'proximidad nucleo: familia directa o íntimos. ' +
-      'proximidad ayuda: resto del círculo cercano. ' +
-      'proximidad profesional: prestadores.',
+      'proximidad segundo_nivel: segundo nivel de cercanía. ' +
+      'proximidad tercer_nivel: tercer nivel de cercanía. ' +
+      'proximidad prestador: prestadores.',
     input_schema: {
       type: 'object',
       properties: {
         nombre:          { type: 'string' },
         relacion:        { type: 'string', description: "Texto libre. Ej: 'hermana', 'vecina de confianza'." },
         rol:             { type: 'string', enum: ['acompanamiento', 'logistico', 'prestador_servicios'] },
-        proximidad:      { type: 'string', enum: ['nucleo', 'ayuda', 'profesional'] },
+        proximidad:      { type: 'string', enum: ['nucleo', 'segundo_nivel', 'tercer_nivel', 'prestador'] },
         notas:           { type: 'string', description: 'Opcional. Cuándo activar a esta persona, qué puede hacer.' },
         email:           { type: 'string', description: 'Opcional.' },
         telefono:        { type: 'string', description: 'Opcional.' },

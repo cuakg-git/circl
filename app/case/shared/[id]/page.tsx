@@ -219,6 +219,11 @@ export default function SharedCaseDetailPage({
 
   const [ctxOpen, setCtxOpen] = useState(true)
 
+  // ── Close/reopen case ────────────────────────────────────────────────────────
+  const [closeModalOpen, setCloseModalOpen] = useState(false)
+  const [closingLoading, setClosingLoading] = useState(false)
+  const [closeError,     setCloseError]     = useState<string | null>(null)
+
   // ── Remove pending modal ─────────────────────────────────────────────────────
   const [removePendingId,  setRemovePendingId]  = useState<string | null>(null)
   const [removingPending,  setRemovingPending]  = useState(false)
@@ -561,6 +566,41 @@ export default function SharedCaseDetailPage({
     }
   }, [sharedCase, myMember, loading])
 
+  // ── Close / reopen case ───────────────────────────────────────────────────────
+
+  async function handleCloseCase() {
+    if (!id || closingLoading) return
+    setClosingLoading(true)
+    setCloseError(null)
+    const { error } = await supabase
+      .from('shared_cases')
+      .update({ status: 'resuelta' })
+      .eq('id', id)
+    setClosingLoading(false)
+    if (error) {
+      setCloseError('No se pudo cerrar el tema. Intentá de nuevo.')
+      return
+    }
+    setCloseModalOpen(false)
+    router.replace('/case')
+  }
+
+  async function handleReopenCase() {
+    if (!id || closingLoading) return
+    setClosingLoading(true)
+    setCloseError(null)
+    const { error } = await supabase
+      .from('shared_cases')
+      .update({ status: 'activa' })
+      .eq('id', id)
+    setClosingLoading(false)
+    if (error) {
+      setCloseError('No se pudo reabrir el tema. Intentá de nuevo.')
+      return
+    }
+    setSharedCase(prev => prev ? { ...prev, status: 'activa' } : null)
+  }
+
   // ── Derived ───────────────────────────────────────────────────────────────────
 
   const contactById = new Map(contacts.map((c) => [c.id, c]))
@@ -894,6 +934,30 @@ export default function SharedCaseDetailPage({
           {/* ── Content ───────────────────────────────────────────────── */}
           {!loading && sharedCase && (
             <>
+              {/* ── Banner: tema cerrado ───────────────────────────── */}
+              {sharedCase.status === 'resuelta' && (
+                <div style={{
+                  marginBottom: 24,
+                  padding: '12px 16px',
+                  borderRadius: '0.75rem',
+                  background: 'rgba(90,116,120,0.08)',
+                  border: '1px solid rgba(90,116,120,0.18)',
+                  display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24"
+                    fill="none" stroke="#5a7478" strokeWidth="2"
+                    strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="9 12 11 14 15 10" />
+                  </svg>
+                  <span style={{
+                    fontSize: '0.875rem', color: '#5a7478', fontWeight: 600,
+                  }}>
+                    Este tema está cerrado. Lo podés reabrir desde Acciones.
+                  </span>
+                </div>
+              )}
+
               {/* ── Header ────────────────────────────────────────────── */}
               <div style={{ marginBottom: 32 }}> 
  
@@ -1603,11 +1667,151 @@ export default function SharedCaseDetailPage({
 
                 </div>
               </div>
+
+              {/* ── Acciones ───────────────────────────────────────── */}
+              <div style={{ marginBottom: 32 }}>
+                <SectionTitle>Acciones</SectionTitle>
+
+                {closeError && (
+                  <div style={{
+                    marginBottom: 12, padding: '10px 16px',
+                    borderRadius: '0.75rem',
+                    background: 'rgba(186,26,26,0.07)',
+                    border: '1px solid rgba(186,26,26,0.18)',
+                    fontSize: '0.8125rem', color: '#ba1a1a', fontWeight: 600,
+                    display: 'flex', alignItems: 'center',
+                    justifyContent: 'space-between', gap: 8,
+                  }}>
+                    <span>{closeError}</span>
+                    <button
+                      onClick={() => setCloseError(null)}
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        color: '#ba1a1a', fontSize: '1rem', lineHeight: 1, flexShrink: 0,
+                      }}
+                    >✕</button>
+                  </div>
+                )}
+
+                <Card style={{ padding: '13px 20px' }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center',
+                    justifyContent: 'space-between', gap: 12,
+                  }}>
+                    <span style={{ fontSize: '0.875rem', color: '#5a7478', flex: 1 }}>
+                      {sharedCase.status === 'activa'
+                        ? 'Cerrar este tema. Lo podés reabrir más adelante.'
+                        : 'Este tema está cerrado. Podés reabrirlo si volvió a estar activo.'}
+                    </span>
+                    {sharedCase.status === 'activa' ? (
+                      <button
+                        onClick={() => setCloseModalOpen(true)}
+                        style={{
+                          background: 'rgba(186,26,26,0.06)', color: '#ba1a1a',
+                          border: 'none', borderRadius: '0.6rem',
+                          padding: '7px 16px', fontSize: '0.875rem', fontWeight: 700,
+                          cursor: 'pointer', transition: 'background 0.15s',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(186,26,26,0.14)' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(186,26,26,0.06)' }}
+                      >
+                        Cerrar tema
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleReopenCase}
+                        disabled={closingLoading}
+                        style={{
+                          background: 'rgba(10,126,140,0.08)', color: '#0A7E8C',
+                          border: 'none', borderRadius: '0.6rem',
+                          padding: '7px 16px', fontSize: '0.875rem', fontWeight: 700,
+                          cursor: closingLoading ? 'not-allowed' : 'pointer',
+                          opacity: closingLoading ? 0.6 : 1,
+                          transition: 'background 0.15s',
+                        }}
+                      >
+                        {closingLoading ? 'Reabriendo…' : 'Reabrir tema'}
+                      </button>
+                    )}
+                  </div>
+                </Card>
+              </div>
             </>
           )}
 
         </main>
       </div>
+
+      {/* ── Modal: cerrar tema ───────────────────────────── */}
+      {closeModalOpen && (
+        <>
+          <div
+            onClick={() => !closingLoading && setCloseModalOpen(false)}
+            style={{
+              position: 'fixed', inset: 0,
+              background: 'rgba(0,0,0,0.40)', zIndex: 600,
+            }}
+          />
+          <div style={{
+            position: 'fixed', top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 601, width: 'min(92vw, 420px)',
+            background: '#FFFFFF', borderRadius: '1.5rem',
+            boxShadow: '0 24px 80px rgba(0,0,0,0.20)',
+            padding: '28px',
+          }}>
+            <p style={{
+              fontSize: '1.125rem', fontWeight: 800,
+              color: '#1A1A2E', marginBottom: 8,
+              letterSpacing: '-0.02em',
+            }}>
+              ¿Cerrar este tema?
+            </p>
+            <p style={{
+              fontSize: '0.875rem', color: '#5a7478',
+              lineHeight: 1.6, marginBottom: 24,
+            }}>
+              Lo voy a marcar como resuelto para todos los miembros.
+              No va a aparecer más en el listado, pero cualquier
+              miembro puede reabrirlo cuando quiera.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => setCloseModalOpen(false)}
+                disabled={closingLoading}
+                style={{
+                  flex: 1, padding: '11px 0',
+                  background: 'rgba(10,126,140,0.07)',
+                  color: '#0A7E8C', border: 'none', borderRadius: 9999,
+                  fontWeight: 700, fontSize: '0.875rem',
+                  cursor: closingLoading ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                  opacity: closingLoading ? 0.5 : 1,
+                }}
+              >
+                Seguir activo
+              </button>
+              <button
+                onClick={handleCloseCase}
+                disabled={closingLoading}
+                style={{
+                  flex: 1, padding: '11px 0',
+                  background: closingLoading
+                    ? 'rgba(186,26,26,0.06)' : 'rgba(186,26,26,0.10)',
+                  color: '#ba1a1a', border: 'none', borderRadius: 9999,
+                  fontWeight: 700, fontSize: '0.875rem',
+                  cursor: closingLoading ? 'not-allowed' : 'pointer',
+                  opacity: closingLoading ? 0.6 : 1,
+                  fontFamily: 'inherit',
+                  transition: 'background 0.15s',
+                }}
+              >
+                {closingLoading ? 'Cerrando…' : 'Cerrar tema'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </>
   )
 }

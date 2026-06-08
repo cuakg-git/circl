@@ -9,6 +9,10 @@ import { SkeletonStyles, SkeletonText, SkeletonCard, SkeletonBase } from '@/comp
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
+type UserContext = {
+  themes_summary: string | null
+}
+
 type Case = {
   id:         string
   name:       string
@@ -181,6 +185,16 @@ export default function CaseListPage() {
   const [sharedCases, setSharedCases] = useState<SharedCase[]>([])
   const [loading,     setLoading]     = useState(true)
 
+  const [userCtx,        setUserCtx]        = useState<UserContext | null>(null)
+  const [regenerating,   setRegenerating]   = useState(false)
+  const [ctxQuestion,    setCtxQuestion]    = useState<string | null>(null)
+  const [ctxSuggestions, setCtxSuggestions] = useState<string[]>([])
+  const [ctxInput,       setCtxInput]       = useState('')
+  const [ctxLoading,     setCtxLoading]     = useState(false)
+  const [ctxDone,        setCtxDone]        = useState(false)
+  const [ctxTurn,        setCtxTurn]        = useState(1)
+  const [ctxError,       setCtxError]       = useState<string | null>(null)
+
   useEffect(() => {
     async function load() {
       const { data: { user }, error: userError } = await supabase.auth.getUser()
@@ -228,6 +242,12 @@ export default function CaseListPage() {
       // Paso 2: si hay IDs, obtener los casos directamente
       if (sharedCaseIds.length === 0) {
         setSharedCases([])
+        const { data: ctxEarly } = await supabase
+          .from('user_context')
+          .select('themes_summary')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        setUserCtx(ctxEarly ?? null)
         setLoading(false)
         return
       }
@@ -236,6 +256,7 @@ export default function CaseListPage() {
         .from('shared_cases')
         .select('id, name, status, created_at')
         .in('id', sharedCaseIds)
+        // Sin filtro de status — traemos activos y cerrados
 
       // Paso 3: member counts
       const sharedWithCounts = await Promise.all(
@@ -250,14 +271,130 @@ export default function CaseListPage() {
       )
 
       setSharedCases(sharedWithCounts)
+
+      const { data: ctxData } = await supabase
+        .from('user_context')
+        .select('themes_summary')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      setUserCtx(ctxData ?? null)
+
       setLoading(false)
     }
 
     load()
   }, [router])
 
-  const active   = cases.filter((c) => c.status === 'activa')
-  const resolved = cases.filter((c) => c.status !== 'activa')
+  // ── Regen event listeners ──────────────────────────────────────────────────
+  useEffect(() => {
+    function onRegenerating() { setRegenerating(true) }
+    async function onRegenerated() {
+      setRegenerating(false)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from('user_context')
+        .select('themes_summary')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (data) setUserCtx(data)
+    }
+    window.addEventListener('mhiru:context-regenerating', onRegenerating)
+    window.addEventListener('mhiru:context-regenerated',  onRegenerated)
+    return () => {
+      window.removeEventListener('mhiru:context-regenerating', onRegenerating)
+      window.removeEventListener('mhiru:context-regenerated',  onRegenerated)
+    }
+  }, [])
+
+  // ── Init chat ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (loading) return
+    async function initChat() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const accessToken = session?.access_token ?? ''
+        const res = await fetch('/api/user-context/chat/init?dimension=themes_summary', {
+          headers: { 'Authorization': `Bearer ${accessToken}` },
+        })
+        const json = await res.json()
+        if (res.ok) {
+          setCtxQuestion(json.question)
+          setCtxSuggestions(json.suggestions ?? [])
+        }
+      } catch {
+        setCtxQuestion('¿Hay algún tema que te esté ocupando más la cabeza últimamente?')
+        setCtxSuggestions([
+          'Sí, una situación reciente',
+          'Algo que viene de hace tiempo',
+          'Nada en particular',
+        ])
+      }
+    }
+    initChat()
+  }, [loading])
+
+  // ── Context chat submit ────────────────────────────────────────────────────
+  async function handleCtxSubmit(response: string) {
+    if (!response.trim() || ctxLoading || ctxDone) return
+    setRegenerating(true)
+    setCtxLoading(true)
+    setCtxError(null)
+    setCtxInput('')
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token ?? ''
+
+      const res = await fetch('/api/user-context/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          dimension:        'themes_summary',
+          current_question: ctxQuestion,
+          user_response:    response,
+          turn:             ctxTurn,
+        }),
+      })
+
+      const json = await res.json()
+      if (!res.ok) {
+        setCtxError(json.error ?? 'Hubo un error. Intentá de nuevo.')
+        setCtxLoading(false)
+        return
+      }
+
+      setUserCtx(prev => prev
+        ? { ...prev, themes_summary: json.new_summary }
+        : { themes_summary: json.new_summary }
+      )
+
+      const newTurn = ctxTurn + 1
+      setCtxTurn(newTurn)
+
+      if (json.next_question && newTurn <= 3) {
+        setCtxQuestion(json.next_question)
+        setCtxSuggestions(json.suggestions ?? [])
+      } else {
+        setCtxDone(true)
+        setCtxSuggestions([])
+        setCtxQuestion(null)
+      }
+    } catch {
+      setCtxError('No se pudo conectar. Intentá de nuevo.')
+    } finally {
+      setCtxLoading(false)
+      setRegenerating(false)
+    }
+  }
+
+  const active         = cases.filter((c) => c.status === 'activa')
+  const resolved       = cases.filter((c) => c.status !== 'activa')
+  const activeShared   = sharedCases.filter((sc) => sc.status === 'activa')
+  const resolvedShared = sharedCases.filter((sc) => sc.status === 'resuelta')
 
   return (
     <>
@@ -301,6 +438,10 @@ export default function CaseListPage() {
           }
         }
         .crisis-bg { animation: heroBgDrift 30s ease-in-out infinite; }
+        @keyframes typingDot {
+          0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
+          40%           { transform: scale(1);   opacity: 1;   }
+        }
       `}</style>
 
       <div className="crisis-bg flex min-h-screen">
@@ -320,6 +461,187 @@ export default function CaseListPage() {
               Registros de situaciones activas y resueltas.
             </p>
           </div>
+
+          {/* ── Lo que sé de tus temas ─────────────────────────── */}
+          {!loading && (
+            <div style={{ 
+              margin: '0 auto 32px',
+              background: '#FFFFFF',
+              borderRadius: '1.5rem',
+              boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '14px 24px',
+                borderBottom: '1px solid rgba(10,126,140,0.08)',
+              }}>
+                <span style={{
+                  fontSize: '0.7rem', fontWeight: 700,
+                  letterSpacing: '0.12em', textTransform: 'uppercase',
+                  color: '#5a7478',
+                }}>
+                  Lo que sé de tus temas
+                </span>
+              </div>
+
+              {(userCtx?.themes_summary || regenerating) && (
+                regenerating
+                  ? <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(10,126,140,0.08)', background: 'rgba(10,126,140,0.03)' }}>
+                      <SkeletonBase width="95%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
+                      <SkeletonBase width="80%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
+                      <SkeletonBase width="60%" height={13} style={{ borderRadius: 6 }} />
+                    </div>
+                  : <p style={{
+                      fontSize: '0.8125rem',
+                      color: '#5a7478',
+                      lineHeight: 1.55,
+                      margin: 0,
+                      padding: '16px 24px',
+                      borderBottom: '1px solid rgba(10,126,140,0.08)',
+                      background: 'rgba(10,126,140,0.03)',
+                    }}>
+                      {userCtx!.themes_summary}
+                    </p>
+              )}
+
+              <div style={{ padding: '16px 24px' }}>
+                {ctxDone ? (
+                  <p style={{
+                    fontSize: '0.875rem', color: '#5a7478',
+                    fontStyle: 'italic', margin: 0,
+                  }}>
+                    Ya tengo bastante contexto sobre tus temas. Volvé cuando
+                    quieras actualizar.
+                  </p>
+                ) : ctxQuestion ? (
+                  <>
+                    <p style={{
+                      fontSize: '0.9375rem', fontWeight: 600,
+                      color: '#1A1A2E', marginBottom: 14, marginTop: 0,
+                    }}>
+                      {ctxQuestion}
+                    </p>
+
+                    {ctxSuggestions.length > 0 && !ctxLoading && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                        {ctxSuggestions.map((s, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => handleCtxSubmit(s)}
+                            disabled={ctxLoading}
+                            style={{
+                              padding: '7px 16px', borderRadius: 9999,
+                              border: '1.5px solid rgba(10,126,140,0.25)',
+                              background: 'white', color: '#0A7E8C',
+                              fontSize: '0.875rem', fontWeight: 600,
+                              cursor: 'pointer', fontFamily: 'inherit',
+                              transition: 'background 0.15s',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(10,126,140,0.06)' }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'white' }}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {ctxLoading && (
+                      <div style={{ display: 'flex', gap: 5, alignItems: 'center', marginBottom: 14 }}>
+                        {[0, 1, 2].map(i => (
+                          <span key={i} style={{
+                            width: 7, height: 7, borderRadius: '50%',
+                            background: '#0A7E8C', display: 'inline-block',
+                            animation: `typingDot 1.2s ease-in-out ${i * 0.2}s infinite`,
+                          }} />
+                        ))}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                      <textarea
+                        value={ctxInput}
+                        onChange={e => setCtxInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault()
+                            handleCtxSubmit(ctxInput)
+                          }
+                        }}
+                        disabled={ctxLoading || ctxDone}
+                        placeholder="O escribí tu respuesta…"
+                        rows={1}
+                        style={{
+                          flex: 1,
+                          border: '1.5px solid rgba(10,126,140,0.12)',
+                          borderRadius: '1rem',
+                          padding: '10px 14px',
+                          fontSize: '0.875rem',
+                          lineHeight: 1.5,
+                          resize: 'none',
+                          outline: 'none',
+                          fontFamily: 'inherit',
+                          color: '#1A1A2E',
+                          background: '#FAF8F5',
+                          minHeight: 42,
+                          maxHeight: 100,
+                          opacity: ctxLoading ? 0.5 : 1,
+                        }}
+                        onFocus={e => { e.currentTarget.style.borderColor = '#0A7E8C' }}
+                        onBlur={e  => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleCtxSubmit(ctxInput)}
+                        disabled={ctxLoading || !ctxInput.trim() || ctxDone}
+                        style={{
+                          width: 42, height: 42, borderRadius: '50%',
+                          border: 'none',
+                          cursor: (ctxLoading || !ctxInput.trim() || ctxDone) ? 'not-allowed' : 'pointer',
+                          background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                          display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', flexShrink: 0,
+                          opacity: (ctxLoading || !ctxInput.trim() || ctxDone) ? 0.4 : 1,
+                        }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24"
+                          fill="none" stroke="white"
+                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="22" y1="2" x2="11" y2="13" />
+                          <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {ctxError && (
+                      <div style={{
+                        marginTop: 10, padding: '8px 14px',
+                        borderRadius: '0.75rem',
+                        background: 'rgba(186,26,26,0.07)',
+                        border: '1px solid rgba(186,26,26,0.18)',
+                        fontSize: '0.8125rem', color: '#ba1a1a', fontWeight: 600,
+                        display: 'flex', alignItems: 'center',
+                        justifyContent: 'space-between', gap: 8,
+                      }}>
+                        <span>{ctxError}</span>
+                        <button
+                          onClick={() => setCtxError(null)}
+                          style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            color: '#ba1a1a', fontSize: '1rem', lineHeight: 1,
+                          }}
+                        >✕</button>
+                      </div>
+                    )}
+                  </>
+                ) : null}
+              </div>
+            </div>
+          )}
 
           <SkeletonStyles />
 
@@ -452,8 +774,8 @@ export default function CaseListPage() {
                   >
                     Compartidos
                   </p>
-                  {sharedCases.length > 0 ? (
-                    sharedCases.map((sc) => (
+                  {activeShared.length > 0 ? (
+                    activeShared.map((sc) => (
                       <SharedCaseCard key={sc.id} sc={sc} />
                     ))
                   ) : (
@@ -507,8 +829,8 @@ export default function CaseListPage() {
             </div>
           </div>
 
-          {/* ── Resolved section ────────────────────────────────────────── */}
-          {resolved.length > 0 && (
+          {/* ── Resueltos (propios + compartidos) ─────────────────────── */}
+          {(resolved.length > 0 || resolvedShared.length > 0) && (
             <>
               <p
                 className="font-bold uppercase text-[#5a7478]"
@@ -519,11 +841,53 @@ export default function CaseListPage() {
                   marginBottom:  16,
                 }}
               >
-                Resueltas
+                Resueltos
               </p>
-              {resolved.map((c) => (
-                <CaseCard key={c.id} c={c} isActive={false} />
-              ))}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+                gap: 24,
+                alignItems: 'start',
+              }}>
+                <div>
+                  {resolved.length > 0 ? (
+                    resolved.map((c) => (
+                      <CaseCard key={c.id} c={c} isActive={false} />
+                    ))
+                  ) : (
+                    <div style={{
+                      border: '1.5px dashed rgba(90,116,120,0.18)',
+                      borderRadius: '1.5rem',
+                      padding: '24px 20px',
+                      textAlign: 'center',
+                      background: 'transparent',
+                    }}>
+                      <p style={{ fontSize: '0.75rem', color: '#5a7478', fontStyle: 'italic', margin: 0 }}>
+                        No tenés temas propios cerrados.
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  {resolvedShared.length > 0 ? (
+                    resolvedShared.map((sc) => (
+                      <SharedCaseCard key={sc.id} sc={sc} />
+                    ))
+                  ) : (
+                    <div style={{
+                      border: '1.5px dashed rgba(90,116,120,0.18)',
+                      borderRadius: '1.5rem',
+                      padding: '24px 20px',
+                      textAlign: 'center',
+                      background: 'transparent',
+                    }}>
+                      <p style={{ fontSize: '0.75rem', color: '#5a7478', fontStyle: 'italic', margin: 0 }}>
+                        No tenés temas compartidos cerrados.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </>
           )}
 

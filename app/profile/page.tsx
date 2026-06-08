@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
+import { SkeletonBase } from '@/components/Skeleton'
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 // Same system as Sidebar: fill="none" stroke="currentColor" strokeWidth="1.6"
@@ -94,6 +95,14 @@ function getInitials(name: string) {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+type UserContext = {
+  identity:       string | null
+  current_state:  string | null
+  current_needs:  string | null
+  circle_summary: string | null
+  themes_summary: string | null
+}
+
 interface UserData {
   name:      string
   email:     string
@@ -102,6 +111,35 @@ interface UserData {
 }
 
 type EditField = 'name' | 'email' | 'location'
+
+// ─── OrbitalCardDash ──────────────────────────────────────────────────────────
+
+function OrbitalCardDash() {
+  const size = 180
+  const r1   = 140
+  const r2   = 88
+  const p1   = size - r1
+  const p2   = size - r2
+
+  return (
+    <div style={{
+      position: 'absolute', top: 0, right: 0,
+      width: size, height: size,
+      pointerEvents: 'none',
+      overflow: 'hidden',
+    }}>
+      <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
+        <path d={`M ${p1} ${size} A ${r1} ${r1} 0 0 1 ${size} ${p1}`}
+          fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth="1.5"
+          strokeDasharray="2 6" strokeLinecap="round" />
+        <path d={`M ${p2} ${size} A ${r2} ${r2} 0 0 1 ${size} ${p2}`}
+          fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1"
+          strokeDasharray="2 5" strokeLinecap="round" />
+        <circle cx={50} cy={50} r={6} fill="#2ECDA7" opacity="0.85" />
+      </svg>
+    </div>
+  )
+}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -139,6 +177,20 @@ export default function ProfilePage() {
   const [userId,    setUserId]    = useState<string>('')
   const [userData,  setUserData]  = useState<UserData | null>(null)
   const [loading,   setLoading]   = useState(true)
+
+  // ── User context + regen ─────────────────────────────────────────────────────
+  const [userCtx,     setUserCtx]     = useState<UserContext | null>(null)
+  const [regenerating, setRegenerating] = useState(false)
+
+  // ── Chat "Lo que sé sobre vos" ───────────────────────────────────────────────
+  const [ctxQuestion,    setCtxQuestion]    = useState<string | null>(null)
+  const [ctxSuggestions, setCtxSuggestions] = useState<string[]>([])
+  const [ctxInput,       setCtxInput]       = useState('')
+  const [ctxLoading,     setCtxLoading]     = useState(false)
+  const [ctxDone,        setCtxDone]        = useState(false)
+  const [ctxTurn,        setCtxTurn]        = useState(1)
+  const [ctxError,       setCtxError]       = useState<string | null>(null)
+  const [ctxOpen,        setCtxOpen]        = useState(false)
   const [editing,   setEditing]   = useState<EditField | null>(null)
   const [fieldVal,  setFieldVal]  = useState('')
   const [saving,    setSaving]    = useState(false)
@@ -182,6 +234,14 @@ export default function ProfilePage() {
         location:  profile?.location                    ?? '',
         avatarUrl: profile?.avatar_url ?? m.avatar_url ?? null,
       })
+
+      const { data: ctxData } = await supabase
+        .from('user_context')
+        .select('identity, current_state, current_needs, circle_summary, themes_summary')
+        .eq('user_id', uid)
+        .maybeSingle()
+      setUserCtx(ctxData ?? null)
+
       setLoading(false)
     }
     load()
@@ -197,6 +257,54 @@ export default function ProfilePage() {
     return () => document.removeEventListener('keydown', onKeyDown)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheetMounted])
+
+  // ── Init chat "Lo que sé sobre vos" ──────────────────────────────────────────
+  useEffect(() => {
+    if (loading) return
+    async function initChat() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const accessToken = session?.access_token ?? ''
+        const res = await fetch('/api/user-context/chat/init', {
+          headers: { 'Authorization': `Bearer ${accessToken}` },
+        })
+        const json = await res.json()
+        if (res.ok) {
+          setCtxQuestion(json.question)
+          setCtxSuggestions(json.suggestions ?? [])
+        }
+      } catch {
+        setCtxQuestion('¿Cómo describirías quién sos más allá de tu trabajo o rol familiar?')
+        setCtxSuggestions([
+          'Soy muy familiar y cercano',
+          'Me defino por mis proyectos',
+          'Soy alguien muy independiente',
+        ])
+      }
+    }
+    initChat()
+  }, [loading])
+
+  // ── Listeners de regen events ────────────────────────────────────────────────
+  useEffect(() => {
+    function onRegenerating() { setRegenerating(true) }
+    async function onRegenerated() {
+      setRegenerating(false)
+      if (!userId) return
+      const { data } = await supabase
+        .from('user_context')
+        .select('identity, current_state, current_needs, circle_summary, themes_summary')
+        .eq('user_id', userId)
+        .maybeSingle()
+      if (data) setUserCtx(data)
+    }
+    window.addEventListener('mhiru:context-regenerating', onRegenerating)
+    window.addEventListener('mhiru:context-regenerated',  onRegenerated)
+    return () => {
+      window.removeEventListener('mhiru:context-regenerating', onRegenerating)
+      window.removeEventListener('mhiru:context-regenerated',  onRegenerated)
+    }
+  }, [userId])
 
   // ── Toast (floating pill — replicates .av-toast from maqueta/app/profile.html) ─
   // Pattern: set content → rAF → set open=true (triggers CSS slide-up + fade)
@@ -265,6 +373,65 @@ export default function ProfilePage() {
         : 'Cambios guardados.',
       true,
     )
+  }
+
+  // ── Context chat submit ───────────────────────────────────────────────────────
+  async function handleCtxSubmit(response: string) {
+    if (!response.trim() || ctxLoading || ctxDone) return
+    setRegenerating(true)
+    setCtxLoading(true)
+    setCtxError(null)
+    setCtxInput('')
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token ?? ''
+
+      const res = await fetch('/api/user-context/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          current_question: ctxQuestion,
+          user_response:    response,
+          turn:             ctxTurn,
+        }),
+      })
+
+      const json = await res.json()
+      if (!res.ok) {
+        setCtxError(json.error ?? 'Hubo un error. Intentá de nuevo.')
+        setCtxLoading(false)
+        return
+      }
+
+      setUserCtx(prev => prev
+        ? { ...prev, identity: json.new_identity }
+        : {
+            identity: json.new_identity, current_state: null,
+            current_needs: null, circle_summary: null, themes_summary: null,
+          }
+      )
+
+      const newTurn = ctxTurn + 1
+      setCtxTurn(newTurn)
+
+      if (json.next_question && newTurn <= 3) {
+        setCtxQuestion(json.next_question)
+        setCtxSuggestions(json.suggestions ?? [])
+      } else {
+        setCtxDone(true)
+        setCtxSuggestions([])
+        setCtxQuestion(null)
+      }
+    } catch {
+      setCtxError('No se pudo conectar. Intentá de nuevo.')
+    } finally {
+      setCtxLoading(false)
+      setRegenerating(false)
+    }
   }
 
   // ── Sign out ─────────────────────────────────────────────────────────────────
@@ -534,6 +701,10 @@ export default function ProfilePage() {
           }
         }
         .profile-bg { animation: heroBgDrift 30s ease-in-out infinite; }
+        @keyframes typingDot {
+          0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
+          40%           { transform: scale(1);   opacity: 1;   }
+        }
       `}</style>
 
       <div className="profile-bg flex min-h-screen">
@@ -592,6 +763,251 @@ export default function ProfilePage() {
                   <div className="text-sm text-[#5a7478]">{userData?.email}</div>
                 </>
               )}
+            </div>
+
+            {/* ── Cómo pienso que estás (dark) ─────────────────────────── */}
+            {(userCtx?.current_state || regenerating) && (
+              <div style={{
+                background: '#1A1A2E',
+                borderRadius: '1.5rem',
+                padding: '28px',
+                position: 'relative',
+                overflow: 'hidden',
+                marginBottom: 20,
+              }}>
+                <OrbitalCardDash />
+                <p style={{
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase' as const,
+                  color: '#2ECDA7',
+                  marginBottom: 12,
+                  position: 'relative',
+                  zIndex: 1,
+                }}>
+                  Cómo pienso que estás
+                </p>
+                {regenerating ? (
+                  <div style={{ position: 'relative', zIndex: 1 }}>
+                    <SkeletonBase width="95%" height={13} style={{ borderRadius: 6, marginBottom: 8, background: 'rgba(255,255,255,0.12)' }} />
+                    <SkeletonBase width="80%" height={13} style={{ borderRadius: 6, marginBottom: 8, background: 'rgba(255,255,255,0.12)' }} />
+                    <SkeletonBase width="60%" height={13} style={{ borderRadius: 6, background: 'rgba(255,255,255,0.12)' }} />
+                  </div>
+                ) : (
+                  <p style={{
+                    fontSize: '0.9375rem',
+                    color: 'rgba(255,255,255,0.82)',
+                    lineHeight: 1.7,
+                    margin: 0,
+                    position: 'relative',
+                    zIndex: 1,
+                  }}>
+                    {userCtx?.current_state}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* ── Lo que sé sobre vos (minichat) ────────────────────────── */}
+            <div style={{
+              background: '#FFFFFF',
+              borderRadius: '1.5rem',
+              boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
+              marginBottom: 40,
+              overflow: 'hidden',
+            }}>
+              <button
+                type="button"
+                onClick={() => setCtxOpen(prev => !prev)}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-start',
+                  gap: 8,
+                  padding: '14px 24px',
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: '1px solid rgba(10,126,140,0.08)',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <span style={{
+                  fontSize: '0.7rem', fontWeight: 700,
+                  letterSpacing: '0.12em', textTransform: 'uppercase',
+                  color: '#5a7478',
+                }}>
+                  Lo que sé sobre vos
+                </span>
+                <svg
+                  width="16" height="16" viewBox="0 0 24 24"
+                  fill="none" stroke="#5a7478"
+                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                  style={{
+                    flexShrink: 0,
+                    transition: 'transform 0.2s',
+                    transform: ctxOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+                  }}
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+
+              {ctxOpen && (userCtx?.identity || regenerating) && (
+                regenerating
+                  ? <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(10,126,140,0.08)', background: 'rgba(10,126,140,0.03)' }}>
+                      <SkeletonBase width="95%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
+                      <SkeletonBase width="80%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
+                      <SkeletonBase width="60%" height={13} style={{ borderRadius: 6 }} />
+                    </div>
+                  : <p style={{
+                      fontSize: '0.8125rem',
+                      color: '#5a7478',
+                      lineHeight: 1.55,
+                      margin: 0,
+                      padding: '16px 24px',
+                      borderBottom: '1px solid rgba(10,126,140,0.08)',
+                      background: 'rgba(10,126,140,0.03)',
+                    }}>
+                      {userCtx!.identity}
+                    </p>
+              )}
+
+              <div style={{ padding: '16px 24px' }}>
+                {ctxDone ? (
+                  <p style={{
+                    fontSize: '0.875rem', color: '#5a7478',
+                    fontStyle: 'italic', margin: 0,
+                  }}>
+                    Ya tengo bastante contexto sobre vos. Volvé cuando
+                    quieras actualizar tu perfil.
+                  </p>
+                ) : ctxQuestion ? (
+                  <>
+                    <p style={{
+                      fontSize: '0.9375rem', fontWeight: 600,
+                      color: '#1A1A2E', marginBottom: 14, marginTop: 0,
+                    }}>
+                      {ctxQuestion}
+                    </p>
+
+                    {ctxSuggestions.length > 0 && !ctxLoading && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                        {ctxSuggestions.map((s, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => handleCtxSubmit(s)}
+                            disabled={ctxLoading}
+                            style={{
+                              padding: '7px 16px', borderRadius: 9999,
+                              border: '1.5px solid rgba(10,126,140,0.25)',
+                              background: 'white', color: '#0A7E8C',
+                              fontSize: '0.875rem', fontWeight: 600,
+                              cursor: 'pointer', fontFamily: 'inherit',
+                              transition: 'background 0.15s',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(10,126,140,0.06)' }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'white' }}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {ctxLoading && (
+                      <div style={{ display: 'flex', gap: 5, alignItems: 'center', marginBottom: 14 }}>
+                        {[0, 1, 2].map(i => (
+                          <span key={i} style={{
+                            width: 7, height: 7, borderRadius: '50%',
+                            background: '#0A7E8C', display: 'inline-block',
+                            animation: `typingDot 1.2s ease-in-out ${i * 0.2}s infinite`,
+                          }} />
+                        ))}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                      <textarea
+                        value={ctxInput}
+                        onChange={e => setCtxInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault()
+                            handleCtxSubmit(ctxInput)
+                          }
+                        }}
+                        disabled={ctxLoading || ctxDone}
+                        placeholder="O escribí tu respuesta…"
+                        rows={1}
+                        style={{
+                          flex: 1,
+                          border: '1.5px solid rgba(10,126,140,0.12)',
+                          borderRadius: '1rem',
+                          padding: '10px 14px',
+                          fontSize: '0.875rem',
+                          lineHeight: 1.5,
+                          resize: 'none',
+                          outline: 'none',
+                          fontFamily: 'inherit',
+                          color: '#1A1A2E',
+                          background: '#FAF8F5',
+                          minHeight: 42,
+                          maxHeight: 100,
+                          opacity: ctxLoading ? 0.5 : 1,
+                        }}
+                        onFocus={e => { e.currentTarget.style.borderColor = '#0A7E8C' }}
+                        onBlur={e  => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleCtxSubmit(ctxInput)}
+                        disabled={ctxLoading || !ctxInput.trim() || ctxDone}
+                        style={{
+                          width: 42, height: 42, borderRadius: '50%',
+                          border: 'none',
+                          cursor: (ctxLoading || !ctxInput.trim() || ctxDone) ? 'not-allowed' : 'pointer',
+                          background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                          display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', flexShrink: 0,
+                          opacity: (ctxLoading || !ctxInput.trim() || ctxDone) ? 0.4 : 1,
+                        }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24"
+                          fill="none" stroke="white"
+                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="22" y1="2" x2="11" y2="13" />
+                          <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {ctxError && (
+                      <div style={{
+                        marginTop: 10, padding: '8px 14px',
+                        borderRadius: '0.75rem',
+                        background: 'rgba(186,26,26,0.07)',
+                        border: '1px solid rgba(186,26,26,0.18)',
+                        fontSize: '0.8125rem', color: '#ba1a1a', fontWeight: 600,
+                        display: 'flex', alignItems: 'center',
+                        justifyContent: 'space-between', gap: 8,
+                      }}>
+                        <span>{ctxError}</span>
+                        <button
+                          onClick={() => setCtxError(null)}
+                          style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            color: '#ba1a1a', fontSize: '1rem', lineHeight: 1,
+                          }}
+                        >✕</button>
+                      </div>
+                    )}
+                  </>
+                ) : null}
+              </div>
             </div>
 
             {/* ── Datos personales ─────────────────────────────────────────

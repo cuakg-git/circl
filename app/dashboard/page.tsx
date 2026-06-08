@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
 import { supabase } from '@/lib/supabase'
 import {
@@ -27,7 +26,7 @@ type Suggestion = {
   title:       string
   description: string | null
   status:      string
-  metadata:    any
+  metadata:    unknown
 }
 
 type CaseRow = {
@@ -43,18 +42,7 @@ type SharedCaseRow = {
   name: string
 }
 
-type ContactRow = {
-  id:        string
-  name:      string
-  initials:  string | null
-  proximity: string | null
-}
-
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-function getInitials(name: string) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
-}
 
 function fmtDate(iso: string | null) {
   if (!iso) return ''
@@ -137,24 +125,14 @@ export default function DashboardPage() {
   const [loading,      setLoading]      = useState(true)
   const [regenerating, setRegenerating] = useState(false)
   const [firstName,    setFirstName]    = useState('')
-  const [userCtx,     setUserCtx]     = useState<UserContext | null>(null)
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
-  const [cases,       setCases]       = useState<CaseRow[]>([])
-  const [sharedCases, setSharedCases] = useState<SharedCaseRow[]>([])
-  const [contacts,    setContacts]    = useState<ContactRow[]>([])
+  const [userCtx,      setUserCtx]      = useState<UserContext | null>(null)
+  const [suggestions,  setSuggestions]  = useState<Suggestion[]>([])
+  const [cases,        setCases]        = useState<CaseRow[]>([])
+  const [sharedCases,  setSharedCases]  = useState<SharedCaseRow[]>([])
 
-  // ── Chat "Lo que sé sobre vos" ────────────────────────────────────────────
-  const [ctxQuestion,    setCtxQuestion]    = useState<string | null>(null)
-  const [ctxSuggestions, setCtxSuggestions] = useState<string[]>([])
-  const [ctxInput,       setCtxInput]       = useState('')
-  const [ctxLoading,     setCtxLoading]     = useState(false)
-  const [ctxDone,        setCtxDone]        = useState(false)
-  const [ctxTurn,        setCtxTurn]        = useState(1)
-  const [ctxError,       setCtxError]       = useState<string | null>(null)
-
-  const [ctxOpen,       setCtxOpen]       = useState(false)
-  const [circuloOpen,   setCirculoOpen]   = useState(false)
-  const [temasOpen,     setTemasOpen]     = useState(false)
+  // ── Invites notice modal ──────────────────────────────────────────────────
+  const [invitesModalOpen, setInvitesModalOpen] = useState(false)
+  const [invitedEmails,    setInvitedEmails]    = useState<string[]>([])
 
   // ── Auth + onboarding check ───────────────────────────────────────────────
   useEffect(() => {
@@ -177,8 +155,8 @@ export default function DashboardPage() {
       const first = full.trim().split(/\s+/)[0] || 'vos'
       setFirstName(first)
 
-      // ── Cargar todos los datos en paralelo ──────────────────────────────
-      const [ctxRes, sugRes, casesRes, membersRes, contactsRes] = await Promise.all([
+      // ── Cargar datos en paralelo ──────────────────────────────────────
+      const [ctxRes, sugRes, casesRes, membersRes] = await Promise.all([
         supabase
           .from('user_context')
           .select('identity, history, current_state, current_needs, circle_summary, themes_summary, last_regen_at')
@@ -205,22 +183,14 @@ export default function DashboardPage() {
           .select('shared_case_id')
           .eq('user_id', user.id)
           .eq('status', 'active'),
-
-        supabase
-          .from('contacts')
-          .select('id, name, initials, proximity')
-          .eq('user_id', user.id)
-          .order('sort_order', { ascending: true, nullsFirst: false })
-          .limit(4),
       ])
 
       setUserCtx(ctxRes.data ?? null)
       setSuggestions((sugRes.data ?? []) as Suggestion[])
       setCases((casesRes.data ?? []) as CaseRow[])
-      setContacts((contactsRes.data ?? []) as ContactRow[])
 
-      // Cargar nombres de shared cases
-      const ids = (membersRes.data ?? []).map((r: any) => r.shared_case_id)
+      // Cargar shared cases para totalTemas
+      const ids = (membersRes.data ?? []).map((r: { shared_case_id: string }) => r.shared_case_id)
       if (ids.length > 0) {
         const { data: scData } = await supabase
           .from('shared_cases')
@@ -234,31 +204,22 @@ export default function DashboardPage() {
     init()
   }, [router])
 
-  // ── Init chat "Lo que sé sobre vos" ──────────────────────────────────────
+  // ── Invites pending notice from onboarding compartido ───────────────────
   useEffect(() => {
     if (loading) return
-    async function initChat() {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        const accessToken = session?.access_token ?? ''
-        const res = await fetch('/api/user-context/chat/init', {
-          headers: { 'Authorization': `Bearer ${accessToken}` },
-        })
-        const json = await res.json()
-        if (res.ok) {
-          setCtxQuestion(json.question)
-          setCtxSuggestions(json.suggestions ?? [])
+    try {
+      const stored = localStorage.getItem('mhiru:pending-invites-notice')
+      if (stored) {
+        const emails = JSON.parse(stored) as string[]
+        if (Array.isArray(emails) && emails.length > 0) {
+          setInvitedEmails(emails)
+          setInvitesModalOpen(true)
         }
-      } catch {
-        setCtxQuestion('¿Cómo describirías quién sos más allá de tu trabajo o rol familiar?')
-        setCtxSuggestions([
-          'Soy muy familiar y cercano',
-          'Me defino por mis proyectos',
-          'Soy alguien muy independiente',
-        ])
+        localStorage.removeItem('mhiru:pending-invites-notice')
       }
+    } catch {
+      // silenciar — si el localStorage está corrupto, ignorar
     }
-    initChat()
   }, [loading])
 
   // ── Reload user context from Supabase ────────────────────────────────────
@@ -275,13 +236,8 @@ export default function DashboardPage() {
 
   // ── Listen for regen events from Sidebar ─────────────────────────────────
   useEffect(() => {
-    function onRegenerating() {
-      setRegenerating(true)
-    }
-    function onRegenerated() {
-      setRegenerating(false)
-      reloadUserContext()
-    }
+    function onRegenerating() { setRegenerating(true) }
+    function onRegenerated()  { setRegenerating(false); reloadUserContext() }
     window.addEventListener('mhiru:context-regenerating', onRegenerating)
     window.addEventListener('mhiru:context-regenerated',  onRegenerated)
     return () => {
@@ -299,77 +255,13 @@ export default function DashboardPage() {
     setSuggestions(prev => prev.filter(s => s.id !== id))
   }
 
-  // ── Handle context chat submit ────────────────────────────────────────────
-  async function handleCtxSubmit(response: string) {
-    if (!response.trim() || ctxLoading || ctxDone) return
-    setRegenerating(true)
-    setCtxLoading(true)
-    setCtxError(null)
-    setCtxInput('')
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const accessToken = session?.access_token ?? ''
-
-      const res = await fetch('/api/user-context/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          current_question: ctxQuestion,
-          user_response:    response,
-          turn:             ctxTurn,
-        }),
-      })
-
-      const json = await res.json()
-      if (!res.ok) {
-        setCtxError(json.error ?? 'Hubo un error. Intentá de nuevo.')
-        setCtxLoading(false)
-        return
-      }
-
-      // Actualizar identity en el estado local
-      setUserCtx(prev => prev
-        ? { ...prev, identity: json.new_identity }
-        : {
-            identity: json.new_identity, history: null, current_state: null,
-            current_needs: null, circle_summary: null, themes_summary: null,
-            last_regen_at: null,
-          }
-      )
-
-      const newTurn = ctxTurn + 1
-      setCtxTurn(newTurn)
-
-      if (json.next_question && newTurn <= 3) {
-        setCtxQuestion(json.next_question)
-        setCtxSuggestions(json.suggestions ?? [])
-      } else {
-        setCtxDone(true)
-        setCtxSuggestions([])
-        setCtxQuestion(null)
-      }
-    } catch {
-      setCtxError('No se pudo conectar. Intentá de nuevo.')
-    } finally {
-      setCtxLoading(false)
-      setRegenerating(false)
-    }
-  }
-
   // ── Derived ───────────────────────────────────────────────────────────────
   const today      = fmtDate(new Date().toISOString())
   const totalTemas = cases.length + sharedCases.length
 
-  // Frases del saludo
   const greetingLine1 = userCtx?.current_needs
     ? `Hola, ${firstName}. Tenés ${totalTemas} ${totalTemas === 1 ? 'tema activo' : 'temas activos'}.`
     : `Hola, ${firstName}.`
-
-  const greetingLine2 = userCtx?.current_state ?? null
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -396,13 +288,6 @@ export default function DashboardPage() {
           }
         }
         .dash-bg { animation: heroBgDrift 30s ease-in-out infinite; }
-        @media (max-width: 768px) {
-          .dash-grid { grid-template-columns: 1fr !important; }
-        }
-        @keyframes typingDot {
-          0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
-          40%           { transform: scale(1);   opacity: 1;   }
-        }
       `}</style>
 
       <div className="dash-bg flex min-h-screen">
@@ -421,14 +306,11 @@ export default function DashboardPage() {
                 <SkeletonText width="90%" style={{ marginBottom: 6 }} />
                 <SkeletonText width="75%" />
               </SkeletonCard>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
-                <SkeletonCard><SkeletonText width="40%" style={{ marginBottom: 10 }} /><SkeletonText width="85%" /><SkeletonText width="60%" /></SkeletonCard>
-                <SkeletonCard><SkeletonText width="40%" style={{ marginBottom: 10 }} /><SkeletonText width="85%" /><SkeletonText width="60%" /></SkeletonCard>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                <SkeletonCard><SkeletonText width="40%" style={{ marginBottom: 10 }} /><SkeletonText width="80%" /><SkeletonText width="50%" /></SkeletonCard>
-                <SkeletonCard><SkeletonText width="40%" style={{ marginBottom: 10 }} /><SkeletonText width="80%" /><SkeletonText width="50%" /></SkeletonCard>
-              </div>
+              <SkeletonCard>
+                <SkeletonText width="40%" style={{ marginBottom: 10 }} />
+                <SkeletonText width="85%" style={{ marginBottom: 6 }} />
+                <SkeletonText width="60%" />
+              </SkeletonCard>
             </div>
           )}
 
@@ -460,8 +342,8 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-              {/* ── Card de contexto narrativo ────────────────────────── */}
-              {(greetingLine2 || regenerating) && (
+              {/* ── En qué hacer foco — dark, full-width ─────────────── */}
+              {(userCtx?.current_needs || regenerating) && (
                 <div style={{
                   background: '#1A1A2E',
                   borderRadius: '1.5rem',
@@ -481,7 +363,7 @@ export default function DashboardPage() {
                     position: 'relative',
                     zIndex: 1,
                   }}>
-                    Cómo pienso que estás
+                    En qué hacer foco
                   </p>
                   {regenerating ? (
                     <div style={{ position: 'relative', zIndex: 1 }}>
@@ -498,579 +380,160 @@ export default function DashboardPage() {
                       position: 'relative',
                       zIndex: 1,
                     }}>
-                      {greetingLine2}
+                      {userCtx?.current_needs}
                     </p>
                   )}
                 </div>
               )}
 
-              {/* ── Lo que sé sobre vos — full width ────────────────── */}
-              <div style={{
-                background: '#FFFFFF',
-                borderRadius: '1.5rem',
-                boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
-                marginBottom: 20,
-                overflow: 'hidden',
-              }}>
-                {/* ── Header colapsable ── */}
-                <button
-                  type="button"
-                  onClick={() => setCtxOpen(prev => !prev)}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'flex-start',
-                    gap: 8,
-                    padding: '14px 24px',
-                    background: 'none',
-                    border: 'none',
-                    borderBottom: '1px solid rgba(10,126,140,0.08)',
-                    cursor: 'pointer',
-                    textAlign: 'left', 
-                  }}
-                >
-                  <span style={{
-                    fontSize: '0.7rem', fontWeight: 700,
-                    letterSpacing: '0.12em', textTransform: 'uppercase',
-                    color: '#5a7478',
-                  }}>
-                    Lo que sé sobre vos
-                  </span>
-                  <svg
-                    width="16" height="16" viewBox="0 0 24 24"
-                    fill="none" stroke="#5a7478"
-                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                    style={{
-                      flexShrink: 0,
-                      transition: 'transform 0.2s',
-                      transform: ctxOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
-                    }}
-                  >
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </button>
-
-                {/* ── Párrafo de contexto — colapsable ── */}
-                {ctxOpen && (userCtx?.identity || regenerating) && (
-                  regenerating
-                    ? <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(10,126,140,0.08)', background: 'rgba(10,126,140,0.03)' }}>
-                        <SkeletonBase width="95%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
-                        <SkeletonBase width="80%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
-                        <SkeletonBase width="60%" height={13} style={{ borderRadius: 6 }} />
-                      </div>
-                    : <p style={{
-                        fontSize: '0.8125rem',
-                        color: '#5a7478',
-                        lineHeight: 1.55,
-                        margin: 0,
-                        padding: '16px 24px',
-                        borderBottom: '1px solid rgba(10,126,140,0.08)',
-                        background: 'rgba(10,126,140,0.03)',
-                      }}>
-                        {userCtx!.identity}
-                      </p>
-                )}
-
-                {/* ── Minichat — siempre visible ── */}
-                <div style={{ padding: '16px 24px' }}>
-                  {ctxDone ? (
-                    <p style={{
-                      fontSize: '0.875rem', color: '#5a7478',
-                      fontStyle: 'italic', margin: 0,
-                    }}>
-                      Ya tengo bastante contexto sobre vos. Volvé cuando
-                      quieras actualizar tu perfil.
-                    </p>
-                  ) : ctxQuestion ? (
-                    <>
-                      {/* Pregunta */}
-                      <p style={{
-                        fontSize: '0.9375rem', fontWeight: 600,
-                        color: '#1A1A2E', marginBottom: 14, marginTop: 0,
-                      }}>
-                        {ctxQuestion}
-                      </p>
-
-                      {/* Chips */}
-                      {ctxSuggestions.length > 0 && !ctxLoading && (
+              {/* ── Sugerencias — full-width ──────────────────────────── */}
+              <Card>
+                <SectionLabel>Sugerencias</SectionLabel>
+                {suggestions.length === 0 ? (
+                  <EmptyText>No hay sugerencias pendientes.</EmptyText>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {suggestions.slice(0, 4).map(s => (
+                      <div
+                        key={s.id}
+                        style={{
+                          display: 'flex', alignItems: 'flex-start', gap: 10,
+                          padding: '10px 12px',
+                          background: 'rgba(10,126,140,0.04)',
+                          borderRadius: '0.75rem',
+                        }}
+                      >
                         <div style={{
-                          display: 'flex', flexWrap: 'wrap', gap: 8,
-                          marginBottom: 14,
+                          width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                          background: s.type === 'chat'
+                            ? 'rgba(10,126,140,0.10)'
+                            : s.type === 'theme'
+                            ? 'rgba(83,74,183,0.10)'
+                            : s.type === 'invitation'
+                            ? 'rgba(46,205,167,0.10)'
+                            : 'rgba(232,145,58,0.10)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '0.7rem', fontWeight: 700,
+                          color: s.type === 'chat'
+                            ? '#0A7E8C'
+                            : s.type === 'theme'
+                            ? '#534AB7'
+                            : s.type === 'invitation'
+                            ? '#0a6e5a'
+                            : '#b86a10',
                         }}>
-                          {ctxSuggestions.map((s, i) => (
-                            <button
-                              key={i}
-                              type="button"
-                              onClick={() => handleCtxSubmit(s)}
-                              disabled={ctxLoading}
-                              style={{
-                                padding: '7px 16px', borderRadius: 9999,
-                                border: '1.5px solid rgba(10,126,140,0.25)',
-                                background: 'white', color: '#0A7E8C',
-                                fontSize: '0.875rem', fontWeight: 600,
-                                cursor: 'pointer', fontFamily: 'inherit',
-                                transition: 'background 0.15s',
-                              }}
-                              onMouseEnter={e => {
-                                e.currentTarget.style.background = 'rgba(10,126,140,0.06)'
-                              }}
-                              onMouseLeave={e => {
-                                e.currentTarget.style.background = 'white'
-                              }}
-                            >
-                              {s}
-                            </button>
-                          ))}
+                          {s.type === 'chat' ? '💬' : s.type === 'theme' ? '📁' : s.type === 'invitation' ? '👥' : '🔗'}
                         </div>
-                      )}
-
-                      {/* Typing indicator */}
-                      {ctxLoading && (
-                        <div style={{
-                          display: 'flex', gap: 5, alignItems: 'center',
-                          marginBottom: 14,
-                        }}>
-                          {[0, 1, 2].map(i => (
-                            <span key={i} style={{
-                              width: 7, height: 7, borderRadius: '50%',
-                              background: '#0A7E8C', display: 'inline-block',
-                              animation: `typingDot 1.2s ease-in-out ${i * 0.2}s infinite`,
-                            }} />
-                          ))}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#1A1A2E', marginBottom: 2 }}>
+                            {s.title}
+                          </div>
+                          {s.description && (
+                            <div style={{ fontSize: '0.75rem', color: '#5a7478', lineHeight: 1.4 }}>
+                              {s.description}
+                            </div>
+                          )}
                         </div>
-                      )}
-
-                      {/* Input libre */}
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                        <textarea
-                          value={ctxInput}
-                          onChange={e => setCtxInput(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault()
-                              handleCtxSubmit(ctxInput)
-                            }
-                          }}
-                          disabled={ctxLoading || ctxDone}
-                          placeholder="O escribí tu respuesta…"
-                          rows={1}
-                          style={{
-                            flex: 1,
-                            border: '1.5px solid rgba(10,126,140,0.12)',
-                            borderRadius: '1rem',
-                            padding: '10px 14px',
-                            fontSize: '0.875rem',
-                            lineHeight: 1.5,
-                            resize: 'none',
-                            outline: 'none',
-                            fontFamily: 'inherit',
-                            color: '#1A1A2E',
-                            background: '#FAF8F5',
-                            minHeight: 42,
-                            maxHeight: 100,
-                            opacity: ctxLoading ? 0.5 : 1,
-                          }}
-                          onFocus={e => { e.currentTarget.style.borderColor = '#0A7E8C' }}
-                          onBlur={e  => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)' }}
-                        />
                         <button
                           type="button"
-                          onClick={() => handleCtxSubmit(ctxInput)}
-                          disabled={ctxLoading || !ctxInput.trim() || ctxDone}
+                          onClick={() => dismissSuggestion(s.id)}
                           style={{
-                            width: 42, height: 42, borderRadius: '50%',
-                            border: 'none',
-                            cursor: (ctxLoading || !ctxInput.trim() || ctxDone)
-                              ? 'not-allowed' : 'pointer',
-                            background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                            display: 'flex', alignItems: 'center',
-                            justifyContent: 'center', flexShrink: 0,
-                            opacity: (ctxLoading || !ctxInput.trim() || ctxDone) ? 0.4 : 1,
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            color: '#5a7478', padding: 2, flexShrink: 0,
+                            fontSize: '1rem', lineHeight: 1,
                           }}
+                          onMouseEnter={e => { e.currentTarget.style.color = '#ba1a1a' }}
+                          onMouseLeave={e => { e.currentTarget.style.color = '#5a7478' }}
+                          title="Descartar"
                         >
-                          <svg width="16" height="16" viewBox="0 0 24 24"
-                            fill="none" stroke="white"
-                            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="22" y1="2" x2="11" y2="13" />
-                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                          </svg>
+                          ×
                         </button>
                       </div>
-
-                      {/* Error */}
-                      {ctxError && (
-                        <div style={{
-                          marginTop: 10, padding: '8px 14px',
-                          borderRadius: '0.75rem',
-                          background: 'rgba(186,26,26,0.07)',
-                          border: '1px solid rgba(186,26,26,0.18)',
-                          fontSize: '0.8125rem', color: '#ba1a1a', fontWeight: 600,
-                          display: 'flex', alignItems: 'center',
-                          justifyContent: 'space-between', gap: 8,
-                        }}>
-                          <span>{ctxError}</span>
-                          <button
-                            onClick={() => setCtxError(null)}
-                            style={{
-                              background: 'none', border: 'none', cursor: 'pointer',
-                              color: '#ba1a1a', fontSize: '1rem', lineHeight: 1,
-                            }}
-                          >✕</button>
-                        </div>
-                      )}
-                    </>
-                  ) : null}
-                </div>
-              </div>
-
-              {/* ── Grid principal — 4 bloques ────────────────────────── */}
-              <div
-                className="dash-grid"
-                style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}
-              >
-
-                {/* ── 1. En qué hacer foco ───────────────────────────── */}
-                <Card>
-                  <SectionLabel>En qué hacer foco</SectionLabel>
-                  {regenerating ? (
-                    <>
-                      <SkeletonBase width="95%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
-                      <SkeletonBase width="85%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
-                      <SkeletonBase width="55%" height={13} style={{ borderRadius: 6 }} />
-                    </>
-                  ) : userCtx?.current_needs ? (
-                    <p style={{
-                      fontSize: '0.9375rem', color: '#1A1A2E',
-                      lineHeight: 1.7, margin: 0,
-                    }}>
-                      {userCtx.current_needs}
-                    </p>
-                  ) : (
-                    <EmptyText>Sin datos de necesidades todavía.</EmptyText>
-                  )}
-                </Card>
-
-                {/* ── 2. Sugerencias ─────────────────────────────────── */}
-                <Card>
-                  <SectionLabel>Sugerencias</SectionLabel>
-                  {suggestions.length === 0 ? (
-                    <EmptyText>No hay sugerencias pendientes.</EmptyText>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {suggestions.slice(0, 4).map(s => (
-                        <div
-                          key={s.id}
-                          style={{
-                            display: 'flex', alignItems: 'flex-start', gap: 10,
-                            padding: '10px 12px',
-                            background: 'rgba(10,126,140,0.04)',
-                            borderRadius: '0.75rem',
-                          }}
-                        >
-                          <div style={{
-                            width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-                            background: s.type === 'chat'
-                              ? 'rgba(10,126,140,0.10)'
-                              : s.type === 'theme'
-                              ? 'rgba(83,74,183,0.10)'
-                              : s.type === 'invitation'
-                              ? 'rgba(46,205,167,0.10)'
-                              : 'rgba(232,145,58,0.10)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: '0.7rem', fontWeight: 700,
-                            color: s.type === 'chat'
-                              ? '#0A7E8C'
-                              : s.type === 'theme'
-                              ? '#534AB7'
-                              : s.type === 'invitation'
-                              ? '#0a6e5a'
-                              : '#b86a10',
-                          }}>
-                            {s.type === 'chat' ? '💬' : s.type === 'theme' ? '📁' : s.type === 'invitation' ? '👥' : '🔗'}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#1A1A2E', marginBottom: 2 }}>
-                              {s.title}
-                            </div>
-                            {s.description && (
-                              <div style={{ fontSize: '0.75rem', color: '#5a7478', lineHeight: 1.4 }}>
-                                {s.description}
-                              </div>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => dismissSuggestion(s.id)}
-                            style={{
-                              background: 'none', border: 'none', cursor: 'pointer',
-                              color: '#5a7478', padding: 2, flexShrink: 0,
-                              fontSize: '1rem', lineHeight: 1,
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.color = '#ba1a1a' }}
-                            onMouseLeave={e => { e.currentTarget.style.color = '#5a7478' }}
-                            title="Descartar"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </Card>
-
-                {/* ── 3. Tu círculo ──────────────────────────────────── */}
-                <Card>
-                  <button
-                    type="button"
-                    onClick={() => setCirculoOpen(prev => !prev)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '14px 24px',
-                      background: 'none',
-                      border: 'none',
-                      borderBottom: '1px solid rgba(10,126,140,0.08)',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      margin: '-24px -24px 0',
-                      width: 'calc(100% + 48px)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{
-                        fontSize: '0.7rem', fontWeight: 700,
-                        letterSpacing: '0.12em', textTransform: 'uppercase',
-                        color: '#5a7478',
-                      }}>
-                        Tu círculo
-                      </span>
-                      <svg
-                        width="16" height="16" viewBox="0 0 24 24"
-                        fill="none" stroke="#5a7478"
-                        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                        style={{
-                          flexShrink: 0,
-                          transition: 'transform 0.2s',
-                          transform: circuloOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
-                        }}
-                      >
-                        <polyline points="6 9 12 15 18 9" />
-                      </svg>
-                    </div>
-                    <Link
-                      href="/circulo"
-                      onClick={e => e.stopPropagation()}
-                      style={{ fontSize: '0.75rem', color: '#0A7E8C', fontWeight: 600, textDecoration: 'none' }}
-                    >
-                      Ver todos →
-                    </Link>
-                  </button>
-                  {circuloOpen && userCtx?.circle_summary && (
-                    <p style={{
-                      fontSize: '0.8125rem',
-                      color: '#5a7478',
-                      lineHeight: 1.55,
-                      margin: '0 -24px',
-                      padding: '16px 24px',
-                      borderBottom: '1px solid rgba(10,126,140,0.08)',
-                      background: 'rgba(10,126,140,0.03)',
-                    }}>
-                      {userCtx.circle_summary}
-                    </p>
-                  )}
-                  {regenerating && circuloOpen ? (
-                    <div style={{ marginBottom: 14, paddingTop: 16 }}>
-                      <SkeletonBase width="90%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
-                      <SkeletonBase width="70%" height={13} style={{ borderRadius: 6 }} />
-                    </div>
-                  ) : null}
-                  <div style={{ paddingTop: 16 }}>
-                    {contacts.length > 0 ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {contacts.map(c => {
-                        const initials = (c.initials ?? getInitials(c.name)).slice(0, 2)
-                        return (
-                          <Link
-                            key={c.id}
-                            href={`/circulo/${c.id}`}
-                            style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}
-                          >
-                            <div style={{
-                              width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-                              background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              fontSize: '0.75rem', fontWeight: 700, color: 'white',
-                            }}>
-                              {initials}
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1A1A2E', lineHeight: 1.2 }}>
-                                {c.name}
-                              </div>
-                              {c.proximity && (
-                                <div style={{ fontSize: '0.7rem', color: '#5a7478', marginTop: 1 }}>
-                                  {c.proximity === 'nucleo' ? 'Núcleo' : c.proximity === 'ayuda' ? 'Red de ayuda' : 'Profesional'}
-                                </div>
-                              )}
-                            </div>
-                          </Link>
-                        )
-                      })}
-                    </div>
-                    ) : (
-                      <EmptyText>Todavía no agregaste personas a tu círculo.</EmptyText>
-                    )}
+                    ))}
                   </div>
-                </Card>
-
-                {/* ── 4. Tus temas ───────────────────────────────────── */}
-                <Card>
-                  <button
-                    type="button"
-                    onClick={() => setTemasOpen(prev => !prev)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '14px 24px',
-                      background: 'none',
-                      border: 'none',
-                      borderBottom: '1px solid rgba(10,126,140,0.08)',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      margin: '-24px -24px 0',
-                      width: 'calc(100% + 48px)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{
-                        fontSize: '0.7rem', fontWeight: 700,
-                        letterSpacing: '0.12em', textTransform: 'uppercase',
-                        color: '#5a7478',
-                      }}>
-                        Tus temas
-                      </span>
-                      <svg
-                        width="16" height="16" viewBox="0 0 24 24"
-                        fill="none" stroke="#5a7478"
-                        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                        style={{
-                          flexShrink: 0,
-                          transition: 'transform 0.2s',
-                          transform: temasOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
-                        }}
-                      >
-                        <polyline points="6 9 12 15 18 9" />
-                      </svg>
-                    </div>
-                    <Link
-                      href="/case"
-                      onClick={e => e.stopPropagation()}
-                      style={{ fontSize: '0.75rem', color: '#0A7E8C', fontWeight: 600, textDecoration: 'none' }}
-                    >
-                      Ver todos →
-                    </Link>
-                  </button>
-                  {temasOpen && userCtx?.themes_summary && (
-                    <p style={{
-                      fontSize: '0.8125rem',
-                      color: '#5a7478',
-                      lineHeight: 1.55,
-                      margin: '0 -24px',
-                      padding: '16px 24px',
-                      borderBottom: '1px solid rgba(10,126,140,0.08)',
-                      background: 'rgba(10,126,140,0.03)',
-                    }}>
-                      {userCtx.themes_summary}
-                    </p>
-                  )}
-                  {regenerating && temasOpen ? (
-                    <div style={{ marginBottom: 14, paddingTop: 16 }}>
-                      <SkeletonBase width="90%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
-                      <SkeletonBase width="65%" height={13} style={{ borderRadius: 6 }} />
-                    </div>
-                  ) : null}
-                  <div style={{ paddingTop: 16 }}>
-                    {cases.length === 0 && sharedCases.length === 0 ? (
-                    <EmptyText>No tenés temas activos todavía.</EmptyText>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {cases.map(c => (
-                        <Link
-                          key={c.id}
-                          href={`/case/${c.id}`}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 10,
-                            padding: '8px 10px', borderRadius: '0.75rem',
-                            background: 'rgba(10,126,140,0.04)',
-                            textDecoration: 'none', transition: 'background 0.15s',
-                          }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(61,199,166,0.08)' }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(10,126,140,0.04)' }}
-                        >
-                          <div style={{
-                            width: 8, height: 8, borderRadius: '50%',
-                            background: '#0A7E8C', flexShrink: 0,
-                          }} />
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1A1A2E' }}>
-                              {c.name}
-                            </div>
-                          </div>
-                          <span style={{
-                            fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em',
-                            textTransform: 'uppercase', color: '#0A7E8C',
-                            background: 'rgba(10,126,140,0.08)', borderRadius: 9999,
-                            padding: '2px 8px', flexShrink: 0,
-                          }}>
-                            Propio
-                          </span>
-                        </Link>
-                      ))}
-                      {sharedCases.map(sc => (
-                        <Link
-                          key={sc.id}
-                          href={`/case/shared/${sc.id}`}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 10,
-                            padding: '8px 10px', borderRadius: '0.75rem',
-                            background: 'rgba(83,74,183,0.04)',
-                            textDecoration: 'none', transition: 'background 0.15s',
-                          }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(83,74,183,0.08)' }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(83,74,183,0.04)' }}
-                        >
-                          <div style={{
-                            width: 8, height: 8, borderRadius: '50%',
-                            background: '#534AB7', flexShrink: 0,
-                          }} />
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1A1A2E' }}>
-                              {sc.name}
-                            </div>
-                          </div>
-                          <span style={{
-                            fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em',
-                            textTransform: 'uppercase', color: '#534AB7',
-                            background: 'rgba(83,74,183,0.08)', borderRadius: 9999,
-                            padding: '2px 8px', flexShrink: 0,
-                          }}>
-                            Compartido
-                          </span>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                  </div>
-                </Card>
-
-              </div>
+                )}
+              </Card>
             </>
           )}
         </main>
       </div>
+
+      {/* ── Invites sent notice modal ──────────────────────────────────── */}
+      {invitesModalOpen && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(26,26,46,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 24,
+          }}
+          onClick={() => setInvitesModalOpen(false)}
+        >
+          <div
+            style={{
+              background: 'white', borderRadius: '1.5rem',
+              padding: '32px 28px', maxWidth: 440, width: '100%',
+              boxShadow: '0 8px 40px rgba(10,126,140,0.16)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <p style={{
+              fontSize: '1.125rem', fontWeight: 800,
+              color: '#1A1A2E', marginBottom: 8,
+            }}>
+              Listo, las invitaciones salieron
+            </p>
+            <p style={{
+              fontSize: '0.875rem', color: '#5a7478',
+              lineHeight: 1.6, marginBottom: 20,
+            }}>
+              Estas personas van a recibir una invitación para sumarse al tema:
+            </p>
+
+            <div style={{
+              display: 'flex', flexDirection: 'column', gap: 8,
+              marginBottom: 24,
+              padding: '12px 16px',
+              background: 'rgba(10,126,140,0.04)',
+              borderRadius: '0.75rem',
+            }}>
+              {invitedEmails.map((email, i) => (
+                <div
+                  key={i}
+                  style={{
+                    fontSize: '0.875rem', color: '#1A1A2E', fontWeight: 600,
+                    display: 'flex', alignItems: 'center', gap: 8,
+                  }}
+                >
+                  <svg
+                    width="14" height="14" viewBox="0 0 24 24"
+                    fill="none" stroke="#0A7E8C"
+                    strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  {email}
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setInvitesModalOpen(false)}
+              style={{
+                width: '100%', padding: '12px 0',
+                background: '#0A7E8C',
+                color: 'white', border: 'none',
+                borderRadius: '0.75rem', fontWeight: 700,
+                fontSize: '0.875rem', cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
     </>
   )
 }

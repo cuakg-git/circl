@@ -536,8 +536,8 @@ function NuevaTemaWizard() {
                           >
                             <option value="">¿Qué tan cercana?</option>
                             <option value="nucleo">Es parte de mi núcleo</option>
-                            <option value="ayuda">Me ayuda o puede ayudar</option>
-                            <option value="profesional">Proveedor o profesional</option>
+                            <option value="segundo_nivel">Segundo nivel de cercanía</option>
+                            <option value="tercer_nivel">Tercer nivel de cercanía</option>
                           </select>
                         </div>
                       </div>

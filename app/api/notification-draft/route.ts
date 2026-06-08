@@ -75,9 +75,10 @@ export async function POST(req: NextRequest) {
 
     // 3. Construir el prompt
     const proximityLabel: Record<string, string> = {
-      nucleo:      'parte del núcleo íntimo (familia o amistad muy cercana)',
-      ayuda:       'alguien de confianza que puede ayudar',
-      profesional: 'un profesional o proveedor de servicios',
+      nucleo:        'parte del núcleo íntimo (familia o amistad muy cercana)',
+      segundo_nivel: 'alguien del segundo nivel de cercanía',
+      tercer_nivel:  'alguien del tercer nivel de cercanía',
+      prestador:     'un profesional o proveedor de servicios',
     }
 
     const roleLabel: Record<string, string> = {

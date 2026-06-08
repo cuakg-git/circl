@@ -12,7 +12,11 @@ import {
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Proximity = 'nucleo' | 'ayuda' | 'profesional'
+type UserContext = {
+  circle_summary: string | null
+}
+
+type Proximity = 'nucleo' | 'segundo_nivel' | 'tercer_nivel' | 'prestador'
 
 type Contact = {
   id:               string
@@ -51,25 +55,25 @@ type CrisisJoinRow = {
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const RINGS: Proximity[] = ['nucleo', 'ayuda', 'profesional']
+const RINGS: ('nucleo' | 'segundo' | 'tercero')[] = ['nucleo', 'segundo', 'tercero']
 
-const RING_LABEL: Record<Proximity, string> = {
-  nucleo:      'Tu núcleo',
-  ayuda:       'Tu red de contención',
-  profesional: 'Tu red de prestadores',
+const RING_LABEL: Record<'nucleo' | 'segundo' | 'tercero', string> = {
+  nucleo:  'Tu núcleo',
+  segundo: 'Segundo nivel de cercanía',
+  tercero: 'Tercer nivel de cercanía y prestadores',
 }
 
-const RING_RADIUS: Record<Proximity, number> = { nucleo: 89, ayuda: 144, profesional: 200 }
+const RING_RADIUS: Record<'nucleo' | 'segundo' | 'tercero', number> = { nucleo: 89, segundo: 144, tercero: 200 }
 
 // Per-ring rotation (CW/CCW + duration) is hard-coded in the CSS via
 // .orbit-r1 / .orbit-r2 / .orbit-r3. The inner of each actor counter-rotates
 // at the same speed so avatars remain upright.
 
 // Empty-ring ambient dot: visual placeholder when no contacts in a ring.
-const DOT_CFG: Record<Proximity, { size: number; speed: number; dir: 'cw' | 'ccw' }> = {
-  nucleo:      { size: 8,  speed: 13, dir: 'cw'  },
-  ayuda:       { size: 13, speed: 20, dir: 'ccw' },
-  profesional: { size: 18, speed: 29, dir: 'cw'  },
+const DOT_CFG: Record<'nucleo' | 'segundo' | 'tercero', { size: number; speed: number; dir: 'cw' | 'ccw' }> = {
+  nucleo:  { size: 8,  speed: 13, dir: 'cw'  },
+  segundo: { size: 13, speed: 20, dir: 'ccw' },
+  tercero: { size: 18, speed: 29, dir: 'cw'  },
 }
 
 // Match the value used in the existing Crisis page so the labels stay aligned
@@ -455,8 +459,18 @@ function OrbitActor({
 export default function CirculoPage() {
   const router = useRouter()
 
-  const [loading,     setLoading]     = useState(true)
-  const [contacts,    setContacts]    = useState<Contact[]>([])
+  const [loading,      setLoading]      = useState(true)
+  const [userCtx,      setUserCtx]      = useState<UserContext | null>(null)
+  const [regenerating, setRegenerating] = useState(false)
+  const [ctxOpen,      setCtxOpen]      = useState(true)
+  const [ctxQuestion,    setCtxQuestion]    = useState<string | null>(null)
+  const [ctxSuggestions, setCtxSuggestions] = useState<string[]>([])
+  const [ctxInput,       setCtxInput]       = useState('')
+  const [ctxLoading,     setCtxLoading]     = useState(false)
+  const [ctxDone,        setCtxDone]        = useState(false)
+  const [ctxTurn,        setCtxTurn]        = useState(1)
+  const [ctxError,       setCtxError]       = useState<string | null>(null)
+  const [contacts,     setContacts]     = useState<Contact[]>([])
   const [avatarUrls,  setAvatarUrls]  = useState<Record<string, string>>({})
   const [suggestions,        setSuggestions]        = useState<Suggestion[]>([])
   const [userName,    setUserName]    = useState('')
@@ -561,6 +575,13 @@ export default function CirculoPage() {
       }))
       setSuggestions(loadedSuggestions)
 
+      const { data: ctxData } = await supabase
+        .from('user_context')
+        .select('circle_summary')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      setUserCtx(ctxData ?? null)
+
       setLoading(false)
     }
     load()
@@ -624,7 +645,7 @@ export default function CirculoPage() {
         email:          newProviderModal.email.trim()     || null,
         relationship:   newProviderModal.specialty.trim() || null,
         role:           'prestador_servicios',
-        proximity:      'profesional',
+        proximity:      'prestador',
         is_institution: false,
         sort_order:     0,
       })
@@ -644,12 +665,123 @@ export default function CirculoPage() {
     window.dispatchEvent(new CustomEvent('mhiru:context-stale'))
   }
 
+  // ── Init chat "Lo que sé de tu círculo" ─────────────────────────────────────
+
+  useEffect(() => {
+    if (loading) return
+    async function initChat() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const accessToken = session?.access_token ?? ''
+        const res = await fetch('/api/user-context/chat/init?dimension=circle_summary', {
+          headers: { 'Authorization': `Bearer ${accessToken}` },
+        })
+        const json = await res.json()
+        if (res.ok) {
+          setCtxQuestion(json.question)
+          setCtxSuggestions(json.suggestions ?? [])
+        }
+      } catch {
+        setCtxQuestion('¿Hay alguien que esté apareciendo más en tu día a día últimamente?')
+        setCtxSuggestions([
+          'Sí, alguien cercano',
+          'Más bien gente del trabajo',
+          'Nadie en particular',
+        ])
+      }
+    }
+    initChat()
+  }, [loading])
+
+  // ── Regen event listeners ────────────────────────────────────────────────────
+
+  useEffect(() => {
+    function onRegenerating() { setRegenerating(true) }
+    async function onRegenerated() {
+      setRegenerating(false)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from('user_context')
+        .select('circle_summary')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (data) setUserCtx(data)
+    }
+    window.addEventListener('mhiru:context-regenerating', onRegenerating)
+    window.addEventListener('mhiru:context-regenerated',  onRegenerated)
+    return () => {
+      window.removeEventListener('mhiru:context-regenerating', onRegenerating)
+      window.removeEventListener('mhiru:context-regenerated',  onRegenerated)
+    }
+  }, [])
+
+  // ── Context chat submit ───────────────────────────────────────────────────────
+
+  async function handleCtxSubmit(response: string) {
+    if (!response.trim() || ctxLoading || ctxDone) return
+    setRegenerating(true)
+    setCtxLoading(true)
+    setCtxError(null)
+    setCtxInput('')
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token ?? ''
+
+      const res = await fetch('/api/user-context/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          dimension:        'circle_summary',
+          current_question: ctxQuestion,
+          user_response:    response,
+          turn:             ctxTurn,
+        }),
+      })
+
+      const json = await res.json()
+      if (!res.ok) {
+        setCtxError(json.error ?? 'Hubo un error. Intentá de nuevo.')
+        setCtxLoading(false)
+        return
+      }
+
+      setUserCtx(prev => prev
+        ? { ...prev, circle_summary: json.new_summary }
+        : { circle_summary: json.new_summary }
+      )
+
+      const newTurn = ctxTurn + 1
+      setCtxTurn(newTurn)
+
+      if (json.next_question && newTurn <= 3) {
+        setCtxQuestion(json.next_question)
+        setCtxSuggestions(json.suggestions ?? [])
+      } else {
+        setCtxDone(true)
+        setCtxSuggestions([])
+        setCtxQuestion(null)
+      }
+    } catch {
+      setCtxError('No se pudo conectar. Intentá de nuevo.')
+    } finally {
+      setCtxLoading(false)
+      setRegenerating(false)
+    }
+  }
+
   // ── Group contacts by proximity ──────────────────────────────────────────────
 
-  const groups: Record<Proximity, Contact[]> = {
-    nucleo:      contacts.filter((c) => c.proximity === 'nucleo'),
-    ayuda:       contacts.filter((c) => c.proximity === 'ayuda'),
-    profesional: contacts.filter((c) => c.proximity === 'profesional'),
+  const groups: Record<'nucleo' | 'segundo' | 'tercero', Contact[]> = {
+    nucleo:  contacts.filter((c) => c.proximity === 'nucleo'),
+    segundo: contacts.filter((c) => c.proximity === 'segundo_nivel'),
+    tercero: contacts.filter((c) =>
+      c.proximity === 'tercer_nivel' || c.proximity === 'prestador'
+    ),
   }
   const totalContacts = contacts.length
 
@@ -826,6 +958,10 @@ export default function CirculoPage() {
           border-radius: 50%; background: #e8eae4;
           border: 1.5px solid rgba(10,126,140,0.14);
         }
+        @keyframes typingDot {
+          0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
+          40%           { transform: scale(1);   opacity: 1;   }
+        }
       `}</style>
 
       <div className="circulo-bg flex min-h-screen" style={{ overflowX: 'hidden' }}>
@@ -922,7 +1058,7 @@ export default function CirculoPage() {
 
                   const rotatorClass =
                     ring === 'nucleo'      ? 'orbit-rotator orbit-r1'
-                    : ring === 'ayuda'     ? 'orbit-rotator orbit-r2'
+                    : ring === 'segundo'   ? 'orbit-rotator orbit-r2'
                     :                        'orbit-rotator orbit-r3'
 
                   if (effectiveCount === 0) {
@@ -947,7 +1083,7 @@ export default function CirculoPage() {
                     )
                   }
 
-                  const offset = ring === 'nucleo' ? 90 : ring === 'ayuda' ? 30 : 45
+                  const offset = ring === 'nucleo' ? 90 : ring === 'segundo' ? 30 : 45
 
                   const n = list.length
                   return (
@@ -1139,6 +1275,188 @@ export default function CirculoPage() {
               </div>
             )}
             {/* ── fin sugerencias ──────────────────────────────────────────── */}
+
+            {/* ── Lo que sé del círculo (con minichat) ───────────────── */}
+            <div style={{
+              width: '100%',
+              maxWidth: 800,
+              background: '#FFFFFF',
+              borderRadius: '1.5rem',
+              boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '14px 24px',
+                borderBottom: '1px solid rgba(10,126,140,0.08)',
+              }}>
+                <span style={{
+                  fontSize: '0.7rem', fontWeight: 700,
+                  letterSpacing: '0.12em', textTransform: 'uppercase',
+                  color: '#5a7478',
+                }}>
+                  Lo que sé de tu círculo
+                </span>
+              </div>
+
+              {/* Summary actual */}
+              {(userCtx?.circle_summary || regenerating) && (
+                regenerating
+                  ? <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(10,126,140,0.08)', background: 'rgba(10,126,140,0.03)' }}>
+                      <SkeletonBase width="95%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
+                      <SkeletonBase width="80%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
+                      <SkeletonBase width="60%" height={13} style={{ borderRadius: 6 }} />
+                    </div>
+                  : <p style={{
+                      fontSize: '0.8125rem',
+                      color: '#5a7478',
+                      lineHeight: 1.55,
+                      margin: 0,
+                      padding: '16px 24px',
+                      borderBottom: '1px solid rgba(10,126,140,0.08)',
+                      background: 'rgba(10,126,140,0.03)',
+                    }}>
+                      {userCtx!.circle_summary}
+                    </p>
+              )}
+
+              {/* Minichat */}
+              <div style={{ padding: '16px 24px' }}>
+                  {ctxDone ? (
+                    <p style={{
+                      fontSize: '0.875rem', color: '#5a7478',
+                      fontStyle: 'italic', margin: 0,
+                    }}>
+                      Ya tengo bastante contexto sobre tu círculo. Volvé cuando
+                      quieras actualizar.
+                    </p>
+                  ) : ctxQuestion ? (
+                    <>
+                      <p style={{
+                        fontSize: '0.9375rem', fontWeight: 600,
+                        color: '#1A1A2E', marginBottom: 14, marginTop: 0,
+                      }}>
+                        {ctxQuestion}
+                      </p>
+
+                      {ctxSuggestions.length > 0 && !ctxLoading && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                          {ctxSuggestions.map((s, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => handleCtxSubmit(s)}
+                              disabled={ctxLoading}
+                              style={{
+                                padding: '7px 16px', borderRadius: 9999,
+                                border: '1.5px solid rgba(10,126,140,0.25)',
+                                background: 'white', color: '#0A7E8C',
+                                fontSize: '0.875rem', fontWeight: 600,
+                                cursor: 'pointer', fontFamily: 'inherit',
+                                transition: 'background 0.15s',
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(10,126,140,0.06)' }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'white' }}
+                            >
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {ctxLoading && (
+                        <div style={{ display: 'flex', gap: 5, alignItems: 'center', marginBottom: 14 }}>
+                          {[0, 1, 2].map(i => (
+                            <span key={i} style={{
+                              width: 7, height: 7, borderRadius: '50%',
+                              background: '#0A7E8C', display: 'inline-block',
+                              animation: `typingDot 1.2s ease-in-out ${i * 0.2}s infinite`,
+                            }} />
+                          ))}
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                        <textarea
+                          value={ctxInput}
+                          onChange={e => setCtxInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault()
+                              handleCtxSubmit(ctxInput)
+                            }
+                          }}
+                          disabled={ctxLoading || ctxDone}
+                          placeholder="O escribí tu respuesta…"
+                          rows={1}
+                          style={{
+                            flex: 1,
+                            border: '1.5px solid rgba(10,126,140,0.12)',
+                            borderRadius: '1rem',
+                            padding: '10px 14px',
+                            fontSize: '0.875rem',
+                            lineHeight: 1.5,
+                            resize: 'none',
+                            outline: 'none',
+                            fontFamily: 'inherit',
+                            color: '#1A1A2E',
+                            background: '#FAF8F5',
+                            minHeight: 42,
+                            maxHeight: 100,
+                            opacity: ctxLoading ? 0.5 : 1,
+                          }}
+                          onFocus={e => { e.currentTarget.style.borderColor = '#0A7E8C' }}
+                          onBlur={e  => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleCtxSubmit(ctxInput)}
+                          disabled={ctxLoading || !ctxInput.trim() || ctxDone}
+                          style={{
+                            width: 42, height: 42, borderRadius: '50%',
+                            border: 'none',
+                            cursor: (ctxLoading || !ctxInput.trim() || ctxDone) ? 'not-allowed' : 'pointer',
+                            background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                            display: 'flex', alignItems: 'center',
+                            justifyContent: 'center', flexShrink: 0,
+                            opacity: (ctxLoading || !ctxInput.trim() || ctxDone) ? 0.4 : 1,
+                          }}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24"
+                            fill="none" stroke="white"
+                            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13" />
+                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      {ctxError && (
+                        <div style={{
+                          marginTop: 10, padding: '8px 14px',
+                          borderRadius: '0.75rem',
+                          background: 'rgba(186,26,26,0.07)',
+                          border: '1px solid rgba(186,26,26,0.18)',
+                          fontSize: '0.8125rem', color: '#ba1a1a', fontWeight: 600,
+                          display: 'flex', alignItems: 'center',
+                          justifyContent: 'space-between', gap: 8,
+                        }}>
+                          <span>{ctxError}</span>
+                          <button
+                            onClick={() => setCtxError(null)}
+                            style={{
+                              background: 'none', border: 'none', cursor: 'pointer',
+                              color: '#ba1a1a', fontSize: '1rem', lineHeight: 1,
+                            }}
+                          >✕</button>
+                        </div>
+                      )}
+                    </>
+                  ) : null}
+              </div>
+            </div>
 
             {/* ── Tabla de contactos ───────────────────────────────────────── */}
             {totalContacts === 0 ? (

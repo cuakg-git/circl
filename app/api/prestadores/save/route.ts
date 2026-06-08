@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
           name:                provider.name,
           relationship:        provider.specialty ?? provider.category ?? 'Prestador',
           role:                'prestador_servicios',
-          proximity:           'profesional',
+          proximity:           'prestador',
           phone:               provider.phone  ?? null,
           email:               provider.email  ?? null,
           notes:               `Prestador agregado desde el catálogo de Mhiru${provider.category ? '. Categoría: ' + provider.category : ''}.`,

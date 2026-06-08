@@ -531,7 +531,7 @@ export default function NuevaTareaPage() {
           .from('contacts')
           .select('id, name, initials')
           .eq('user_id', user.id)
-          .in('proximity', ['nucleo', 'ayuda'])
+          .in('proximity', ['nucleo', 'segundo_nivel', 'tercer_nivel'])
           .order('sort_order', { ascending: true, nullsFirst: false }),
         supabase
           .from('labels')

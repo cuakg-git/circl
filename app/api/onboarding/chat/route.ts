@@ -11,7 +11,7 @@ const supabase  = createClient(
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { user_id, message, step, context, crisis, circle } = body
+    const { user_id, message, step, context, crisis, circle, turn } = body
 
     if (!user_id) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
@@ -30,6 +30,8 @@ export async function POST(req: NextRequest) {
       crisis  ? `Situación que describió el usuario: "${crisis}"` : null,
       circle  ? `Personas en su círculo: ${circle}` : null,
     ].filter(Boolean).join('\n')
+
+    const isLastTurn = turn === 3
 
     const systemPrompt = `Sos Mhiru, un asistente que ayuda a coordinar situaciones de salud.
 Estás conociendo a ${firstName} en su primer contacto con la plataforma.
@@ -51,6 +53,8 @@ VOZ Y TONO — reglas no negociables:
 
 Tu objetivo ahora: conocer mejor la situación de ${firstName} para poder ayudarlo a coordinar.
 Hacé preguntas concretas sobre qué está pasando, quién está involucrado, qué necesita resolver.
+
+${isLastTurn ? '\nIMPORTANTE: Esta es la tercera y última pregunta. La pregunta en el campo "reply" DEBE comenzar con exactamente estas palabras: "Una última pregunta,"' : ''}
 
 Devolvé SIEMPRE este JSON exacto, sin markdown ni texto extra:
 {"reply": "tu respuesta aquí", "suggestions": ["opción 1", "opción 2", "opción 3"]}

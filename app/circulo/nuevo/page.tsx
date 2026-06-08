@@ -8,13 +8,14 @@ import { supabase } from '@/lib/supabase'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Proximity = 'nucleo' | 'ayuda'
+type Proximity = 'nucleo' | 'segundo_nivel' | 'tercer_nivel'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const PROXIMITY_LABELS: Record<Proximity, string> = {
-  nucleo: 'Es parte de mi núcleo',
-  ayuda:  'Es alguien que me ayuda o puede ayudar',
+  nucleo:        'Es parte de mi núcleo',
+  segundo_nivel: 'Segundo nivel de cercanía',
+  tercer_nivel:  'Tercer nivel de cercanía',
 }
 
 const SELECT_BASE: React.CSSProperties = {
@@ -88,7 +89,7 @@ export default function NuevoContactoPage() {
   const [addEmail,        setAddEmail]        = useState('')
   const [addRelation,     setAddRelation]     = useState('')
   const [addRole,         setAddRole]         = useState('acompanamiento')
-  const [addProximity,    setAddProximity]    = useState<Proximity>('nucleo')
+  const [addProximity,    setAddProximity]    = useState<Proximity>('segundo_nivel')
   const [addPhotoFile,    setAddPhotoFile]    = useState<File | null>(null)
   const [addPhotoPreview, setAddPhotoPreview] = useState<string | null>(null)
   const [addLoading,      setAddLoading]      = useState(false)
@@ -411,10 +412,11 @@ export default function NuevoContactoPage() {
               boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
               padding: '6px 24px', marginBottom: 32,
             }}>
-              {(['nucleo', 'ayuda'] as Proximity[]).map((p, i, arr) => {
+              {(['nucleo', 'segundo_nivel', 'tercer_nivel'] as Proximity[]).map((p, i, arr) => {
                 const description =
-                  p === 'nucleo'  ? 'Primer círculo — las personas más cercanas.'
-                  :                 'Segundo círculo — red de apoyo cercana.'
+                  p === 'nucleo'        ? 'Primer círculo — las personas más cercanas.'
+                  : p === 'segundo_nivel' ? 'Segundo círculo — red de apoyo cercana.'
+                  :                         'Tercer círculo — red más amplia o vínculos ocasionales.'
                 return (
                   <label
                     key={p}

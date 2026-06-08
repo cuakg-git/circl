@@ -146,9 +146,10 @@ const ROLE_LABELS: Record<string, string> = {
 }
 
 const PROXIMITY_LABELS: Record<string, string> = {
-  nucleo:       'Es parte de mi núcleo',
-  ayuda:        'Es alguien que me ayuda o puede ayudar',
-  profesional:  'Es un proveedor de servicios o un profesional',
+  nucleo:        'Es parte de mi núcleo',
+  segundo_nivel: 'Segundo nivel de cercanía',
+  tercer_nivel:  'Tercer nivel de cercanía',
+  prestador:     'Es un proveedor de servicios o un profesional',
 }
 
 const TOPIC_COLORS = [
@@ -336,6 +337,11 @@ export default function GestionPage() {
     proximity: string; initials: string | null
   }[]>([])
 
+  // ── Close/reopen case ────────────────────────────────────────────────────────
+  const [closeModalOpen, setCloseModalOpen] = useState(false)
+  const [closingLoading, setClosingLoading] = useState(false)
+  const [closeError,     setCloseError]     = useState<string | null>(null)
+
   // ── Sidesheet state ──────────────────────────────────────────────────────────
   const [ssMode,    setSsMode]    = useState<SSMode>(null)
   const [ssLoading, setSsLoading] = useState(false)
@@ -359,7 +365,8 @@ export default function GestionPage() {
         .from('cases')
         .select('id')
         .eq('user_id', user.id)
-        .eq('status', 'activa')
+        .order('started_at', { ascending: false })
+        .limit(1)
         .maybeSingle()
 
       if (activeCrisisError || !activeCrisis) {
@@ -400,7 +407,7 @@ export default function GestionPage() {
           .from('contacts')
           .select('id, name, role, proximity, initials, phone, email, relationship')
           .eq('user_id', user.id)
-          .in('proximity', ['nucleo', 'ayuda'])
+          .in('proximity', ['nucleo', 'segundo_nivel', 'tercer_nivel'])
           .order('sort_order', { ascending: true, nullsFirst: false }),
         supabase
           .from('case_contacts')
@@ -741,6 +748,41 @@ export default function GestionPage() {
     if (error) { setSsError(error.message); return }
     await reloadContacts()
     closeSheet()
+  }
+
+  // ── Close / reopen case ───────────────────────────────────────────────────────
+
+  async function handleCloseCase() {
+    if (!id || closingLoading) return
+    setClosingLoading(true)
+    setCloseError(null)
+    const { error } = await supabase
+      .from('cases')
+      .update({ status: 'resuelta' })
+      .eq('id', id)
+    setClosingLoading(false)
+    if (error) {
+      setCloseError('No se pudo cerrar el tema. Intentá de nuevo.')
+      return
+    }
+    setCloseModalOpen(false)
+    router.replace('/case')
+  }
+
+  async function handleReopenCase() {
+    if (!id || closingLoading) return
+    setClosingLoading(true)
+    setCloseError(null)
+    const { error } = await supabase
+      .from('cases')
+      .update({ status: 'activa' })
+      .eq('id', id)
+    setClosingLoading(false)
+    if (error) {
+      setCloseError('No se pudo reabrir el tema. Intentá de nuevo.')
+      return
+    }
+    setCrisis(prev => prev ? { ...prev, status: 'activa' } : null)
   }
 
   // ── Derived ───────────────────────────────────────────────────────────────────
@@ -1153,6 +1195,30 @@ export default function GestionPage() {
 
         <main className="flex-1 ml-0 md:ml-[240px] min-h-screen px-5 py-8 pb-28 md:px-10 md:py-10 md:pb-10">
           <SkeletonStyles />
+
+          {/* ── Banner: tema cerrado ───────────────────────────── */}
+          {crisis && crisis.status === 'resuelta' && (
+            <div style={{
+              marginBottom: 24,
+              padding: '12px 16px',
+              borderRadius: '0.75rem',
+              background: 'rgba(90,116,120,0.08)',
+              border: '1px solid rgba(90,116,120,0.18)',
+              display: 'flex', alignItems: 'center', gap: 10,
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24"
+                fill="none" stroke="#5a7478" strokeWidth="2"
+                strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="9 12 11 14 15 10" />
+              </svg>
+              <span style={{
+                fontSize: '0.875rem', color: '#5a7478', fontWeight: 600,
+              }}>
+                Este tema está cerrado. Lo podés reabrir desde Acciones.
+              </span>
+            </div>
+          )}
 
           {/* Empty state — no active crisis */}
           {!loading && !crisis && (
@@ -1810,6 +1876,77 @@ export default function GestionPage() {
             </div>
           )}
 
+          {/* ── Acciones ───────────────────────────────────────── */}
+          {crisis && (
+            <div style={{ marginBottom: 32 }}>
+              <SectionTitle>Acciones</SectionTitle>
+
+              {closeError && (
+                <div style={{
+                  marginBottom: 12, padding: '10px 16px',
+                  borderRadius: '0.75rem',
+                  background: 'rgba(186,26,26,0.07)',
+                  border: '1px solid rgba(186,26,26,0.18)',
+                  fontSize: '0.8125rem', color: '#ba1a1a', fontWeight: 600,
+                  display: 'flex', alignItems: 'center',
+                  justifyContent: 'space-between', gap: 8,
+                }}>
+                  <span>{closeError}</span>
+                  <button
+                    onClick={() => setCloseError(null)}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: '#ba1a1a', fontSize: '1rem', lineHeight: 1, flexShrink: 0,
+                    }}
+                  >✕</button>
+                </div>
+              )}
+
+              <Card style={{ padding: '13px 20px' }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center',
+                  justifyContent: 'space-between', gap: 12,
+                }}>
+                  <span style={{ fontSize: '0.875rem', color: '#5a7478', flex: 1 }}>
+                    {crisis.status === 'activa'
+                      ? 'Cerrar este tema. Lo podés reabrir más adelante.'
+                      : 'Este tema está cerrado. Podés reabrirlo si volvió a estar activo.'}
+                  </span>
+                  {crisis.status === 'activa' ? (
+                    <button
+                      onClick={() => setCloseModalOpen(true)}
+                      style={{
+                        background: 'rgba(186,26,26,0.06)', color: '#ba1a1a',
+                        border: 'none', borderRadius: '0.6rem',
+                        padding: '7px 16px', fontSize: '0.875rem', fontWeight: 700,
+                        cursor: 'pointer', transition: 'background 0.15s',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(186,26,26,0.14)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(186,26,26,0.06)' }}
+                    >
+                      Cerrar tema
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleReopenCase}
+                      disabled={closingLoading}
+                      style={{
+                        background: 'rgba(10,126,140,0.08)', color: '#0A7E8C',
+                        border: 'none', borderRadius: '0.6rem',
+                        padding: '7px 16px', fontSize: '0.875rem', fontWeight: 700,
+                        cursor: closingLoading ? 'not-allowed' : 'pointer',
+                        opacity: closingLoading ? 0.6 : 1,
+                        transition: 'background 0.15s',
+                      }}
+                    >
+                      {closingLoading ? 'Reabriendo…' : 'Reabrir tema'}
+                    </button>
+                  )}
+                </div>
+              </Card>
+            </div>
+          )}
+
           {/* ── Loading skeleton ─────────────────────────────────────── */}
           {loading && !crisis && (
             <div>
@@ -1854,6 +1991,76 @@ export default function GestionPage() {
         </main>
       </div>
 
+      {/* ── Modal: cerrar tema ───────────────────────────── */}
+      {closeModalOpen && (
+        <>
+          <div
+            onClick={() => !closingLoading && setCloseModalOpen(false)}
+            style={{
+              position: 'fixed', inset: 0,
+              background: 'rgba(0,0,0,0.40)', zIndex: 600,
+            }}
+          />
+          <div style={{
+            position: 'fixed', top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 601, width: 'min(92vw, 420px)',
+            background: '#FFFFFF', borderRadius: '1.5rem',
+            boxShadow: '0 24px 80px rgba(0,0,0,0.20)',
+            padding: '28px',
+          }}>
+            <p style={{
+              fontSize: '1.125rem', fontWeight: 800,
+              color: '#1A1A2E', marginBottom: 8,
+              letterSpacing: '-0.02em',
+            }}>
+              ¿Cerrar este tema?
+            </p>
+            <p style={{
+              fontSize: '0.875rem', color: '#5a7478',
+              lineHeight: 1.6, marginBottom: 24,
+            }}>
+              Lo voy a marcar como resuelto. No va a aparecer más
+              en tu listado de temas, pero lo podés reabrir cuando
+              quieras.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => setCloseModalOpen(false)}
+                disabled={closingLoading}
+                style={{
+                  flex: 1, padding: '11px 0',
+                  background: 'rgba(10,126,140,0.07)',
+                  color: '#0A7E8C', border: 'none', borderRadius: 9999,
+                  fontWeight: 700, fontSize: '0.875rem',
+                  cursor: closingLoading ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                  opacity: closingLoading ? 0.5 : 1,
+                }}
+              >
+                Seguir activo
+              </button>
+              <button
+                onClick={handleCloseCase}
+                disabled={closingLoading}
+                style={{
+                  flex: 1, padding: '11px 0',
+                  background: closingLoading
+                    ? 'rgba(186,26,26,0.06)' : 'rgba(186,26,26,0.10)',
+                  color: '#ba1a1a', border: 'none', borderRadius: 9999,
+                  fontWeight: 700, fontSize: '0.875rem',
+                  cursor: closingLoading ? 'not-allowed' : 'pointer',
+                  opacity: closingLoading ? 0.6 : 1,
+                  fontFamily: 'inherit',
+                  transition: 'background 0.15s',
+                }}
+              >
+                {closingLoading ? 'Cerrando…' : 'Cerrar tema'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </>
   )
 }

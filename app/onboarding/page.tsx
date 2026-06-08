@@ -20,8 +20,15 @@ const INIT_POOL = ['LA', 'CR', 'MR', 'JP', 'PG', 'RM']
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type RingsPhase = 'hidden' | 'growing' | 'pulsing'
+type CaseType   = 'own' | 'shared'
 type ChatMsg    = { id: number; from: 'circl' | 'user'; text: string }
-type Contact    = { id: number; name: string; proximity: string }
+type Contact    = {
+  id:           number
+  name:         string
+  proximity:    string
+  relationship: string
+  inviteEmail:  string
+}
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
@@ -30,9 +37,12 @@ export default function OnboardingPage() {
 
   // ── Step ──────────────────────────────────────────────────────────────────
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
+  const [exitModalOpen, setExitModalOpen] = useState(false)
+  const [caseType, setCaseType] = useState<CaseType>('own')
 
   // ── Agent ─────────────────────────────────────────────────────────────────
   const [userId, setUserId] = useState('')
+  const [createdCaseId, setCreatedCaseId] = useState<string | null>(null)
 
   // ── Splash animation ──────────────────────────────────────────────────────
   const [ringsPhase, setRingsPhase]     = useState<RingsPhase>('hidden')
@@ -45,7 +55,7 @@ export default function OnboardingPage() {
   // ── Form ──────────────────────────────────────────────────────────────────
   const [crisis, setCrisis]       = useState('')
   const [contacts, setContacts]   = useState<Contact[]>([
-    { id: 1, name: '', proximity: '' },
+    { id: 1, name: '', proximity: '', relationship: '', inviteEmail: '' },
   ])
   const nextContactId = useRef(2)
 
@@ -54,6 +64,7 @@ export default function OnboardingPage() {
   const [chatInput, setChatInput]       = useState('')
   const [isTyping, setIsTyping]         = useState(false)
   const [chatSuggestions, setChatSuggestions] = useState<string[]>([])
+  const [chatTurn, setChatTurn]         = useState(0)
   const chatInited                = useRef(false)
   const chatMsgId                 = useRef(0)
   const chatLogRef                = useRef<HTMLDivElement>(null)
@@ -158,7 +169,12 @@ export default function OnboardingPage() {
     try {
       const filledContacts = contacts
         .filter(c => c.name.trim())
-        .map(c => `${c.name.trim()}${c.proximity ? ` (${c.proximity})` : ''}`)
+        .map(c => {
+          const parts = [c.name.trim()]
+          if (c.relationship.trim()) parts.push(c.relationship.trim())
+          if (c.proximity) parts.push(`cercanía: ${c.proximity}`)
+          return parts.join(' — ')
+        })
         .join(', ')
 
       const res = await fetch('/api/onboarding/chat', {
@@ -171,6 +187,7 @@ export default function OnboardingPage() {
           context,
           crisis:   crisis.trim() || null,
           circle:   filledContacts || null,
+          turn:     chatTurn + 1,
         }),
       })
       if (!res.ok) return null
@@ -179,6 +196,61 @@ export default function OnboardingPage() {
       return null
     }
   }, [userId, step, crisis, contacts])
+
+  // ── Finish onboarding ────────────────────────────────────────────────────
+  const finishOnboarding = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token ?? ''
+
+      // 1. Generar contexto del tema si existe
+      if (createdCaseId && crisis.trim()) {
+        const filledContacts = contacts
+          .filter(c => c.name.trim())
+          .map(c => ({
+            name:         c.name.trim(),
+            relationship: c.relationship.trim() || null,
+          }))
+
+        try {
+          await fetch('/api/onboarding/generate-case-summary', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              case_id:       createdCaseId,
+              case_type:     caseType,
+              description:   crisis.trim(),
+              members:       filledContacts,
+              chat_messages: chatMsgs.map(m => ({
+                from: m.from,
+                text: m.text,
+              })),
+            }),
+          })
+        } catch {
+          // silenciar
+        }
+      }
+
+      // 2. Regenerar contexto del usuario
+      await fetch('/api/user-context/regenerate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({}),
+      })
+    } catch {
+      // silenciar
+    }
+
+    await supabase.from('profiles').update({ onboarding_completed: true }).eq('id', userId)
+    router.push('/dashboard')
+  }, [userId, router, createdCaseId, crisis, caseType, contacts, chatMsgs])
 
   // ── Chat init when entering step 4 ───────────────────────────────────────
   // Waits for both step===4 AND userId to be ready (userId is fetched async).
@@ -199,46 +271,190 @@ export default function OnboardingPage() {
         const id = ++chatMsgId.current
         setChatMsgs([{ id, from: 'circl', text: result.reply }])
         setChatSuggestions(result.suggestions ?? [])
+        setChatTurn(1)
       }
     }
 
     initChat()
   }, [step, userId, sendToOnboardingChat])
 
-  // ── Step 2 continue — insert crisis in Supabase, fire-and-forget ─────────
-  function handleStep2Next() {
-    if (crisis.trim() && userId) {
-      supabase
+  // ── Step 2 continue — insert crisis in Supabase ─────────────────────────
+  async function handleStep2Next() {
+    if (!crisis.trim() || !userId) {
+      setStep(3)
+      return
+    }
+
+    // 1. Generar título con IA
+    let title = crisis.trim().slice(0, 80)  // fallback al texto crudo
+    try {
+      const titleRes = await fetch('/api/onboarding/generate-title', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: crisis.trim() }),
+      })
+      if (titleRes.ok) {
+        const json = await titleRes.json()
+        if (json.title) title = json.title
+      }
+    } catch {
+      // silenciar — usa el fallback
+    }
+
+    // 2. Crear el tema según el tipo
+    if (caseType === 'own') {
+      const { data } = await supabase
         .from('cases')
         .insert({
           user_id:     userId,
-          name:        crisis.trim().slice(0, 80),
+          name:        title,
           description: crisis.trim(),
           status:      'activa',
           category:    'crisis_indefinida',
           started_at:  new Date().toISOString().split('T')[0],
         })
-        .then(() => {})  // fire and forget
+        .select('id')
+        .single()
+      if (data?.id) setCreatedCaseId(data.id)
+    } else {
+      // Usar el endpoint que ya existe
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const token = session?.access_token ?? ''
+
+        const res = await fetch('/api/shared-case/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name:        title,
+            description: crisis.trim(),
+          }),
+        })
+
+        if (res.ok) {
+          const json = await res.json()
+          if (json.shared_case_id) setCreatedCaseId(json.shared_case_id)
+        }
+      } catch {
+        // silenciar
+      }
     }
+
     setStep(3)
   }
 
-  // ── Step 3 continue — insert contacts in Supabase, fire-and-forget ───────
+  // ── Step 3 continue — insert contacts/members según caseType ────────────
   function handleStep3Next() {
     const filled = contacts.filter(c => c.name.trim())
-    if (filled.length > 0 && userId) {
+
+    if (filled.length === 0 || !userId) {
+      setStep(4)
+      return
+    }
+
+    if (caseType === 'own') {
+      // Flujo de tema propio — insertar en contacts + seed contexto
       const toInsert = filled.map((c, i) => ({
-        user_id:    userId,
-        name:       c.name.trim(),
-        proximity:  c.proximity || 'ayuda',
-        role:       'acompanamiento',
-        sort_order: i,
+        user_id:      userId,
+        name:         c.name.trim(),
+        proximity:    c.proximity || 'segundo_nivel',
+        role:         'acompanamiento',
+        sort_order:   i,
+        relationship: c.relationship.trim() || null,
       }))
+
       supabase
         .from('contacts')
         .insert(toInsert)
-        .then(() => {})  // fire and forget
+        .select('id, name, relationship')
+        .then(({ data: insertedContacts }) => {
+          if (!insertedContacts) return
+          insertedContacts.forEach(async (contact) => {
+            if (!contact.relationship?.trim()) return
+            try {
+              const initRes = await fetch('/api/contact-context', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  user_id:                 userId,
+                  contact_id:              contact.id,
+                  current_question:        null,
+                  user_response:           null,
+                  generate_first_question: true,
+                }),
+              })
+              const initJson = await initRes.json()
+              if (!initJson.next_question) return
+              await fetch('/api/contact-context', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  user_id:          userId,
+                  contact_id:       contact.id,
+                  current_question: initJson.next_question,
+                  user_response:    contact.relationship,
+                }),
+              })
+            } catch {
+              // silenciar
+            }
+          })
+        })
+    } else {
+      // Flujo de tema compartido — insertar en shared_case_members
+      if (!createdCaseId) {
+        setStep(4)
+        return
+      }
+
+      const invitedEmails: string[] = []
+
+      filled.forEach(async (c) => {
+        if (!c.inviteEmail.trim()) return
+
+        const email = c.inviteEmail.trim().toLowerCase()
+        invitedEmails.push(email)
+
+        const { data: member } = await supabase
+          .from('shared_case_members')
+          .insert({
+            shared_case_id:   createdCaseId,
+            email:            email,
+            status:           'pending',
+            invited_by:       userId,
+            invited_at:       new Date().toISOString(),
+            personal_context: c.relationship.trim() || null,
+          })
+          .select('id')
+          .single()
+
+        if (member?.id) {
+          const expiresAt = new Date()
+          expiresAt.setDate(expiresAt.getDate() + 30)
+
+          await supabase
+            .from('shared_case_invitations')
+            .insert({
+              shared_case_id: createdCaseId,
+              member_id:      member.id,
+              email:          email,
+              token:          crypto.randomUUID(),
+              expires_at:     expiresAt.toISOString(),
+            })
+        }
+      })
+
+      if (invitedEmails.length > 0) {
+        localStorage.setItem(
+          'mhiru:pending-invites-notice',
+          JSON.stringify(invitedEmails)
+        )
+      }
     }
+
     setStep(4)
   }
 
@@ -250,6 +466,18 @@ export default function OnboardingPage() {
     const text = chatInput.trim()
     if (!text || isTyping) return
 
+    // Si el usuario está respondiendo la tercera pregunta, finalizar
+    if (chatTurn >= 3) {
+      const id = ++chatMsgId.current
+      setChatMsgs(prev => [...prev, { id, from: 'user', text }])
+      setChatInput('')
+      setChatSuggestions([])
+      setTimeout(() => {
+        finishOnboarding()
+      }, 1500)
+      return
+    }
+
     const id = ++chatMsgId.current
     setChatMsgs(prev => [...prev, { id, from: 'user', text }])
     setChatInput('')
@@ -259,24 +487,45 @@ export default function OnboardingPage() {
     setIsTyping(false)
 
     if (result) {
+      const newTurn = chatTurn + 1
+      setChatTurn(newTurn)
+
+      let replyText = result.reply
+
+      // Turno 3 del sistema = tercera pregunta, forzar prefijo
+      if (newTurn === 3 && !replyText.toLowerCase().startsWith('una última')) {
+        replyText = 'Una última pregunta, ' + replyText.charAt(0).toLowerCase() + replyText.slice(1)
+      }
+
       const replyId = ++chatMsgId.current
-      setChatMsgs(prev => [...prev, { id: replyId, from: 'circl', text: result.reply }])
-      setChatSuggestions(result.suggestions ?? [])
+      setChatMsgs(prev => [...prev, { id: replyId, from: 'circl', text: replyText }])
+
+      // Si ya hicimos 3 preguntas, deshabilitar input y sugerencias
+      // El cierre sucede cuando el usuario ENVÍA la respuesta a la
+      // tercera pregunta — eso se detecta al inicio de sendChatMessage
+      if (newTurn >= 3) {
+        setChatSuggestions([])
+      } else {
+        setChatSuggestions(result.suggestions ?? [])
+      }
     }
-  }, [chatInput, isTyping, sendToOnboardingChat])
+  }, [chatInput, isTyping, sendToOnboardingChat, chatTurn, finishOnboarding])
 
   // ── Contact helpers ───────────────────────────────────────────────────────
 
   function addContact() {
     const id  = nextContactId.current++
-    setContacts(prev => [...prev, { id, name: '', proximity: '' }])
+    setContacts(prev => [...prev, {
+      id, name: '', proximity: '', relationship: '',
+      inviteEmail: '',
+    }])
   }
 
   function removeContact(id: number) {
     setContacts(prev => prev.filter(c => c.id !== id))
   }
 
-  function updateContact(id: number, field: keyof Contact, value: string) {
+  function updateContact(id: number, field: keyof Contact, value: string | boolean) {
     setContacts(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c))
   }
 
@@ -296,6 +545,18 @@ export default function OnboardingPage() {
   const ringsClass =
     ringsPhase === 'growing' ? 'rings-visible' :
     ringsPhase === 'pulsing' ? 'rings-pulsing' : ''
+
+  // ── Validation ────────────────────────────────────────────────────────────
+
+  const step3Valid = (() => {
+    if (caseType === 'own') return true
+    const filled = contacts.filter(c => c.name.trim())
+    if (filled.length === 0) return true
+    return filled.every(c => {
+      const email = c.inviteEmail.trim()
+      return email.length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    })
+  })()
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -409,6 +670,78 @@ export default function OnboardingPage() {
         }}
       >
 
+        {/* ══ Exit confirmation modal ══════════════════════════════════════ */}
+        {exitModalOpen && (
+          <div
+            style={{
+              position: 'fixed', inset: 0, zIndex: 1000,
+              background: 'rgba(26,26,46,0.45)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: 24,
+            }}
+            onClick={() => setExitModalOpen(false)}
+          >
+            <div
+              style={{
+                background: 'white', borderRadius: '1.5rem',
+                padding: '32px 28px', maxWidth: 400, width: '100%',
+                boxShadow: '0 8px 40px rgba(10,126,140,0.16)',
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              <p style={{
+                fontSize: '1.125rem', fontWeight: 800,
+                color: '#1A1A2E', marginBottom: 8,
+              }}>
+                ¿Querés dejar este tema?
+              </p>
+              <p style={{
+                fontSize: '0.875rem', color: '#5a7478',
+                lineHeight: 1.6, marginBottom: 24,
+              }}>
+                Olvidaré todo lo que hayas cargado hasta ahora y te llevaré a la app. Podrás contarmelo luego.
+              </p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setExitModalOpen(false)}
+                  style={{
+                    flex: 1, padding: '10px 0',
+                    background: 'rgba(10,126,140,0.07)',
+                    color: '#0A7E8C', border: 'none',
+                    borderRadius: '0.75rem', fontWeight: 700,
+                    fontSize: '0.875rem', cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  Volver
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setExitModalOpen(false)
+                    await supabase
+                      .from('profiles')
+                      .update({ onboarding_completed: true })
+                      .eq('id', userId)
+                    router.push('/dashboard')
+                  }}
+                  style={{
+                    flex: 1, padding: '10px 0',
+                    background: '#1A1A2E',
+                    color: 'white', border: 'none',
+                    borderRadius: '0.75rem', fontWeight: 700,
+                    fontSize: '0.875rem', cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  Sí
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ══ STEP 1 — Splash ══════════════════════════════════════════════ */}
         {step === 1 && (
           <div
@@ -470,21 +803,109 @@ export default function OnboardingPage() {
               ))}
             </h1>
 
-            {/* Primary CTA */}
-            <button
-              type="button"
-              onClick={() => setStep(2)}
-              className="font-bold rounded-full px-8 py-4 text-white cursor-pointer hover:brightness-110 active:scale-[0.97]"
+            <p
               style={{
-                background: '#0A7E8C',
-                fontSize: '1.05rem',
+                fontSize: 'clamp(0.95rem, 2.5vw, 1.125rem)',
+                color: '#5a7478',
+                lineHeight: 1.65,
+                maxWidth: 590,
+                margin: '0 auto',
+                marginBottom: 40,
                 opacity: ctaVisible ? 1 : 0,
-                transform: ctaVisible ? 'translateY(0)' : 'translateY(10px)',
-                transition: 'opacity 0.5s ease, transform 0.5s ease',
+                transform: ctaVisible ? 'translateY(0)' : 'translateY(8px)',
+                transition: 'opacity 0.5s ease 0.1s, transform 0.5s ease 0.1s',
               }}
             >
-              Comenzar
-            </button>
+              Voy a ayudarte con todo lo que esté pasando: quién puede ayudar,
+              qué hay que hacer y cómo no perder nada en el camino.
+            </p>
+
+            {/* Selector de tipo de tema */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+                width: '100%',
+                maxWidth: 480,
+                marginBottom: 24,
+                opacity: ctaVisible ? 1 : 0,
+                transform: ctaVisible ? 'translateY(0)' : 'translateY(8px)',
+                transition: 'opacity 0.5s ease 0.2s, transform 0.5s ease 0.2s',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => { setCaseType('own'); setStep(2) }}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                  padding: '20px 24px',
+                  background: 'white',
+                  border: '1.5px solid rgba(10,126,140,0.18)',
+                  borderRadius: '1.25rem',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  textAlign: 'left',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = '#0A7E8C'
+                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(10,126,140,0.10)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = 'rgba(10,126,140,0.18)'
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
+              >
+                <span style={{
+                  fontSize: '1rem', fontWeight: 800, color: '#1A1A2E',
+                  marginBottom: 4,
+                }}>
+                  Comenzar con algo mío
+                </span>
+                <span style={{
+                  fontSize: '0.875rem', color: '#5a7478', lineHeight: 1.5,
+                }}>
+                  Lo voy a manejar yo, con mi círculo de apoyo cerca.
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setCaseType('shared'); setStep(2) }}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                  padding: '20px 24px',
+                  background: 'white',
+                  border: '1.5px solid rgba(10,126,140,0.18)',
+                  borderRadius: '1.25rem',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  textAlign: 'left',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = '#0A7E8C'
+                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(10,126,140,0.10)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = 'rgba(10,126,140,0.18)'
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
+              >
+                <span style={{
+                  fontSize: '1rem', fontWeight: 800, color: '#1A1A2E',
+                  marginBottom: 4,
+                }}>
+                  Comenzar con un tema en grupo
+                </span>
+                <span style={{
+                  fontSize: '0.875rem', color: '#5a7478', lineHeight: 1.5,
+                }}>
+                  Vamos a coordinar y gestionarlo en conjunto.
+                </span>
+              </button>
+            </div>
 
             {/* Skip */}
             <button
@@ -611,6 +1032,9 @@ export default function OnboardingPage() {
                   onBack={() => setStep(1)}
                   onSkip={() => setStep(3)}
                   onNext={handleStep2Next}
+                  showExit={true}
+                  onExit={() => setExitModalOpen(true)}
+                  nextDisabled={!crisis.trim()}
                 />
               </div>
             )}
@@ -619,10 +1043,10 @@ export default function OnboardingPage() {
             {step === 3 && (
               <div className="ob-step-panel">
                 <p className="text-2xl font-extrabold text-[#1A1A2E] mb-2 tracking-tight">
-                  ¿Quién forma tu círculo?
+                  ¿Quién te acompaña en esta situación?
                 </p>
                 <p className="text-[#5a7478] mb-6 leading-relaxed" style={{ fontSize: '0.95rem' }}>
-                  Nombre, rol y cercanía. El agente los activa según lo que necesites.
+                  Saber quienes te rodean me permite entender como podrían ayudarte.
                 </p>
 
                 <div className="flex flex-col gap-2.5">
@@ -630,15 +1054,10 @@ export default function OnboardingPage() {
                     <div
                       key={c.id}
                       className="rounded-2xl px-4 py-3.5"
-                      style={{ background: '#FAF8F5', border: '1.5px solid rgba(10,126,140,0.12)' }}
+                      style={{ background: '#FAF8F5', border: '1.5px solid rgba(10,126,140,0.12)', position: 'relative' }}
                     >
-                      <div className="flex items-center gap-2 mb-2.5">
-                        <div
-                          className="flex-shrink-0 flex items-center justify-center rounded-full text-white font-bold"
-                          style={{ width: 36, height: 36, background: AV_GRADIENTS[idx % AV_GRADIENTS.length], fontSize: '0.78rem' }}
-                        >
-                          {INIT_POOL[idx % INIT_POOL.length]}
-                        </div>
+                      {/* Row 1: nombre + cercanía (solo own) + delete inline */}
+                      <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2 mb-2.5">
                         <input
                           type="text"
                           placeholder="Nombre"
@@ -649,33 +1068,84 @@ export default function OnboardingPage() {
                           onFocus={e => e.currentTarget.style.borderColor = '#0A7E8C'}
                           onBlur={e  => e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)'}
                         />
+
+                        {caseType === 'own' && (
+                          <select
+                            value={c.proximity}
+                            onChange={e => updateContact(c.id, 'proximity', e.target.value)}
+                            className="w-full md:flex-1 rounded-xl px-3 py-2 text-[#1A1A2E] text-sm outline-none cursor-pointer"
+                            style={{ background: 'white', border: '1.5px solid rgba(10,126,140,0.12)', fontFamily: 'inherit' }}
+                            aria-label="Cercanía"
+                          >
+                            <option value="" disabled hidden>¿Qué cercanía tiene?</option>
+                            <option value="nucleo">Es parte de mi núcleo</option>
+                            <option value="segundo_nivel">Segundo nivel de cercanía</option>
+                            <option value="tercer_nivel">Tercer nivel de cercanía</option>
+                          </select>
+                        )}
+
                         <button
                           type="button"
                           onClick={() => removeContact(c.id)}
-                          className="flex-shrink-0 flex items-center justify-center rounded-full cursor-pointer transition-colors"
-                          style={{ width: 30, height: 30, border: '1.5px solid rgba(10,126,140,0.12)', background: 'none', color: '#5a7478', fontSize: '1rem', lineHeight: 1, fontFamily: 'inherit' }}
+                          className="hidden md:flex flex-shrink-0 items-center justify-center rounded-full cursor-pointer"
+                          style={{
+                            width: 30, height: 30,
+                            border: '1.5px solid rgba(10,126,140,0.12)',
+                            background: 'none', color: '#5a7478',
+                            fontSize: '1rem', lineHeight: 1, fontFamily: 'inherit',
+                          }}
                           onMouseEnter={e => { e.currentTarget.style.borderColor = '#ba1a1a'; e.currentTarget.style.color = '#ba1a1a' }}
                           onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)'; e.currentTarget.style.color = '#5a7478' }}
                           title="Quitar"
-                        >
-                          ×
-                        </button>
+                        >×</button>
                       </div>
 
-                      {/* Row 2: solo cercanía */}
-                      <div style={{ paddingLeft: 44 }}>
-                        <select
-                          value={c.proximity}
-                          onChange={e => updateContact(c.id, 'proximity', e.target.value)}
-                          className="w-full rounded-xl px-3 py-2 text-[#1A1A2E] text-sm outline-none cursor-pointer"
+                      {/* Delete button mobile — absolute */}
+                      <button
+                        type="button"
+                        onClick={() => removeContact(c.id)}
+                        className="flex md:hidden"
+                        style={{
+                          position: 'absolute', top: 10, right: 10,
+                          width: 24, height: 24, borderRadius: '50%',
+                          border: '1.5px solid rgba(10,126,140,0.18)',
+                          background: 'none', color: '#5a7478',
+                          fontSize: '0.9rem', lineHeight: 1, cursor: 'pointer',
+                          alignItems: 'center', justifyContent: 'center',
+                          fontFamily: 'inherit',
+                        }}
+                        title="Quitar"
+                      >×</button>
+
+                      {/* Row 2: relación */}
+                      <div style={{ marginTop: 8 }}>
+                        <input
+                          type="text"
+                          placeholder="¿Qué relación tenés con esta persona?"
+                          value={c.relationship}
+                          onChange={e => updateContact(c.id, 'relationship', e.target.value)}
+                          className="w-full rounded-xl px-3 py-2 text-[#1A1A2E] text-sm outline-none transition-all"
                           style={{ background: 'white', border: '1.5px solid rgba(10,126,140,0.12)', fontFamily: 'inherit' }}
-                          aria-label="Cercanía"
-                        >
-                          <option value="">¿Qué tan cercana?</option>
-                          <option value="nucleo">Es parte de mi núcleo</option>
-                          <option value="ayuda">Me ayuda o puede ayudar</option> 
-                        </select>
+                          onFocus={e => e.currentTarget.style.borderColor = '#0A7E8C'}
+                          onBlur={e  => e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)'}
+                        />
                       </div>
+
+                      {/* Row 3: email — solo para tema compartido */}
+                      {caseType === 'shared' && (
+                        <div style={{ marginTop: 8 }}>
+                          <input
+                            type="email"
+                            placeholder="Email"
+                            value={c.inviteEmail}
+                            onChange={e => updateContact(c.id, 'inviteEmail', e.target.value)}
+                            className="w-full rounded-xl px-3 py-2 text-[#1A1A2E] text-sm outline-none transition-all"
+                            style={{ background: 'white', border: '1.5px solid rgba(10,126,140,0.12)', fontFamily: 'inherit' }}
+                            onFocus={e => e.currentTarget.style.borderColor = '#0A7E8C'}
+                            onBlur={e  => e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)'}
+                          />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -693,6 +1163,9 @@ export default function OnboardingPage() {
                   onBack={() => setStep(2)}
                   onSkip={() => setStep(4)}
                   onNext={handleStep3Next}
+                  showExit={true}
+                  onExit={() => setExitModalOpen(true)}
+                  nextDisabled={!step3Valid}
                 />
               </div>
             )}
@@ -821,51 +1294,21 @@ export default function OnboardingPage() {
                 {/* Navigation */}
                 <div className="flex items-center justify-between gap-3">
                   <BtnBack onClick={() => setStep(3)} />
-                  <div className="flex items-center gap-2">
-                    <BtnSkip onClick={async () => {
-                      try {
-                        const { data: { session } } = await supabase.auth.getSession()
-                        const token = session?.access_token ?? ''
-                        await fetch('/api/user-context/regenerate', {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`,
-                          },
-                          body: JSON.stringify({}),
-                        })
-                      } catch {
-                        // silenciar — el dashboard igual funciona sin contexto
-                      }
-                      await supabase.from('profiles').update({ onboarding_completed: true }).eq('id', userId)
-                      router.push('/dashboard')
-                    }} label="Omitir" />
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          const { data: { session } } = await supabase.auth.getSession()
-                          const token = session?.access_token ?? ''
-                          await fetch('/api/user-context/regenerate', {
-                            method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${token}`,
-                            },
-                            body: JSON.stringify({}),
-                          })
-                        } catch {
-                          // silenciar — el dashboard igual funciona sin contexto
-                        }
-                        await supabase.from('profiles').update({ onboarding_completed: true }).eq('id', userId)
-                        router.push('/dashboard')
-                      }}
-                      className="bg-[#0A7E8C] text-white font-bold rounded-full py-3 px-6 cursor-pointer hover:brightness-110 active:scale-[0.97] transition-all"
-                      style={{ fontFamily: 'inherit' }}
-                    >
-                      Finalizar
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={finishOnboarding}
+                    className="inline-flex items-center gap-2 rounded-full py-3 px-6 cursor-pointer transition-all hover:brightness-95 active:scale-[0.97]"
+                    style={{
+                      background: 'rgba(10,126,140,0.08)',
+                      color: '#0A7E8C',
+                      border: '1.5px solid rgba(10,126,140,0.20)',
+                      fontWeight: 700,
+                      fontFamily: 'inherit',
+                      fontSize: '0.95rem',
+                    }}
+                  >
+                    Ir a inicio
+                  </button>
                 </div>
               </div>
             )}
@@ -884,21 +1327,39 @@ function StepNav({
   onSkip,
   onNext,
   nextLabel = 'Continuar',
+  onExit,
+  showExit,
+  nextDisabled,
 }: {
   onBack: () => void
   onSkip: () => void
   onNext: () => void
   nextLabel?: string
+  onExit?: () => void
+  showExit?: boolean
+  nextDisabled?: boolean
 }) {
   return (
     <div className="flex items-center justify-between mt-7 gap-3">
       <BtnBack onClick={onBack} />
       <div className="flex items-center gap-2">
-        <BtnSkip onClick={onSkip} label="Omitir" />
+        {showExit && onExit ? (
+          <button
+            type="button"
+            onClick={onExit}
+            className="px-3 py-2 text-sm font-semibold cursor-pointer bg-transparent border-none text-[#5a7478] transition-colors"
+            style={{ fontFamily: 'inherit' }}
+            onMouseEnter={e => (e.currentTarget.style.color = '#0A7E8C')}
+            onMouseLeave={e => (e.currentTarget.style.color = '#5a7478')}
+          >
+            Salir
+          </button>
+        ) : null} 
         <button
           type="button"
           onClick={onNext}
-          className="bg-[#0A7E8C] text-white font-bold rounded-full py-3 px-6 cursor-pointer hover:brightness-110 active:scale-[0.97] transition-all"
+          disabled={nextDisabled}
+          className="bg-[#0A7E8C] text-white font-bold rounded-full py-3 px-6 cursor-pointer hover:brightness-110 active:scale-[0.97] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ fontFamily: 'inherit' }}
         >
           {nextLabel}
