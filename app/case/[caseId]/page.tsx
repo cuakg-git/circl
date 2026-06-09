@@ -342,6 +342,10 @@ export default function GestionPage() {
   const [closingLoading, setClosingLoading] = useState(false)
   const [closeError,     setCloseError]     = useState<string | null>(null)
 
+  // ── Sidesheet historia ─────────────────────────────────────────────────────
+  const [historySheetOpen,   setHistorySheetOpen]   = useState(false)
+  const [doneTasksSheetOpen, setDoneTasksSheetOpen] = useState(false)
+
   // ── Sidesheet state ──────────────────────────────────────────────────────────
   const [ssMode,    setSsMode]    = useState<SSMode>(null)
   const [ssLoading, setSsLoading] = useState(false)
@@ -1454,40 +1458,6 @@ export default function GestionPage() {
                             </div>
                           )}
 
-                          {/* Chips de sugerencias */}
-                          {!isTyping && chatSuggestions.length > 0 && (
-                            <div style={{
-                              display: 'flex', flexWrap: 'wrap', gap: 8,
-                              marginBottom: 12,
-                            }}>
-                              {chatSuggestions.map((s, i) => (
-                                <button
-                                  key={i}
-                                  type="button"
-                                  onClick={() => handleChatSubmit(s)}
-                                  disabled={isTyping}
-                                  style={{
-                                    padding: '6px 14px', borderRadius: 9999,
-                                    border: '1.5px solid rgba(10,126,140,0.25)',
-                                    background: 'white', color: '#0A7E8C',
-                                    fontSize: '0.8125rem', fontWeight: 600,
-                                    cursor: isTyping ? 'not-allowed' : 'pointer',
-                                    opacity: isTyping ? 0.5 : 1,
-                                    fontFamily: 'inherit',
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    if (!isTyping) e.currentTarget.style.background = 'rgba(10,126,140,0.06)'
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = 'white'
-                                  }}
-                                >
-                                  {s}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-
                           {/* Input libre */}
                           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                             <textarea
@@ -1574,64 +1544,89 @@ export default function GestionPage() {
                       Sin historial todavía.
                     </p>
                   ) : (
-                    history.map((h, i) => (
-                      <div key={h.id} style={{
-                        padding: '14px 20px',
-                        borderBottom: i < history.length - 1
-                          ? '1px solid rgba(10,126,140,0.08)' : 'none',
-                      }}>
-                        <div style={{
-                          fontSize: '0.8125rem', fontWeight: 600,
-                          color: '#1A1A2E', marginBottom: 2,
+                    <>
+                      {history.slice(0, 5).map((h, i, arr) => (
+                        <div key={h.id} style={{
+                          padding: '14px 20px',
+                          borderBottom: i < arr.length - 1
+                            ? '1px solid rgba(10,126,140,0.08)' : 'none',
                         }}>
-                          {h.title}
-                        </div>
-                        {h.description && (
                           <div style={{
-                            fontSize: '0.75rem', color: '#5a7478', marginBottom: 4,
+                            fontSize: '0.8125rem', fontWeight: 600,
+                            color: '#1A1A2E', marginBottom: 2,
                           }}>
-                            {h.task_id ? (
-                              <span>
-                                {h.description.replace(/"([^"]+)"/, '').trim()}{' '}
-                                <span
-                                  onClick={() => router.push(`/case/${id}/tarea/${h.task_id}`)}
-                                  style={{
-                                    color: '#0A7E8C',
-                                    textDecoration: 'underline',
-                                    textUnderlineOffset: 3,
-                                    cursor: 'pointer',
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  {h.description.match(/"([^"]+)"/)?.[1] ?? h.task_id ?? 'ver tarea'}
-                                </span>
-                              </span>
-                            ) : h.document_id ? (
-                              <span>
-                                {h.description.replace(/"([^"]+)"/, '').trim()}{' '}
-                                <span
-                                  onClick={() => router.push(`/case/${id}/documento/${h.document_id}`)}
-                                  style={{
-                                    color: '#0A7E8C',
-                                    textDecoration: 'underline',
-                                    textUnderlineOffset: 3,
-                                    cursor: 'pointer',
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  {h.description.match(/"([^"]+)"/)?.[1] ?? h.document_id ?? 'ver documento'}
-                                </span>
-                              </span>
-                            ) : (
-                              h.description
-                            )}
+                            {h.title}
                           </div>
-                        )}
-                        <div style={{ fontSize: '0.65rem', color: '#5a7478' }}>
-                          {fmtLongDate(h.occurred_at)}
+                          {h.description && (
+                            <div style={{
+                              fontSize: '0.75rem', color: '#5a7478', marginBottom: 4,
+                            }}>
+                              {h.task_id ? (
+                                <span>
+                                  {h.description.replace(/"([^"]+)"/, '').trim()}{' '}
+                                  <span
+                                    onClick={() => router.push(`/case/${id}/tarea/${h.task_id}`)}
+                                    style={{
+                                      color: '#0A7E8C',
+                                      textDecoration: 'underline',
+                                      textUnderlineOffset: 3,
+                                      cursor: 'pointer',
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    {h.description.match(/"([^"]+)"/)?.[1] ?? h.task_id ?? 'ver tarea'}
+                                  </span>
+                                </span>
+                              ) : h.document_id ? (
+                                <span>
+                                  {h.description.replace(/"([^"]+)"/, '').trim()}{' '}
+                                  <span
+                                    onClick={() => router.push(`/case/${id}/documento/${h.document_id}`)}
+                                    style={{
+                                      color: '#0A7E8C',
+                                      textDecoration: 'underline',
+                                      textUnderlineOffset: 3,
+                                      cursor: 'pointer',
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    {h.description.match(/"([^"]+)"/)?.[1] ?? h.document_id ?? 'ver documento'}
+                                  </span>
+                                </span>
+                              ) : (
+                                h.description
+                              )}
+                            </div>
+                          )}
+                          <div style={{ fontSize: '0.65rem', color: '#5a7478' }}>
+                            {fmtLongDate(h.occurred_at)}
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      ))}
+
+                      {history.length > 5 && (
+                        <button
+                          type="button"
+                          onClick={() => setHistorySheetOpen(true)}
+                          style={{
+                            width: '100%', textAlign: 'center',
+                            padding: '12px 20px',
+                            background: 'rgba(10,126,140,0.04)',
+                            border: 'none',
+                            borderTop: '1px solid rgba(10,126,140,0.08)',
+                            cursor: 'pointer',
+                            fontSize: '0.75rem', fontWeight: 700,
+                            color: '#0A7E8C', fontFamily: 'inherit',
+                            letterSpacing: '0.02em',
+                            transition: 'background 0.15s',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.08)' }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.04)' }}
+                        >
+                          Ver más
+                        </button>
+                      )}
+                    </>
                   )}
                 </Card>
               </div>
@@ -1762,21 +1757,38 @@ export default function GestionPage() {
                       </span>
                     </button>
                   </div>
+
+                  {tasks.filter(t => t.status === 'completada').length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setDoneTasksSheetOpen(true)}
+                      style={{
+                        width: 'calc(100% + 48px)',
+                        marginLeft: -24,
+                        marginRight: -24,
+                        marginBottom: -24,
+                        marginTop: 0,
+                        textAlign: 'center',
+                        padding: '12px 0',
+                        background: 'rgba(10,126,140,0.04)',
+                        border: 'none',
+                        borderTop: '1px solid rgba(10,126,140,0.08)',
+                        cursor: 'pointer',
+                        fontSize: '0.75rem', fontWeight: 700,
+                        color: '#0A7E8C', fontFamily: 'inherit',
+                        letterSpacing: '0.02em',
+                        transition: 'background 0.15s',
+                        borderBottomLeftRadius: '1.5rem',
+                        borderBottomRightRadius: '1.5rem',
+                        display: 'block',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.08)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.04)' }}
+                    >
+                      Ver finalizadas
+                    </button>
+                  )}
                 </Card>
-                <div style={{ marginTop: 12, textAlign: 'right' }}>
-                  <Link
-                    href={`/case/${id}/finalizadas`}
-                    style={{
-                      fontSize: '0.75rem', fontWeight: 600,
-                      color: '#5a7478', textDecoration: 'none',
-                      display: 'inline-flex', alignItems: 'center', gap: 4,
-                    }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#0A7E8C' }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = '#5a7478' }}
-                  >
-                    Ver tareas finalizadas →
-                  </Link>
-                </div>
               </div>
 
               {/* ── Col 2: Documentos ──────────────────────────────────────── */}
@@ -2061,6 +2073,260 @@ export default function GestionPage() {
           </div>
         </>
       )}
+
+      {/* ══════════════════════════════════════════════════════════════
+          SIDESHEET — HISTORIA COMPLETA
+      ══════════════════════════════════════════════════════════════ */}
+
+      <div
+        onClick={() => setHistorySheetOpen(false)}
+        style={{
+          position:      'fixed',
+          inset:         0,
+          background:    'rgba(0,0,0,0.22)',
+          zIndex:        500,
+          opacity:       historySheetOpen ? 1 : 0,
+          pointerEvents: historySheetOpen ? 'auto' : 'none',
+          transition:    'opacity 0.3s',
+        }}
+      />
+
+      <div
+        style={{
+          position:      'fixed',
+          top:           0,
+          right:         0,
+          width:         480,
+          maxWidth:      '100vw',
+          height:        '100vh',
+          background:    '#f0f4f8',
+          zIndex:        501,
+          transform:     historySheetOpen ? 'translateX(0)' : 'translateX(100%)',
+          transition:    'transform 0.35s cubic-bezier(0.4,0,0.2,1)',
+          display:       'flex',
+          flexDirection: 'column',
+          boxShadow:     '-6px 0 32px rgba(0,0,0,0.10)',
+        }}
+      >
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '20px 24px', flexShrink: 0,
+          borderBottom: '1px solid rgba(10,126,140,0.08)',
+          background: '#FFFFFF',
+        }}>
+          <span style={{
+            fontSize: '0.7rem', fontWeight: 700,
+            letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5a7478',
+          }}>
+            Historia
+          </span>
+          <button
+            onClick={() => setHistorySheetOpen(false)}
+            style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'rgba(0,0,0,0.06)', border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#5a7478', fontSize: '1rem',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.11)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)' }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+          {history.map((h, i) => (
+            <div key={h.id} style={{
+              padding: '14px 24px',
+              borderBottom: i < history.length - 1 ? '1px solid rgba(10,126,140,0.08)' : 'none',
+            }}>
+              <div style={{
+                fontSize: '0.8125rem', fontWeight: 600,
+                color: '#1A1A2E', marginBottom: 2,
+              }}>
+                {h.title}
+              </div>
+              {h.description && (
+                <div style={{
+                  fontSize: '0.75rem', color: '#5a7478', marginBottom: 4,
+                }}>
+                  {h.task_id ? (
+                    <span>
+                      {h.description.replace(/"([^"]+)"/, '').trim()}{' '}
+                      <span
+                        onClick={() => {
+                          setHistorySheetOpen(false)
+                          router.push(`/case/${id}/tarea/${h.task_id}`)
+                        }}
+                        style={{
+                          color: '#0A7E8C',
+                          textDecoration: 'underline',
+                          textUnderlineOffset: 3,
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {h.description.match(/"([^"]+)"/)?.[1] ?? h.task_id ?? 'ver tarea'}
+                      </span>
+                    </span>
+                  ) : h.document_id ? (
+                    <span>
+                      {h.description.replace(/"([^"]+)"/, '').trim()}{' '}
+                      <span
+                        onClick={() => {
+                          setHistorySheetOpen(false)
+                          router.push(`/case/${id}/documento/${h.document_id}`)
+                        }}
+                        style={{
+                          color: '#0A7E8C',
+                          textDecoration: 'underline',
+                          textUnderlineOffset: 3,
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {h.description.match(/"([^"]+)"/)?.[1] ?? h.document_id ?? 'ver documento'}
+                      </span>
+                    </span>
+                  ) : (
+                    h.description
+                  )}
+                </div>
+              )}
+              <div style={{ fontSize: '0.65rem', color: '#5a7478' }}>
+                {fmtLongDate(h.occurred_at)}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════
+          SIDESHEET — TAREAS FINALIZADAS
+      ══════════════════════════════════════════════════════════════ */}
+
+      <div
+        onClick={() => setDoneTasksSheetOpen(false)}
+        style={{
+          position:      'fixed',
+          inset:         0,
+          background:    'rgba(0,0,0,0.22)',
+          zIndex:        500,
+          opacity:       doneTasksSheetOpen ? 1 : 0,
+          pointerEvents: doneTasksSheetOpen ? 'auto' : 'none',
+          transition:    'opacity 0.3s',
+        }}
+      />
+
+      <div
+        style={{
+          position:      'fixed',
+          top:           0,
+          right:         0,
+          width:         480,
+          maxWidth:      '100vw',
+          height:        '100vh',
+          background:    '#f0f4f8',
+          zIndex:        501,
+          transform:     doneTasksSheetOpen ? 'translateX(0)' : 'translateX(100%)',
+          transition:    'transform 0.35s cubic-bezier(0.4,0,0.2,1)',
+          display:       'flex',
+          flexDirection: 'column',
+          boxShadow:     '-6px 0 32px rgba(0,0,0,0.10)',
+        }}
+      >
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '20px 24px', flexShrink: 0,
+          borderBottom: '1px solid rgba(10,126,140,0.08)',
+          background: '#FFFFFF',
+        }}>
+          <span style={{
+            fontSize: '0.7rem', fontWeight: 700,
+            letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5a7478',
+          }}>
+            Tareas finalizadas
+          </span>
+          <button
+            onClick={() => setDoneTasksSheetOpen(false)}
+            style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'rgba(0,0,0,0.06)', border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#5a7478', fontSize: '1rem',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.11)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)' }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+          {(() => {
+            const doneTasks = tasks.filter(t => t.status === 'completada')
+            if (doneTasks.length === 0) {
+              return (
+                <p style={{
+                  fontSize: '0.875rem', color: '#5a7478',
+                  fontStyle: 'italic', padding: '20px 24px', margin: 0,
+                }}>
+                  Sin tareas finalizadas todavía.
+                </p>
+              )
+            }
+            return doneTasks.map((t, i, arr) => {
+              const contact = t.assigned_contact_id ? contactById.get(t.assigned_contact_id) : null
+              let avInitials = '', avBg = ''
+              if (t.assigned_to_user) {
+                avInitials = 'Yo'; avBg = 'linear-gradient(135deg, #0A7E8C, #2ECDA7)'
+              } else if (contact) {
+                avInitials = (contact.initials ?? getInitials(contact.name)).slice(0, 2)
+                avBg = 'linear-gradient(135deg, #f4ab66, #E8913A)'
+              }
+              return (
+                <div
+                  key={t.id}
+                  className="flex items-center cursor-pointer"
+                  onClick={() => {
+                    setDoneTasksSheetOpen(false)
+                    router.push(`/case/${id}/tarea/${t.id}`)
+                  }}
+                  style={{
+                    gap: 14, padding: '14px 24px',
+                    borderBottom: i < arr.length - 1 ? '1px solid rgba(10,126,140,0.08)' : 'none',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(61,199,166,0.04)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div style={{
+                      fontSize: '0.875rem',
+                      color: '#5a7478',
+                      fontWeight: 400,
+                      textDecoration: 'line-through',
+                      textDecorationColor: 'rgba(90,116,120,0.5)',
+                    }}>
+                      {t.title}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: '#5a7478', marginTop: 2 }}>
+                      {t.due_date ? `Era para el ${fmtLongDate(t.due_date)}` : 'Sin fecha'}
+                    </div>
+                  </div>
+                  {avInitials && (
+                    <div className="rounded-full flex items-center justify-center flex-shrink-0 text-white"
+                      style={{ width: 24, height: 24, fontSize: '0.62rem', fontWeight: 700, background: avBg, opacity: 0.65 }}>
+                      {avInitials}
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          })()}
+        </div>
+      </div>
     </>
   )
 }

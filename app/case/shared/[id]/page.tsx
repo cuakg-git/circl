@@ -9,6 +9,7 @@ import {
   SkeletonStyles, SkeletonText, SkeletonAvatar,
   SkeletonCard, SkeletonBase,
 } from '@/components/Skeleton'
+import ContextStripDrawer from '@/components/ContextStripDrawer'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -69,6 +70,30 @@ type HistoryEvent = {
   document_id?: string | null
 }
 
+type Thread = {
+  id:         string
+  author_id:  string
+  content:    string
+  created_at: string
+  updated_at: string
+  author:     { full_name: string; avatar_url: string | null } | null
+}
+
+type ThreadWithMeta = Thread & {
+  reply_count:   number
+  last_reply_at: string | null
+}
+
+type Reply = {
+  id:         string
+  thread_id:  string
+  author_id:  string
+  content:    string
+  created_at: string
+  updated_at: string
+  author:     { full_name: string; avatar_url: string | null } | null
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function fmtLongDate(iso: string | null) {
@@ -86,6 +111,44 @@ function fmtShortDate(iso: string | null) {
 
 function getInitials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+}
+
+function linkifyText(text: string): React.ReactNode[] {
+  const urlRegex = /(https?:\/\/[^\s]+)/g
+  const parts = text.split(urlRegex)
+  return parts.map((part, i) => {
+    if (urlRegex.test(part)) {
+      return (
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: '#0A7E8C', textDecoration: 'underline' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      )
+    }
+    return <span key={i}>{part}</span>
+  })
+}
+
+function formatRelativeTime(iso: string): string {
+  const now    = Date.now()
+  const then   = new Date(iso).getTime()
+  const diffMs = now - then
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1)  return 'recién'
+  if (diffMin < 60) return `hace ${diffMin}m`
+  const diffH = Math.floor(diffMin / 60)
+  if (diffH < 24)   return `hace ${diffH}h`
+  const diffD = Math.floor(diffH / 24)
+  if (diffD < 7)    return `hace ${diffD}d`
+  return new Date(iso).toLocaleDateString('es-AR', {
+    day: 'numeric', month: 'short',
+  }).replace('.', '')
 }
 
 // ── DOC type labels ────────────────────────────────────────────────────────────
@@ -165,12 +228,28 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   )
 }
 
-function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+function Card({
+  children, style, variant = 'elevated',
+}: {
+  children: React.ReactNode
+  style?: React.CSSProperties
+  variant?: 'elevated' | 'outlined'
+}) {
+  const baseStyle: React.CSSProperties = variant === 'outlined'
+    ? {
+        background: '#FFFFFF',
+        border: '0.5px solid rgba(10,126,140,0.08)',
+        borderRadius: '1rem',
+        padding: 20,
+      }
+    : {
+        background: '#FFFFFF',
+        borderRadius: '1.5rem',
+        boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
+        padding: 24,
+      }
   return (
-    <div style={{
-      background: '#FFFFFF', borderRadius: '1.5rem',
-      boxShadow: '0 4px 24px rgba(10,126,140,0.08)', padding: 24, ...style,
-    }}>
+    <div style={{ ...baseStyle, ...style }}>
       {children}
     </div>
   )
@@ -227,6 +306,46 @@ export default function SharedCaseDetailPage({
   // ── Remove pending modal ─────────────────────────────────────────────────────
   const [removePendingId,  setRemovePendingId]  = useState<string | null>(null)
   const [removingPending,  setRemovingPending]  = useState(false)
+
+  // ── Threads ───────────────────────────────────────────────────────────────────
+  const [threads,          setThreads]          = useState<ThreadWithMeta[]>([])
+  const [threadsLoading,   setThreadsLoading]   = useState(false)
+  const [newThreadContent, setNewThreadContent] = useState('')
+  const [threadSubmitting, setThreadSubmitting] = useState(false)
+  const [threadError,      setThreadError]      = useState<string | null>(null)
+
+  const [editingThreadId, setEditingThreadId] = useState<string | null>(null)
+  const [editingDraft,    setEditingDraft]    = useState('')
+  const [editingSaving,   setEditingSaving]   = useState(false)
+
+  const [openMenuId,   setOpenMenuId]   = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'thread' | 'reply'; id: string } | null>(null)
+  const [deleting,     setDeleting]     = useState(false)
+
+  const [historySheetOpen,   setHistorySheetOpen]   = useState(false)
+  const [doneTasksSheetOpen, setDoneTasksSheetOpen] = useState(false)
+
+  // ── Thread sidesheet ─────────────────────────────────────────────────────────
+  const [threadSheetOpen,    setThreadSheetOpen]    = useState(false)
+  const [currentThread,      setCurrentThread]      = useState<ThreadWithMeta | null>(null)
+  const [replies,            setReplies]            = useState<Reply[]>([])
+  const [repliesLoading,     setRepliesLoading]     = useState(false)
+  const [replyInput,         setReplyInput]         = useState('')
+  const [replySubmitting,    setReplySubmitting]    = useState(false)
+  const [replyError,         setReplyError]         = useState<string | null>(null)
+
+  const [editingReplyId,     setEditingReplyId]     = useState<string | null>(null)
+  const [editingReplyDraft,  setEditingReplyDraft]  = useState('')
+  const [editingReplySaving, setEditingReplySaving] = useState(false)
+
+  const [openReplyMenuId, setOpenReplyMenuId] = useState<string | null>(null)
+
+  const repliesEndRef = useRef<HTMLDivElement>(null)
+
+  const [headerMenuOpen,  setHeaderMenuOpen]  = useState(false)
+  const headerMenuRef  = useRef<HTMLDivElement>(null)
+  const [membersMenuOpen, setMembersMenuOpen] = useState(false)
+  const membersMenuRef = useRef<HTMLDivElement>(null)
 
   // ── Sidesheet (invite) ───────────────────────────────────────────────────────
   const [ssOpen,        setSsOpen]        = useState(false)
@@ -558,6 +677,38 @@ export default function SharedCaseDetailPage({
     if (el) el.scrollTop = el.scrollHeight
   }, [chatMsgs, isTyping])
 
+  // ── Click outside header menu ────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!headerMenuOpen) return
+    function onClickOutside(e: MouseEvent) {
+      if (headerMenuRef.current && !headerMenuRef.current.contains(e.target as Node)) {
+        setHeaderMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [headerMenuOpen])
+
+  useEffect(() => {
+    if (!membersMenuOpen) return
+    function onClickOutside(e: MouseEvent) {
+      if (membersMenuRef.current && !membersMenuRef.current.contains(e.target as Node)) {
+        setMembersMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [membersMenuOpen])
+
+  // ── Auto-scroll replies ───────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (threadSheetOpen && repliesEndRef.current) {
+      repliesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }
+  }, [replies, threadSheetOpen])
+
   // ── Initialize chat on mount ───────────────────────────────────────────────────
 
   useEffect(() => {
@@ -601,6 +752,314 @@ export default function SharedCaseDetailPage({
     setSharedCase(prev => prev ? { ...prev, status: 'activa' } : null)
   }
 
+  // ── Threads ───────────────────────────────────────────────────────────────────
+
+  const loadThreads = useCallback(async () => {
+    if (!sharedCase) return
+    setThreadsLoading(true)
+
+    // 1. Traer threads sin el JOIN a profiles
+    const { data: threadsData, error: threadsErr } = await supabase
+      .from('shared_case_threads')
+      .select('id, author_id, content, created_at, updated_at')
+      .eq('shared_case_id', sharedCase.id)
+      .order('created_at', { ascending: false })
+
+    if (threadsErr || !threadsData) {
+      console.error('loadThreads error:', threadsErr?.message, threadsErr?.code, threadsErr)
+      setThreadsLoading(false)
+      return
+    }
+
+    // 2. Traer profiles de los autores únicos
+    const authorIds = Array.from(new Set(threadsData.map((t: any) => t.author_id)))
+    let profilesMap = new Map<string, { full_name: string; avatar_url: string | null }>()
+
+    if (authorIds.length > 0) {
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url')
+        .in('id', authorIds)
+
+      if (profilesData) {
+        for (const p of profilesData as any[]) {
+          profilesMap.set(p.id, { full_name: p.full_name, avatar_url: p.avatar_url })
+        }
+      }
+    }
+
+    // 3. Contar replies y última fecha por thread
+    const threadIds = threadsData.map((t: any) => t.id)
+    let replyMeta = new Map<string, { count: number; last: string | null }>()
+
+    if (threadIds.length > 0) {
+      const { data: repliesData } = await supabase
+        .from('shared_case_thread_replies')
+        .select('thread_id, created_at')
+        .in('thread_id', threadIds)
+        .order('created_at', { ascending: false })
+
+      if (repliesData) {
+        for (const r of repliesData) {
+          const m = replyMeta.get(r.thread_id) ?? { count: 0, last: null }
+          m.count += 1
+          if (!m.last || r.created_at > m.last) m.last = r.created_at
+          replyMeta.set(r.thread_id, m)
+        }
+      }
+    }
+
+    // 4. Combinar todo
+    const withMeta: ThreadWithMeta[] = threadsData.map((t: any) => ({
+      id:            t.id,
+      author_id:     t.author_id,
+      content:       t.content,
+      created_at:    t.created_at,
+      updated_at:    t.updated_at,
+      author:        profilesMap.get(t.author_id) ?? null,
+      reply_count:   replyMeta.get(t.id)?.count ?? 0,
+      last_reply_at: replyMeta.get(t.id)?.last ?? null,
+    }))
+
+    setThreads(withMeta)
+    setThreadsLoading(false)
+  }, [sharedCase])
+
+  useEffect(() => {
+    if (sharedCase && myMember) {
+      loadThreads()
+    }
+  }, [sharedCase, myMember, loadThreads])
+
+  async function handleCreateThread() {
+    const content = newThreadContent.trim()
+    if (!content || threadSubmitting || !sharedCase || !myMember) return
+    if (content.length > 2000) {
+      setThreadError('El comentario no puede superar los 2000 caracteres.')
+      return
+    }
+    setThreadSubmitting(true)
+    setThreadError(null)
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setThreadSubmitting(false)
+      setThreadError('Sesión expirada. Recargá la página.')
+      return
+    }
+
+    const { error } = await supabase
+      .from('shared_case_threads')
+      .insert({ shared_case_id: sharedCase.id, author_id: user.id, content })
+
+    setThreadSubmitting(false)
+    if (error) {
+      setThreadError(error.message ?? 'No se pudo publicar el comentario.')
+      return
+    }
+    setNewThreadContent('')
+    await loadThreads()
+  }
+
+  function handleStartEditThread(t: Thread) {
+    setEditingThreadId(t.id)
+    setEditingDraft(t.content)
+    setOpenMenuId(null)
+  }
+
+  function handleCancelEdit() {
+    setEditingThreadId(null)
+    setEditingDraft('')
+  }
+
+  async function handleSaveEditThread() {
+    const content = editingDraft.trim()
+    if (!content || !editingThreadId || editingSaving) return
+    if (content.length > 2000) {
+      setThreadError('El comentario no puede superar los 2000 caracteres.')
+      return
+    }
+    setEditingSaving(true)
+    const { error } = await supabase
+      .from('shared_case_threads')
+      .update({ content })
+      .eq('id', editingThreadId)
+    setEditingSaving(false)
+    if (error) {
+      setThreadError(error.message ?? 'No se pudo guardar el cambio.')
+      return
+    }
+    setEditingThreadId(null)
+    setEditingDraft('')
+    await loadThreads()
+  }
+
+  async function loadReplies(threadId: string) {
+    setRepliesLoading(true)
+
+    const { data: repliesData, error: repliesErr } = await supabase
+      .from('shared_case_thread_replies')
+      .select('id, thread_id, author_id, content, created_at, updated_at')
+      .eq('thread_id', threadId)
+      .order('created_at', { ascending: true })
+
+    if (repliesErr || !repliesData) {
+      console.error('loadReplies error:', repliesErr?.message, repliesErr)
+      setReplies([])
+      setRepliesLoading(false)
+      return
+    }
+
+    const authorIds = Array.from(new Set(repliesData.map((r: any) => r.author_id)))
+    let profilesMap = new Map<string, { full_name: string; avatar_url: string | null }>()
+
+    if (authorIds.length > 0) {
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url')
+        .in('id', authorIds)
+
+      if (profilesData) {
+        for (const p of profilesData as any[]) {
+          profilesMap.set(p.id, { full_name: p.full_name, avatar_url: p.avatar_url })
+        }
+      }
+    }
+
+    const withProfiles: Reply[] = repliesData.map((r: any) => ({
+      id:         r.id,
+      thread_id:  r.thread_id,
+      author_id:  r.author_id,
+      content:    r.content,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+      author:     profilesMap.get(r.author_id) ?? null,
+    }))
+
+    setReplies(withProfiles)
+    setRepliesLoading(false)
+  }
+
+  function handleOpenThread(t: ThreadWithMeta) {
+    setCurrentThread(t)
+    setThreadSheetOpen(true)
+    setReplyInput('')
+    setReplyError(null)
+    setEditingReplyId(null)
+    setEditingReplyDraft('')
+    loadReplies(t.id)
+  }
+
+  function handleCloseThreadSheet() {
+    setThreadSheetOpen(false)
+    setCurrentThread(null)
+    setReplies([])
+    setReplyInput('')
+    setReplyError(null)
+    setEditingReplyId(null)
+    setEditingReplyDraft('')
+    setOpenReplyMenuId(null)
+  }
+
+  async function handleCreateReply() {
+    const content = replyInput.trim()
+    if (!content || replySubmitting || !currentThread) return
+    if (content.length > 2000) {
+      setReplyError('La respuesta no puede superar los 2000 caracteres.')
+      return
+    }
+    setReplySubmitting(true)
+    setReplyError(null)
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setReplySubmitting(false)
+      setReplyError('Sesión expirada. Recargá la página.')
+      return
+    }
+
+    const { error } = await supabase
+      .from('shared_case_thread_replies')
+      .insert({ thread_id: currentThread.id, author_id: user.id, content })
+
+    setReplySubmitting(false)
+    if (error) {
+      setReplyError(error.message ?? 'No se pudo publicar la respuesta.')
+      return
+    }
+    setReplyInput('')
+    await loadReplies(currentThread.id)
+    await loadThreads()
+  }
+
+  function handleStartEditReply(r: Reply) {
+    setEditingReplyId(r.id)
+    setEditingReplyDraft(r.content)
+    setOpenReplyMenuId(null)
+  }
+
+  function handleCancelEditReply() {
+    setEditingReplyId(null)
+    setEditingReplyDraft('')
+  }
+
+  async function handleSaveEditReply() {
+    const content = editingReplyDraft.trim()
+    if (!content || !editingReplyId || editingReplySaving || !currentThread) return
+    if (content.length > 2000) {
+      setReplyError('La respuesta no puede superar los 2000 caracteres.')
+      return
+    }
+    setEditingReplySaving(true)
+    const { error } = await supabase
+      .from('shared_case_thread_replies')
+      .update({ content })
+      .eq('id', editingReplyId)
+    setEditingReplySaving(false)
+    if (error) {
+      setReplyError(error.message ?? 'No se pudo guardar el cambio.')
+      return
+    }
+    setEditingReplyId(null)
+    setEditingReplyDraft('')
+    await loadReplies(currentThread.id)
+  }
+
+  async function handleDeleteConfirm() {
+    if (!deleteTarget || deleting) return
+    setDeleting(true)
+
+    const tabla = deleteTarget.type === 'thread'
+      ? 'shared_case_threads'
+      : 'shared_case_thread_replies'
+
+    const { error } = await supabase
+      .from(tabla)
+      .delete()
+      .eq('id', deleteTarget.id)
+
+    setDeleting(false)
+    if (error) {
+      if (deleteTarget.type === 'thread') {
+        setThreadError(error.message ?? 'No se pudo borrar.')
+      } else {
+        setReplyError(error.message ?? 'No se pudo borrar.')
+      }
+      return
+    }
+    setDeleteTarget(null)
+
+    if (deleteTarget.type === 'thread') {
+      if (threadSheetOpen && currentThread?.id === deleteTarget.id) {
+        handleCloseThreadSheet()
+      }
+      await loadThreads()
+    } else {
+      if (currentThread) await loadReplies(currentThread.id)
+      await loadThreads()
+    }
+  }
+
   // ── Derived ───────────────────────────────────────────────────────────────────
 
   const contactById = new Map(contacts.map((c) => [c.id, c]))
@@ -632,8 +1091,19 @@ export default function SharedCaseDetailPage({
         }
         .shared-bg { animation: heroBgDrift 30s ease-in-out infinite; }
         @media (max-width: 768px) {
-          .tema-layout { grid-template-columns: 1fr !important; }
-          .tareas-docs-grid { grid-template-columns: 1fr !important; }
+          .tema-layout {
+            display: flex !important;
+            flex-direction: column !important;
+          }
+          .col-left, .col-right {
+            display: contents !important;
+          }
+          .order-1 { order: 1 !important; }
+          .order-2 { order: 2 !important; }
+          .order-3 { order: 3 !important; }
+          .order-4 { order: 4 !important; }
+          .header-main-row { flex-direction: column !important; align-items: stretch !important; }
+          .header-actions { margin-top: 16px !important; justify-content: flex-start !important; }
         }
         @keyframes typingDot {
           0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
@@ -934,808 +1404,1173 @@ export default function SharedCaseDetailPage({
           {/* ── Content ───────────────────────────────────────────────── */}
           {!loading && sharedCase && (
             <>
-              {/* ── Banner: tema cerrado ───────────────────────────── */}
-              {sharedCase.status === 'resuelta' && (
-                <div style={{
-                  marginBottom: 24,
-                  padding: '12px 16px',
-                  borderRadius: '0.75rem',
-                  background: 'rgba(90,116,120,0.08)',
-                  border: '1px solid rgba(90,116,120,0.18)',
-                  display: 'flex', alignItems: 'center', gap: 10,
-                }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24"
-                    fill="none" stroke="#5a7478" strokeWidth="2"
-                    strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="9 12 11 14 15 10" />
-                  </svg>
-                  <span style={{
-                    fontSize: '0.875rem', color: '#5a7478', fontWeight: 600,
+              {/* ── Header rediseñado ──────────────────────────────── */}
+              {sharedCase && (
+                <div style={{ marginBottom: 32 }}>
+                  {/* Breadcrumb */}
+                  <Link
+                    href="/case"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      fontSize: '0.8125rem', color: '#5a7478',
+                      textDecoration: 'none', fontWeight: 600,
+                      marginBottom: 12,
+                      transition: 'color 0.15s',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = '#0A7E8C' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = '#5a7478' }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24"
+                      fill="none" stroke="currentColor"
+                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m15 18-6-6 6-6" />
+                    </svg>
+                    Temas
+                  </Link>
+
+                  <div className="header-main-row" style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'space-between',
+                    gap: 16,
                   }}>
-                    Este tema está cerrado. Lo podés reabrir desde Acciones.
-                  </span>
+                    {/* Columna izquierda: título + meta */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <h1 style={{
+                        fontSize: '2rem', fontWeight: 800,
+                        color: '#1A1A2E', letterSpacing: '-0.03em',
+                        lineHeight: 1.15, margin: 0, marginBottom: 6,
+                      }}>
+                        {sharedCase.name}
+                      </h1>
+
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        flexWrap: 'wrap',
+                      }}>
+                        <span style={{ fontSize: '0.875rem', color: '#5a7478' }}>
+                          {(() => {
+                            const activeMembers = members.filter((m: any) => m.status === 'active').length
+                            const activeTasks   = tasks.filter((t: any) => t.status === 'pendiente').length
+                            const personasTxt   = `${activeMembers} ${activeMembers === 1 ? 'persona' : 'personas'}`
+                            const tareasTxt     = `${activeTasks} ${activeTasks === 1 ? 'tarea activa' : 'tareas activas'}`
+                            const fechaTxt      = `creado ${fmtShortDate(sharedCase.created_at)}`
+                            return `${personasTxt} · ${tareasTxt} · ${fechaTxt}`
+                          })()}
+                        </span>
+
+                        {sharedCase.status === 'resuelta' && (
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center',
+                            fontSize: '0.7rem', fontWeight: 700,
+                            letterSpacing: '0.06em', textTransform: 'uppercase',
+                            color: '#5a7478',
+                            background: 'rgba(90,116,120,0.14)',
+                            padding: '3px 10px', borderRadius: 9999,
+                          }}>
+                            Cerrado
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Acciones a la derecha */}
+                    <div className="header-actions" style={{
+                      display: 'flex',
+                      gap: 8,
+                      flexShrink: 0,
+                      alignItems: 'center',
+                    }}>
+                      {/* ── Avatar stack + dropdown ─────────────── */}
+                      <div ref={membersMenuRef} style={{ position: 'relative' }}>
+                        {(() => {
+                          const activeOnly = members.filter((m: any) => m.status === 'active')
+                          const visibleAvatars = activeOnly.slice(0, 3)
+                          const extraCount = activeOnly.length - visibleAvatars.length
+
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => setMembersMenuOpen(prev => !prev)}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 6,
+                                background: membersMenuOpen ? 'rgba(10,126,140,0.14)' : 'rgba(10,126,140,0.07)',
+                                border: 'none',
+                                borderRadius: 9999,
+                                padding: '4px 12px 4px 6px',
+                                cursor: 'pointer', fontFamily: 'inherit',
+                                transition: 'background 0.15s',
+                                height: 34,
+                              }}
+                              onMouseEnter={(e) => {
+                                if (!membersMenuOpen) e.currentTarget.style.background = 'rgba(10,126,140,0.14)'
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!membersMenuOpen) e.currentTarget.style.background = 'rgba(10,126,140,0.07)'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center' }}>
+                                {visibleAvatars.map((m: any, i: number) => {
+                                  const displayName = (m.profile as any)?.full_name || m.email
+                                  const initials    = getInitials(displayName).slice(0, 2)
+                                  const avatarUrl   = (m.profile as any)?.avatar_url ?? null
+                                  return (
+                                    <div
+                                      key={m.id}
+                                      style={{
+                                        width: 28, height: 28, borderRadius: '50%',
+                                        marginLeft: i > 0 ? -8 : 0,
+                                        border: '2px solid white',
+                                        overflow: 'hidden',
+                                        background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        color: 'white', fontSize: '0.65rem', fontWeight: 700,
+                                        flexShrink: 0,
+                                        zIndex: visibleAvatars.length - i,
+                                      }}
+                                    >
+                                      {avatarUrl ? (
+                                        <img src={avatarUrl} alt={displayName}
+                                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        />
+                                      ) : (
+                                        initials
+                                      )}
+                                    </div>
+                                  )
+                                })}
+                                {extraCount > 0 && (
+                                  <div style={{
+                                    width: 28, height: 28, borderRadius: '50%',
+                                    marginLeft: -8,
+                                    border: '2px solid white',
+                                    background: '#5a7478',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    color: 'white', fontSize: '0.65rem', fontWeight: 700,
+                                    flexShrink: 0,
+                                    zIndex: 0,
+                                  }}>
+                                    +{extraCount}
+                                  </div>
+                                )}
+                              </div>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                stroke="#5a7478" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                                style={{
+                                  transition: 'transform 0.2s',
+                                  transform: membersMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                                }}>
+                                <polyline points="6 9 12 15 18 9" />
+                              </svg>
+                            </button>
+                          )
+                        })()}
+
+                        {/* Dropdown */}
+                        {membersMenuOpen && (
+                          <div style={{
+                            position: 'absolute', top: '100%', right: 0,
+                            background: 'white',
+                            borderRadius: '0.85rem',
+                            boxShadow: '0 12px 40px rgba(0,0,0,0.12)',
+                            border: '1px solid rgba(10,126,140,0.08)',
+                            zIndex: 50, marginTop: 6,
+                            minWidth: 280, maxWidth: 320,
+                            overflow: 'hidden',
+                          }}>
+                            {/* Active members */}
+                            {members.filter((m: any) => m.status === 'active').map((m: any, i: number, arr: any[]) => {
+                              const isCreator   = m.user_id === sharedCase!.created_by
+                              const displayName = (m.profile as any)?.full_name || m.email
+                              const initials    = getInitials(displayName).slice(0, 2)
+                              const avatarUrl   = (m.profile as any)?.avatar_url ?? null
+
+                              return (
+                                <div key={m.id} style={{
+                                  display: 'flex', alignItems: 'center',
+                                  gap: 10, padding: '10px 14px',
+                                  borderBottom: i < arr.length - 1 || pendingMembers.length > 0 ? '1px solid rgba(10,126,140,0.06)' : 'none',
+                                }}>
+                                  {avatarUrl ? (
+                                    <img src={avatarUrl} alt={displayName}
+                                      style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                                    />
+                                  ) : (
+                                    <div style={{
+                                      width: 28, height: 28, borderRadius: '50%',
+                                      background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      color: 'white', fontSize: '0.65rem', fontWeight: 700,
+                                      flexShrink: 0,
+                                    }}>
+                                      {initials}
+                                    </div>
+                                  )}
+                                  <div style={{
+                                    flex: 1, minWidth: 0,
+                                    fontSize: '0.875rem', fontWeight: 600, color: '#1A1A2E',
+                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                  }}>
+                                    {displayName}
+                                  </div>
+                                  {isCreator && (
+                                    <span style={{
+                                      fontSize: '0.6rem', fontWeight: 700,
+                                      letterSpacing: '0.05em', textTransform: 'uppercase',
+                                      background: 'rgba(10,126,140,0.08)', color: '#0A7E8C',
+                                      borderRadius: 9999, padding: '2px 8px', flexShrink: 0,
+                                    }}>
+                                      Creador
+                                    </span>
+                                  )}
+                                </div>
+                              )
+                            })}
+
+                            {/* Pending members */}
+                            {pendingMembers.map((pm: any, i: number) => (
+                              <div key={pm.id} style={{
+                                display: 'flex', alignItems: 'center',
+                                gap: 10, padding: '10px 14px',
+                                borderBottom: i < pendingMembers.length - 1 ? '1px solid rgba(10,126,140,0.06)' : 'none',
+                              }}>
+                                <div style={{
+                                  width: 28, height: 28, borderRadius: '50%',
+                                  background: 'rgba(232,145,58,0.12)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  flexShrink: 0,
+                                }}>
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                                    stroke="#E8913A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <polyline points="12 6 12 12 16 14"/>
+                                  </svg>
+                                </div>
+                                <div style={{
+                                  flex: 1, minWidth: 0,
+                                  fontSize: '0.875rem', fontWeight: 500, color: '#5a7478',
+                                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                }}>
+                                  {pm.email}
+                                </div>
+                                <span style={{
+                                  fontSize: '0.6rem', fontWeight: 700,
+                                  letterSpacing: '0.05em', textTransform: 'uppercase',
+                                  background: 'rgba(232,145,58,0.12)', color: '#E8913A',
+                                  borderRadius: 9999, padding: '2px 8px', flexShrink: 0,
+                                }}>
+                                  Pendiente
+                                </span>
+                              </div>
+                            ))}
+
+                            {/* Invitar */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMembersMenuOpen(false)
+                                setInviteError(null)
+                                setInviteEmail('')
+                                setSsOpen(true)
+                              }}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 10,
+                                width: '100%', padding: '11px 14px',
+                                background: 'rgba(10,126,140,0.04)',
+                                border: 'none',
+                                borderTop: '1px solid rgba(10,126,140,0.08)',
+                                cursor: 'pointer',
+                                fontSize: '0.875rem', fontWeight: 700,
+                                color: '#0A7E8C', fontFamily: 'inherit',
+                                transition: 'background 0.15s',
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.08)' }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.04)' }}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="12" y1="5" x2="12" y2="19" />
+                                <line x1="5" y1="12" x2="19" y2="12" />
+                              </svg>
+                              Invitar persona
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Botón Invitar */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInviteError(null)
+                          setInviteEmail('')
+                          setSsOpen(true)
+                        }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 6,
+                          background: 'rgba(10,126,140,0.07)',
+                          color: '#0A7E8C',
+                          border: 'none',
+                          borderRadius: 9999,
+                          padding: '7px 14px',
+                          fontSize: '0.8125rem', fontWeight: 700,
+                          cursor: 'pointer', fontFamily: 'inherit',
+                          transition: 'background 0.15s',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.14)' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.07)' }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24"
+                          fill="none" stroke="currentColor"
+                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                          <circle cx="9" cy="7" r="4" />
+                          <line x1="19" y1="8" x2="19" y2="14" />
+                          <line x1="22" y1="11" x2="16" y2="11" />
+                        </svg>
+                        Invitar
+                      </button>
+
+                      {/* Menú ⋯ */}
+                      <div ref={headerMenuRef} style={{ position: 'relative' }}>
+                        <button
+                          type="button"
+                          onClick={() => setHeaderMenuOpen(prev => !prev)}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            width: 34, height: 34,
+                            background: headerMenuOpen ? 'rgba(10,126,140,0.14)' : 'rgba(10,126,140,0.07)',
+                            color: '#5a7478',
+                            border: 'none',
+                            borderRadius: 9999,
+                            cursor: 'pointer', fontFamily: 'inherit',
+                            transition: 'background 0.15s',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!headerMenuOpen) e.currentTarget.style.background = 'rgba(10,126,140,0.14)'
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!headerMenuOpen) e.currentTarget.style.background = 'rgba(10,126,140,0.07)'
+                          }}
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="1" />
+                            <circle cx="19" cy="12" r="1" />
+                            <circle cx="5" cy="12" r="1" />
+                          </svg>
+                        </button>
+
+                        {headerMenuOpen && (
+                          <div style={{
+                            position: 'absolute', top: '100%', right: 0,
+                            background: 'white',
+                            borderRadius: '0.85rem',
+                            boxShadow: '0 12px 40px rgba(0,0,0,0.12)',
+                            border: '1px solid rgba(10,126,140,0.08)',
+                            zIndex: 50, marginTop: 6,
+                            minWidth: 240, overflow: 'hidden',
+                          }}>
+                            {/* Cerrar / Reabrir tema */}
+                            {sharedCase.status === 'activa' ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setHeaderMenuOpen(false)
+                                  setCloseModalOpen(true)
+                                }}
+                                style={{
+                                  display: 'block', width: '100%',
+                                  padding: '11px 18px', background: 'none',
+                                  border: 'none', cursor: 'pointer',
+                                  textAlign: 'left', fontSize: '0.875rem',
+                                  color: '#ba1a1a', fontWeight: 600,
+                                  fontFamily: 'inherit',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(186,26,26,0.06)' }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                              >
+                                Cerrar tema
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setHeaderMenuOpen(false)
+                                  handleReopenCase()
+                                }}
+                                disabled={closingLoading}
+                                style={{
+                                  display: 'block', width: '100%',
+                                  padding: '11px 18px', background: 'none',
+                                  border: 'none', cursor: closingLoading ? 'not-allowed' : 'pointer',
+                                  textAlign: 'left', fontSize: '0.875rem',
+                                  color: '#0A7E8C', fontWeight: 600,
+                                  fontFamily: 'inherit',
+                                  opacity: closingLoading ? 0.6 : 1,
+                                }}
+                                onMouseEnter={e => { if (!closingLoading) e.currentTarget.style.background = 'rgba(10,126,140,0.06)' }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                              >
+                                {closingLoading ? 'Reabriendo…' : 'Reabrir tema'}
+                              </button>
+                            )}
+
+                            <div style={{ height: 1, background: 'rgba(10,126,140,0.08)', margin: '4px 0' }} />
+
+                            {/* Editar nombre y descripción — disabled */}
+                            <div
+                              title="Próximamente"
+                              style={{
+                                padding: '11px 18px',
+                                fontSize: '0.875rem',
+                                color: '#a0adb1',
+                                cursor: 'not-allowed',
+                                display: 'flex', alignItems: 'center',
+                                justifyContent: 'space-between', gap: 8,
+                              }}
+                            >
+                              <span>Editar nombre y descripción</span>
+                              <span style={{
+                                fontSize: '0.6rem', fontWeight: 700,
+                                letterSpacing: '0.06em', textTransform: 'uppercase',
+                                color: '#a0adb1',
+                                background: 'rgba(160,173,177,0.12)',
+                                padding: '2px 7px', borderRadius: 9999,
+                              }}>
+                                Pronto
+                              </span>
+                            </div>
+
+                            {/* Abandonar tema — disabled */}
+                            <div
+                              title="Próximamente"
+                              style={{
+                                padding: '11px 18px',
+                                fontSize: '0.875rem',
+                                color: '#a0adb1',
+                                cursor: 'not-allowed',
+                                display: 'flex', alignItems: 'center',
+                                justifyContent: 'space-between', gap: 8,
+                              }}
+                            >
+                              <span>Abandonar tema</span>
+                              <span style={{
+                                fontSize: '0.6rem', fontWeight: 700,
+                                letterSpacing: '0.06em', textTransform: 'uppercase',
+                                color: '#a0adb1',
+                                background: 'rgba(160,173,177,0.12)',
+                                padding: '2px 7px', borderRadius: 9999,
+                              }}>
+                                Pronto
+                              </span>
+                            </div>
+
+                            <div style={{ height: 1, background: 'rgba(10,126,140,0.08)', margin: '4px 0' }} />
+
+                            {/* Borrar tema — disabled */}
+                            <div
+                              title="Próximamente"
+                              style={{
+                                padding: '11px 18px',
+                                fontSize: '0.875rem',
+                                color: '#a0adb1',
+                                cursor: 'not-allowed',
+                                display: 'flex', alignItems: 'center',
+                                justifyContent: 'space-between', gap: 8,
+                              }}
+                            >
+                              <span>Borrar tema</span>
+                              <span style={{
+                                fontSize: '0.6rem', fontWeight: 700,
+                                letterSpacing: '0.06em', textTransform: 'uppercase',
+                                color: '#a0adb1',
+                                background: 'rgba(160,173,177,0.12)',
+                                padding: '2px 7px', borderRadius: 9999,
+                              }}>
+                                Pronto
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
-
-              {/* ── Header ────────────────────────────────────────────── */}
-              <div style={{ marginBottom: 32 }}> 
- 
-                <h1 className="font-extrabold text-[#1A1A2E]"
-                  style={{ fontSize: '2rem', letterSpacing: '-0.03em', marginBottom: 6, lineHeight: 1.15 }}>
-                  {sharedCase.name}
-                </h1>
- 
-              </div>
  
 
               {/* ── Lo que sé ────────────────────────────────────────── */}
               {myMember && (
                 <div style={{ marginBottom: 32 }}>
-                  <div style={{
-                    background: '#FFFFFF',
-                    borderRadius: '1.5rem',
-                    boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
-                    marginTop: 20, overflow: 'hidden',
-                    textAlign: 'left',
-                  }}>
-                    <button
-                      type="button"
-                      onClick={() => setCtxOpen(prev => !prev)}
-                      style={{
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '14px 20px',
-                        background: 'none',
-                        border: 'none',
-                        borderBottom: '1px solid rgba(10,126,140,0.08)',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                      }}
-                    >
-                      <span style={{
-                        fontSize: '0.7rem', fontWeight: 700,
-                        letterSpacing: '0.12em', textTransform: 'uppercase',
-                        color: '#5a7478',
-                      }}>
-                        Lo que sé
-                      </span>
-                      <svg
-                        width="16" height="16" viewBox="0 0 24 24"
-                        fill="none" stroke="#5a7478"
-                        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                        style={{
-                          flexShrink: 0,
-                          transition: 'transform 0.2s',
-                          transform: ctxOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
-                        }}
-                      >
-                        <polyline points="6 9 12 15 18 9" />
-                      </svg>
-                    </button>
-
-                    {/* Context paragraph that collapses */}
-                    {ctxOpen && aiSummary && (
-                      <p style={{
-                        fontSize: '0.8125rem',
-                        color: '#5a7478',
-                        lineHeight: 1.55,
-                        margin: 0,
-                        padding: '16px 20px',
-                        borderBottom: '1px solid rgba(10,126,140,0.08)',
-                        background: 'rgba(10,126,140,0.03)',
-                      }}>
-                        {aiSummary}
-                      </p>
-                    )}
-
-                    {/* Minichat div that always renders */}
-                    <div style={{ padding: '16px 20px' }}>
-                      {!chatOpen ? (
-                        <>
-                          {ctxEditing ? (
-                            /* ── Edit mode ── */
-                            <>
-                              <textarea
-                                value={personalCtx}
-                                onChange={(e) => setPersonalCtx(e.target.value)}
-                                placeholder="Agregá tu contexto personal sobre este tema…"
-                                rows={4}
-                                style={{
-                                  width: '100%', boxSizing: 'border-box',
-                                  resize: 'vertical', minHeight: 96,
-                                  border: '1.5px solid rgba(10,126,140,0.18)',
-                                  borderRadius: '0.75rem', padding: '12px',
-                                  fontSize: '0.875rem', color: '#1A1A2E',
-                                  fontFamily: 'inherit', outline: 'none',
-                                  background: '#FAF8F5', lineHeight: 1.6,
-                                  display: 'block', marginBottom: 12,
-                                }}
-                              />
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }}>
-                                {ctxSaved && (
-                                  <span style={{ fontSize: '0.8125rem', color: '#0a6e5a', fontWeight: 600 }}>
-                                    Guardado ✓
-                                  </span>
-                                )}
-                                <button
-                                  onClick={() => setCtxEditing(false)}
-                                  style={{
-                                    background: 'transparent', color: '#5a7478',
-                                    border: '1.5px solid rgba(90,116,120,0.3)', borderRadius: 9999,
-                                    padding: '7px 18px', fontSize: '0.875rem', fontWeight: 600,
-                                    cursor: 'pointer', fontFamily: 'inherit',
-                                  }}
-                                >
-                                  Cancelar
-                                </button>
-                                <button
-                                  onClick={handleSavePersonalContext}
-                                  disabled={ctxSaving}
-                                  style={{
-                                    background: ctxSaving ? 'rgba(10,126,140,0.35)' : 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                                    color: '#ffffff', border: 'none', borderRadius: 9999,
-                                    padding: '8px 20px', fontSize: '0.875rem', fontWeight: 700,
-                                    cursor: ctxSaving ? 'not-allowed' : 'pointer',
-                                    fontFamily: 'inherit', transition: 'opacity 0.15s',
-                                  }}
-                                >
-                                  {ctxSaving ? 'Guardando…' : 'Guardar'}
-                                </button>
-                              </div>
-                            </>
-                          ) : (
-                            /* ── View mode ── */
-                            <>
-                              <p style={{
-                                fontSize: '0.9375rem',
-                                color: personalCtx ? '#1A1A2E' : '#5a7478',
-                                lineHeight: 1.7, whiteSpace: 'pre-wrap',
-                                margin: '0 0 16px',
-                                fontStyle: personalCtx ? 'normal' : 'italic',
-                              }}>
-                                {personalCtx || 'Todavía no agregaste contexto personal.'}
-                              </p>
-                            </>
-                          )}
-                        </>
-                      ) : (
-                        /* ── Chat mode ── */
-                        <div>
-                          {chatDone ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                              <p style={{
-                                fontSize: '0.8125rem', color: '#5a7478',
-                                fontStyle: 'italic', margin: 0, flex: 1, textAlign: 'left',
-                              }}>
-                                Contexto actualizado. Podés cerrar este chat.
-                              </p>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setChatOpen(false)
-                                  setChatDone(false)
-                                  setChatMsgs([])
-                                }}
-                                style={{
-                                  padding: '6px 14px', borderRadius: 9999,
-                                  border: '1.5px solid rgba(10,126,140,0.25)',
-                                  background: 'white', color: '#0A7E8C',
-                                  fontSize: '0.8125rem', fontWeight: 600,
-                                  cursor: 'pointer', flexShrink: 0,
-                                  fontFamily: 'inherit',
-                                }}
-                              >
-                                Cerrar
-                              </button>
-                            </div>
-                          ) : (
-                            <>
-                              {/* Pregunta actual */}
-                              {isTyping ? (
-                                <div style={{ display: 'flex', gap: 5, alignItems: 'center', marginBottom: 16 }}>
-                                  {[0, 1, 2].map(i => (
-                                    <span key={i} style={{
-                                      width: 7, height: 7, borderRadius: '50%',
-                                      background: '#0A7E8C', display: 'inline-block',
-                                      animation: `typingDot 1.2s ease-in-out ${i * 0.2}s infinite`,
-                                    }} />
-                                  ))}
-                                </div>
-                              ) : chatQuestion && (
-                                <p style={{
-                                  fontSize: '0.875rem', fontWeight: 600,
-                                  color: '#1A1A2E', marginBottom: 12, marginTop: 0,
-                                  textAlign: 'left',
-                                }}>
-                                  {chatQuestion}
-                                </p>
-                              )}
-
-                              {/* Mensajes del chat */}
-                              {chatMsgs.length > 0 && (
-                                <div
-                                  ref={chatLogRef}
-                                  style={{
-                                    maxHeight: 180, overflowY: 'auto',
-                                    display: 'flex', flexDirection: 'column',
-                                    gap: 8, marginBottom: 12,
-                                  }}
-                                >
-                                  {chatMsgs.map(msg => (
-                                    <div key={msg.id} style={{
-                                      display: 'flex',
-                                      justifyContent: msg.from === 'user' ? 'flex-end' : 'flex-start',
-                                    }}>
-                                      <div style={{
-                                        maxWidth: '80%', padding: '8px 13px',
-                                        borderRadius: msg.from === 'user'
-                                          ? '1.2rem 1.2rem 0.3rem 1.2rem'
-                                          : '1.2rem 1.2rem 1.2rem 0.3rem',
-                                        background: msg.from === 'user'
-                                          ? 'linear-gradient(135deg, #0A7E8C, #2ECDA7)'
-                                          : 'rgba(10,126,140,0.08)',
-                                        color: msg.from === 'user' ? '#fff' : '#1A1A2E',
-                                        fontSize: '0.875rem', lineHeight: 1.5,
-                                      }}>
-                                        {msg.text}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-
-                              {/* Chips de sugerencias */}
-                              {!isTyping && chatSuggestions.length > 0 && (
-                                <div style={{
-                                  display: 'flex', flexWrap: 'wrap', gap: 8,
-                                  marginBottom: 12,
-                                }}>
-                                  {chatSuggestions.map((s, i) => (
-                                    <button
-                                      key={i}
-                                      type="button"
-                                      onClick={() => handleChatSubmit(s)}
-                                      disabled={isTyping}
-                                      style={{
-                                        padding: '6px 14px', borderRadius: 9999,
-                                        border: '1.5px solid rgba(10,126,140,0.25)',
-                                        background: 'white', color: '#0A7E8C',
-                                        fontSize: '0.8125rem', fontWeight: 600,
-                                        cursor: isTyping ? 'not-allowed' : 'pointer',
-                                        opacity: isTyping ? 0.5 : 1,
-                                        fontFamily: 'inherit',
-                                      }}
-                                      onMouseEnter={e => {
-                                        if (!isTyping) e.currentTarget.style.background = 'rgba(10,126,140,0.06)'
-                                      }}
-                                      onMouseLeave={e => {
-                                        e.currentTarget.style.background = 'white'
-                                      }}
-                                    >
-                                      {s}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-
-                              {/* Input libre */}
-                              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                                <textarea
-                                  value={chatInput}
-                                  onChange={e => setChatInput(e.target.value)}
-                                  onKeyDown={e => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                      e.preventDefault()
-                                      handleChatSubmit(chatInput)
-                                    }
-                                  }}
-                                  disabled={isTyping || chatDone}
-                                  placeholder={chatDone ? 'Contexto actualizado' : 'O escribí tu respuesta…'}
-                                  rows={1}
-                                  style={{
-                                    flex: 1,
-                                    border: '1.5px solid rgba(10,126,140,0.12)',
-                                    borderRadius: '1rem',
-                                    padding: '10px 14px',
-                                    fontSize: '0.875rem',
-                                    lineHeight: 1.5,
-                                    resize: 'none',
-                                    outline: 'none',
-                                    fontFamily: 'inherit',
-                                    color: '#1A1A2E',
-                                    background: '#FAF8F5',
-                                    minHeight: 42,
-                                    maxHeight: 100,
-                                    opacity: (isTyping || chatDone) ? 0.5 : 1,
-                                  }}
-                                  onFocus={e => { e.currentTarget.style.borderColor = '#0A7E8C' }}
-                                  onBlur={e => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)' }}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleChatSubmit(chatInput)}
-                                  disabled={isTyping || !chatInput.trim() || chatDone}
-                                  style={{
-                                    width: 42, height: 42, borderRadius: '50%',
-                                    border: 'none',
-                                    cursor: (isTyping || !chatInput.trim() || chatDone)
-                                      ? 'not-allowed' : 'pointer',
-                                    background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                                    display: 'flex', alignItems: 'center',
-                                    justifyContent: 'center', flexShrink: 0,
-                                    opacity: (isTyping || !chatInput.trim() || chatDone) ? 0.4 : 1,
-                                  }}
-                                >
-                                  <svg width="16" height="16" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor"
-                                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <line x1="22" y1="2" x2="11" y2="13" />
-                                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                                  </svg>
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <ContextStripDrawer
+                    contextText={aiSummary || null}
+                    onSendNovedad={(text) => handleChatSubmit(text)}
+                    isSendingNovedad={isTyping}
+                  />
                 </div>
               )}
 
               {/* ── Nueva disposición ─────────────────────────────────── */}
               <div className="tema-layout" style={{
                 display: 'grid',
-                gridTemplateColumns: 'minmax(0, 220px) 1fr',
+                gridTemplateColumns: '3fr 2fr',
                 gap: 24,
                 alignItems: 'start',
                 marginBottom: 32,
               }}>
 
-                {/* Columna izquierda — Historia */}
-                <div>
-                  <SectionTitle>Historia</SectionTitle>
-                  <Card style={{ padding: 0 }}>
-                    {history.length === 0 ? (
-                      <p style={{
-                        fontSize: '0.875rem', color: '#5a7478',
-                        fontStyle: 'italic', padding: '20px 24px', margin: 0,
-                      }}>
-                        Sin historial todavía.
-                      </p>
-                    ) : (
-                      history.map((h, i) => (
-                        <div key={h.id} style={{
-                          padding: '16px 24px',
-                          borderBottom: i < history.length - 1 ? '1px solid rgba(10,126,140,0.08)' : 'none',
-                        }}>
-                          <div className="font-semibold text-[#1A1A2E]" style={{ fontSize: '0.875rem', marginBottom: 2 }}>
-                            {h.title}
-                          </div>
-                          {h.description && (
-                            <div style={{ fontSize: '0.8125rem', color: '#5a7478', marginBottom: 4 }}>
-                              {h.task_id ? (
-                                <span>
-                                  {h.description.replace(/"([^"]+)"/, '').trim()}{' '}
-                                  <span
-                                    onClick={() => router.push(`/case/shared/${id}/tarea/${h.task_id}`)}
-                                    style={{
-                                      color: '#0A7E8C',
-                                      textDecoration: 'underline',
-                                      textUnderlineOffset: 3,
-                                      cursor: 'pointer',
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    {h.description.match(/"([^"]+)"/)?.[1] ?? h.task_id ?? 'ver tarea'}
-                                  </span>
-                                </span>
-                              ) : h.document_id ? (
-                                <span>
-                                  {h.description.replace(/"([^"]+)"/, '').trim()}{' '}
-                                  <span
-                                    onClick={() => router.push(`/case/shared/${id}/documento/${h.document_id}`)}
-                                    style={{
-                                      color: '#0A7E8C',
-                                      textDecoration: 'underline',
-                                      textUnderlineOffset: 3,
-                                      cursor: 'pointer',
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    {h.description.match(/"([^"]+)"/)?.[1] ?? h.document_id ?? 'ver documento'}
-                                  </span>
-                                </span>
-                              ) : (
-                                h.description
-                              )}
-                            </div>
-                          )}
-                          <div style={{ fontSize: '0.65rem', color: '#5a7478' }}>
-                            {fmtLongDate(h.occurred_at)}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </Card>
-                </div>
+                {/* ── Columna izquierda — Tareas + Documentos ───────── */}
+                <div className="col-left" style={{ display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0 }}>
 
-                {/* Columna derecha */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-
-                  {/* Fila 1: Tareas + Documentos */}
-                  <div className="tareas-docs-grid" style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: 24,
-                    alignItems: 'start',
-                  }}>
-
-                {/* ── Tareas ─────────────────────────────────────────── */}
-                <div>
-                  <SectionTitle>Tareas</SectionTitle>
-                  <Card>
-                    {tasks.filter(t => t.status === 'pendiente').length > 0 ? (
-                      <div className="flex flex-col">
-                        {tasks.filter(t => t.status === 'pendiente').map((t, i, arr) => {
-                          const contact = t.assigned_contact_id ? contactById.get(t.assigned_contact_id) : null
-                          let avInitials = '', avBg = ''
-                          if (t.assigned_to_user) {
-                            avInitials = 'Yo'; avBg = 'linear-gradient(135deg, #0A7E8C, #2ECDA7)'
-                          } else if (contact) {
-                            avInitials = (contact.initials ?? getInitials(contact.name)).slice(0, 2)
-                            avBg = 'linear-gradient(135deg, #f4ab66, #E8913A)'
-                          }
-                          return (
-                            <div
-                              key={t.id}
-                              className="flex items-center cursor-pointer rounded-md"
-                              onClick={() => router.push(`/case/shared/${id}/tarea/${t.id}`)}
-                              style={{
-                                gap: 14, padding: '13px 6px',
-                                borderBottom: i < arr.length - 1 ? '1px solid rgba(10,126,140,0.12)' : 'none',
-                                margin: '0 -6px', transition: 'background 0.15s',
-                              }}
-                              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(61,199,166,0.07)' }}
-                              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
-                            >
-                              <div className="flex-1 min-w-0">
-                                <div style={{ fontSize: '0.875rem', color: '#1A1A2E', fontWeight: 600 }}>
-                                  {t.title}
-                                </div>
-                                <div style={{ fontSize: '0.7rem', color: '#5a7478', marginTop: 2 }}>
-                                  {t.due_date ? `Vence el ${fmtLongDate(t.due_date)}` : 'Sin fecha'}
-                                </div>
-                              </div>
-                              {(taskDocCounts.get(t.id) ?? 0) > 0 && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                                    stroke="#5a7478" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                    <polyline points="14 2 14 8 20 8" />
-                                  </svg>
-                                  {(taskDocCounts.get(t.id) ?? 0) > 1 && (
-                                    <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#5a7478' }}>
-                                      {taskDocCounts.get(t.id)}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                              {avInitials && (
-                                <div className="rounded-full flex items-center justify-center flex-shrink-0 text-white"
-                                  style={{ width: 24, height: 24, fontSize: '0.62rem', fontWeight: 700, background: avBg }}>
-                                  {avInitials}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-[#5a7478] text-center" style={{ fontSize: '0.875rem', padding: '24px 0' }}>
-                        Sin tareas todavía
-                      </p>
-                    )}
-                    <div style={{ borderTop: '1px solid rgba(10,126,140,0.12)', marginTop: 4 }}>
-                      <button
-                        type="button"
-                        onClick={() => router.push(`/case/shared/${id}/tarea/nueva`)}
-                        className="flex items-center gap-3 w-full bg-transparent border-0 text-left cursor-pointer"
-                        style={{ padding: '12px 0' }}
-                      >
-                        <div className="rounded-full flex items-center justify-center flex-shrink-0"
-                          style={{ width: 40, height: 40, background: 'rgba(61,199,166,0.08)', border: '1.5px dashed rgba(61,199,166,0.5)' }}>
-                          <IconAddTask />
-                        </div>
-                        <span className="font-bold text-[#0A7E8C]" style={{ fontSize: '0.875rem' }}>
-                          Agregar tarea
-                        </span>
-                      </button>
-                    </div>
-                  </Card>
-                  <div style={{ marginTop: 12, textAlign: 'right' }}>
-                    <Link
-                      href={`/case/shared/${id}/finalizadas`}
-                      style={{
-                        fontSize: '0.75rem', fontWeight: 600,
-                        color: '#5a7478', textDecoration: 'none',
-                        display: 'inline-flex', alignItems: 'center', gap: 4,
-                      }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#0A7E8C' }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = '#5a7478' }}
-                    >
-                      Ver tareas finalizadas →
-                    </Link>
-                  </div>
-                </div>
-
-                {/* ── Documentos ─────────────────────────────────────── */}
-                <div>
-                  <SectionTitle>Documentos</SectionTitle>
-                  <Card>
-                    {docs.length > 0 ? (
-                      <div className="flex flex-col" style={{ gap: 10 }}>
-                        {docs.map((d) => {
-                          const uploaderLabel = d.uploaded_by_user
-                            ? 'Cargado por vos'
-                            : d.uploaded_by_contact_id
-                              ? `Cargado por ${contactById.get(d.uploaded_by_contact_id)?.name ?? '—'}`
-                              : ''
-                          return (
-                            <div key={d.id} className="flex items-center cursor-pointer"
-                              onClick={() => router.push(`/case/shared/${id}/documento/${d.id}`)}
-                              style={{ gap: 12, padding: '10px 12px', background: 'rgba(10,126,140,0.04)', borderRadius: '0.6rem', transition: 'background 0.15s' }}
-                              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(61,199,166,0.07)' }}
-                              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.04)' }}
-                            >
-                              <div className="rounded-lg flex items-center justify-center flex-shrink-0"
-                                style={{ width: 36, height: 36, background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)' }}>
-                                <IconDoc />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="font-semibold text-[#1A1A2E] truncate" style={{ fontSize: '0.875rem' }}>
-                                  {d.name}
-                                </div>
-                                <div style={{ fontSize: '0.7rem', color: '#5a7478', marginTop: 2 }}>
-                                  {[DOC_TYPE_LABELS[d.type ?? ''], fmtShortDate(d.created_at), uploaderLabel].filter(Boolean).join(' · ')}
-                                </div>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-[#5a7478] text-center" style={{ fontSize: '0.875rem', padding: '24px 0' }}>
-                        Sin documentos cargados
-                      </p>
-                    )}
-                    <div style={{ borderTop: '1px solid rgba(10,126,140,0.12)', marginTop: 4 }}>
-                      <button type="button" onClick={() => router.push(`/case/shared/${id}/documento/nuevo`)}
-                        className="flex items-center gap-3 w-full bg-transparent border-0 text-left cursor-pointer"
-                        style={{ padding: '12px 0' }}>
-                        <div className="rounded-full flex items-center justify-center flex-shrink-0"
-                          style={{ width: 40, height: 40, background: 'rgba(61,199,166,0.08)', border: '1.5px dashed rgba(61,199,166,0.5)' }}>
-                          <IconUpload />
-                        </div>
-                        <span className="font-bold text-[#0A7E8C]" style={{ fontSize: '0.875rem' }}>Agregar documento</span>
-                      </button>
-                    </div>
-                  </Card>
-                </div>
-                  </div>
-
-                  {/* Fila 2: Participantes */}
-                  <div>
-                    <SectionTitle>Participantes</SectionTitle>
-                    <Card>
-                  {members.map((m, i) => {
-                    const isCreator    = m.user_id === sharedCase.created_by
-                    const displayName  = (m.profile as any)?.full_name || m.email
-                    const initials     = getInitials(displayName).slice(0, 2)
-                    const avatarUrl    = (m.profile as any)?.avatar_url ?? null
-                    return (
-                      <div key={m.id} className="flex items-center"
-                        style={{
-                          gap: 12, padding: '12px 0',
-                          borderBottom: i < members.length - 1 ? '1px solid rgba(10,126,140,0.12)' : 'none',
-                        }}>
-                        {avatarUrl ? (
-                          <img
-                            src={avatarUrl}
-                            alt={displayName}
-                            style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-                          />
-                        ) : (
-                          <div className="rounded-full flex items-center justify-center flex-shrink-0 text-white"
-                            style={{
-                              width: 36, height: 36, fontSize: '0.75rem', fontWeight: 700,
-                              background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                            }}>
-                            {initials}
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-[#1A1A2E] truncate" style={{ fontSize: '0.875rem' }}>
-                            {displayName}
-                          </div>
-                          {m.joined_at && (
-                            <div style={{ fontSize: '0.7rem', color: '#5a7478', marginTop: 2 }}>
-                              Se sumó {fmtShortDate(m.joined_at)}
-                            </div>
-                          )}
-                        </div>
-                        {isCreator && (
-                          <span style={{
-                            fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em',
-                            textTransform: 'uppercase',
-                            background: 'rgba(10,126,140,0.08)', color: '#0A7E8C',
-                            borderRadius: 9999, padding: '3px 10px', flexShrink: 0,
-                          }}>
-                            Creador
-                          </span>
-                        )}
-                      </div>
-                    )
-                  })}
-
-                  {pendingMembers.map((pm, i) => (
-                    <div key={pm.id} style={{
-                      display: 'flex', alignItems: 'center',
-                      gap: 12, padding: '12px 0',
-                      borderBottom: '1px solid rgba(10,126,140,0.12)',
+                  {/* ── Tareas ─────────────────────────────────────────── */}
+                  <div className="order-1" style={{width: '100%'}}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: 16,
+                      gap: 12,
                     }}>
-                      <div style={{
-                        width: 36, height: 36, borderRadius: '50%',
-                        background: 'rgba(232,145,58,0.12)',
-                        display: 'flex', alignItems: 'center',
-                        justifyContent: 'center', flexShrink: 0,
-                      }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24"
-                          fill="none" stroke="#E8913A" strokeWidth="1.8"
-                          strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="12" cy="12" r="10"/>
-                          <polyline points="12 6 12 12 16 14"/>
-                        </svg>
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{
-                          fontSize: '0.875rem', fontWeight: 600,
-                          color: '#1A1A2E',
-                          overflow: 'hidden', textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}>
-                          {pm.email}
-                        </div>
-                      </div>
-                      <span style={{
-                        fontSize: '0.65rem', fontWeight: 700,
-                        letterSpacing: '0.05em', textTransform: 'uppercase',
-                        background: 'rgba(232,145,58,0.12)', color: '#E8913A',
-                        borderRadius: 9999, padding: '3px 10px', flexShrink: 0,
-                      }}>
-                        Pendiente
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setRemovePendingId(pm.id)}
+                      <p className="font-bold uppercase text-[#5a7478]"
                         style={{
-                          background: 'none', border: 'none',
-                          cursor: 'pointer', color: '#5a7478',
-                          padding: 4, flexShrink: 0,
-                          display: 'flex', alignItems: 'center',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.color = '#ba1a1a' }}
-                        onMouseLeave={e => { e.currentTarget.style.color = '#5a7478' }}
-                        title="Quitar invitación"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24"
-                          fill="none" stroke="currentColor" strokeWidth="2"
-                          strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="18" y1="6" x2="6" y2="18"/>
-                          <line x1="6" y1="6" x2="18" y2="18"/>
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
+                          fontSize: '0.875rem',
+                          letterSpacing: '0.1em',
+                          margin: 0,
+                        }}>
+                        Tareas
+                        {(() => {
+                          const activeCount = tasks.filter(t => t.status === 'pendiente').length
+                          return activeCount > 0 ? (
+                            <span style={{
+                              marginLeft: 8,
+                              color: '#5a7478',
+                              fontWeight: 700,
+                              fontSize: '0.8125rem',
+                              letterSpacing: '0.05em',
+                            }}>
+                              · {activeCount}
+                            </span>
+                          ) : null
+                        })()}
+                      </p>
 
-                  {/* Invite button */}
-                  <div style={{ borderTop: members.length > 0 ? '1px solid rgba(10,126,140,0.12)' : 'none', marginTop: 4 }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setInviteError(null)
-                        setInviteEmail('')
-                        setSsOpen(true)
-                      }}
-                      className="flex items-center gap-3 w-full bg-transparent border-0 text-left cursor-pointer"
-                      style={{ padding: '12px 0' }}
-                    >
-                      <div className="rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{ width: 40, height: 40, background: 'rgba(61,199,166,0.08)', border: '1.5px dashed rgba(61,199,166,0.5)' }}>
-                        <IconInvitePerson />
+                      {tasks.filter(t => t.status === 'completada').length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setDoneTasksSheetOpen(true)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            color: '#0A7E8C',
+                            fontFamily: 'inherit',
+                            letterSpacing: '0.02em',
+                            textTransform: 'uppercase',
+                            padding: '4px 0',
+                            transition: 'color 0.15s',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = '#065e6a' }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = '#0A7E8C' }}
+                        >
+                          Ver finalizadas
+                        </button>
+                      )}
+                    </div>
+                    <Card>
+                      {tasks.filter(t => t.status === 'pendiente').length > 0 ? (
+                        <div className="flex flex-col">
+                          {tasks.filter(t => t.status === 'pendiente').map((t, i, arr) => {
+                            const contact = t.assigned_contact_id ? contactById.get(t.assigned_contact_id) : null
+                            let avInitials = '', avBg = ''
+                            if (t.assigned_to_user) {
+                              avInitials = 'Yo'; avBg = 'linear-gradient(135deg, #0A7E8C, #2ECDA7)'
+                            } else if (contact) {
+                              avInitials = (contact.initials ?? getInitials(contact.name)).slice(0, 2)
+                              avBg = 'linear-gradient(135deg, #f4ab66, #E8913A)'
+                            }
+                            return (
+                              <div
+                                key={t.id}
+                                className="flex items-center cursor-pointer rounded-md"
+                                onClick={() => router.push(`/case/shared/${id}/tarea/${t.id}`)}
+                                style={{
+                                  gap: 14, padding: '13px 6px',
+                                  borderBottom: i < arr.length - 1 ? '1px solid rgba(10,126,140,0.12)' : 'none',
+                                  margin: '0 -6px', transition: 'background 0.15s',
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(61,199,166,0.07)' }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <div style={{ fontSize: '0.875rem', color: '#1A1A2E', fontWeight: 600 }}>
+                                    {t.title}
+                                  </div>
+                                  <div style={{ fontSize: '0.7rem', color: '#5a7478', marginTop: 2 }}>
+                                    {t.due_date ? `Vence el ${fmtLongDate(t.due_date)}` : 'Sin fecha'}
+                                  </div>
+                                </div>
+                                {(taskDocCounts.get(t.id) ?? 0) > 0 && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                                      stroke="#5a7478" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                      <polyline points="14 2 14 8 20 8" />
+                                    </svg>
+                                    {(taskDocCounts.get(t.id) ?? 0) > 1 && (
+                                      <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#5a7478' }}>
+                                        {taskDocCounts.get(t.id)}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                {avInitials && (
+                                  <div className="rounded-full flex items-center justify-center flex-shrink-0 text-white"
+                                    style={{ width: 24, height: 24, fontSize: '0.62rem', fontWeight: 700, background: avBg }}>
+                                    {avInitials}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-[#5a7478] text-center" style={{ fontSize: '0.875rem', padding: '24px 0' }}>
+                          Sin tareas todavía
+                        </p>
+                      )}
+                      <div style={{ borderTop: '1px solid rgba(10,126,140,0.12)', marginTop: 4 }}>
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/case/shared/${id}/tarea/nueva`)}
+                          className="flex items-center gap-3 w-full bg-transparent border-0 text-left cursor-pointer"
+                          style={{ padding: '12px 0' }}
+                        >
+                          <div className="rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{ width: 40, height: 40, background: 'rgba(61,199,166,0.08)', border: '1.5px dashed rgba(61,199,166,0.5)' }}>
+                            <IconAddTask />
+                          </div>
+                          <span className="font-bold text-[#0A7E8C]" style={{ fontSize: '0.875rem' }}>
+                            Agregar tarea
+                          </span>
+                        </button>
                       </div>
-                      <span className="font-bold text-[#0A7E8C]" style={{ fontSize: '0.875rem' }}>
-                        Invitar persona
-                      </span>
-                    </button>
-                  </div>
                     </Card>
                   </div>
 
-                </div>
-              </div>
-
-              {/* ── Acciones ───────────────────────────────────────── */}
-              <div style={{ marginBottom: 32 }}>
-                <SectionTitle>Acciones</SectionTitle>
-
-                {closeError && (
-                  <div style={{
-                    marginBottom: 12, padding: '10px 16px',
-                    borderRadius: '0.75rem',
-                    background: 'rgba(186,26,26,0.07)',
-                    border: '1px solid rgba(186,26,26,0.18)',
-                    fontSize: '0.8125rem', color: '#ba1a1a', fontWeight: 600,
-                    display: 'flex', alignItems: 'center',
-                    justifyContent: 'space-between', gap: 8,
-                  }}>
-                    <span>{closeError}</span>
-                    <button
-                      onClick={() => setCloseError(null)}
+                  {/* ── Documentos ─────────────────────────────────────── */}
+                  <div className="order-3" style={{width: '100%'}}>
+                    <p className="font-bold uppercase"
                       style={{
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        color: '#ba1a1a', fontSize: '1rem', lineHeight: 1, flexShrink: 0,
-                      }}
-                    >✕</button>
+                        fontSize: '0.75rem',
+                        letterSpacing: '0.1em',
+                        color: '#5a7478',
+                        marginBottom: 12,
+                      }}>
+                      Documentos
+                    </p>
+                    <Card variant="outlined">
+                      {docs.length > 0 ? (
+                        <div className="flex flex-col" style={{ gap: 10 }}>
+                          {docs.map((d) => {
+                            const uploaderLabel = d.uploaded_by_user
+                              ? 'Cargado por vos'
+                              : d.uploaded_by_contact_id
+                                ? `Cargado por ${contactById.get(d.uploaded_by_contact_id)?.name ?? '—'}`
+                                : ''
+                            return (
+                              <div key={d.id} className="flex items-center cursor-pointer"
+                                onClick={() => router.push(`/case/shared/${id}/documento/${d.id}`)}
+                                style={{ gap: 12, padding: '10px 12px', background: 'rgba(10,126,140,0.04)', borderRadius: '0.6rem', transition: 'background 0.15s' }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(61,199,166,0.07)' }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.04)' }}
+                              >
+                                <div className="rounded-lg flex items-center justify-center flex-shrink-0"
+                                  style={{ width: 36, height: 36, background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)' }}>
+                                  <IconDoc />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-semibold text-[#1A1A2E] truncate" style={{ fontSize: '0.875rem' }}>
+                                    {d.name}
+                                  </div>
+                                  <div style={{ fontSize: '0.7rem', color: '#5a7478', marginTop: 2 }}>
+                                    {[DOC_TYPE_LABELS[d.type ?? ''], fmtShortDate(d.created_at), uploaderLabel].filter(Boolean).join(' · ')}
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-[#5a7478] text-center" style={{ fontSize: '0.875rem', padding: '24px 0' }}>
+                          Sin documentos cargados
+                        </p>
+                      )}
+                      <div style={{ borderTop: '1px solid rgba(10,126,140,0.12)', marginTop: 4 }}>
+                        <button type="button" onClick={() => router.push(`/case/shared/${id}/documento/nuevo`)}
+                          className="flex items-center gap-3 w-full bg-transparent border-0 text-left cursor-pointer"
+                          style={{ padding: '12px 0' }}>
+                          <div className="rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{ width: 40, height: 40, background: 'rgba(61,199,166,0.08)', border: '1.5px dashed rgba(61,199,166,0.5)' }}>
+                            <IconUpload />
+                          </div>
+                          <span className="font-bold text-[#0A7E8C]" style={{ fontSize: '0.875rem' }}>Agregar documento</span>
+                        </button>
+                      </div>
+                    </Card>
                   </div>
-                )}
 
-                <Card style={{ padding: '13px 20px' }}>
+                  {/* ── Historia (L3 — ghost) ─────────────────────────── */}
+                  <div className="order-4" style={{width: '100%'}}>
+                    <p className="font-bold uppercase"
+                      style={{
+                        fontSize: '0.75rem',
+                        letterSpacing: '0.1em',
+                        color: '#5a7478', 
+                        marginBottom: 12,
+                      }}>
+                      Historia
+                    </p>
+                    <div style={{
+                      border: '0.5px solid rgba(10,126,140,0.08)',
+                      padding: '16px 14px', 
+                      borderRadius: '1rem',
+                    }}> 
+                      {history.length === 0 ? (
+                        <p style={{
+                          fontSize: '0.8125rem',
+                          color: 'rgba(90,116,120,0.7)',
+                          fontStyle: 'italic',
+                          margin: 0,
+                        }}>
+                          Sin historial todavía.
+                        </p>
+                      ) : (
+                        <>
+                          {history.slice(0, 5).map((h) => (
+                            <div key={h.id} style={{
+                              padding: '6px 0',
+                            }}>
+                              <div className="font-semibold text-[#1A1A2E]"
+                                style={{ fontSize: '0.8125rem', marginBottom: 2 }}>
+                                {h.title}
+                              </div>
+                              {h.description && (
+                                <div style={{
+                                  fontSize: '0.75rem',
+                                  color: 'rgba(90,116,120,0.85)',
+                                  marginBottom: 2,
+                                }}>
+                                  {h.task_id ? (
+                                    <span>
+                                      {h.description.replace(/"([^"]+)"/, '').trim()}{' '}
+                                      <span
+                                        onClick={() => router.push(`/case/shared/${id}/tarea/${h.task_id}`)}
+                                        style={{
+                                          color: '#0A7E8C',
+                                          textDecoration: 'underline',
+                                          textUnderlineOffset: 3,
+                                          cursor: 'pointer',
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        {h.description.match(/"([^"]+)"/)?.[1] ?? h.task_id ?? 'ver tarea'}
+                                      </span>
+                                    </span>
+                                  ) : h.document_id ? (
+                                    <span>
+                                      {h.description.replace(/"([^"]+)"/, '').trim()}{' '}
+                                      <span
+                                        onClick={() => router.push(`/case/shared/${id}/documento/${h.document_id}`)}
+                                        style={{
+                                          color: '#0A7E8C',
+                                          textDecoration: 'underline',
+                                          textUnderlineOffset: 3,
+                                          cursor: 'pointer',
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        {h.description.match(/"([^"]+)"/)?.[1] ?? h.document_id ?? 'ver documento'}
+                                      </span>
+                                    </span>
+                                  ) : (
+                                    h.description
+                                  )}
+                                </div>
+                              )}
+                              <div style={{
+                                fontSize: '0.625rem',
+                                color: 'rgba(90,116,120,0.7)',
+                              }}>
+                                {fmtLongDate(h.occurred_at)}
+                              </div>
+                            </div>
+                          ))}
+
+                          {history.length > 5 && (
+                            <button
+                              type="button"
+                              onClick={() => setHistorySheetOpen(true)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '0.625rem',
+                                fontWeight: 700,
+                                color: 'rgba(90,116,120,0.7)',
+                                fontFamily: 'inherit',
+                                letterSpacing: '0.05em',
+                                textTransform: 'uppercase',
+                                padding: '8px 0 0',
+                                transition: 'color 0.15s',
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.color = '#0A7E8C' }}
+                              onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(90,116,120,0.7)' }}
+                            >
+                              Ver más
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* ── Columna derecha — Conversaciones ──────────── */}
+                <div className="col-right" style={{ display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0 }}>
+
+                  {/* ── Conversaciones ─────────────────────────────── */}
+                  <div className="order-2" style={{width: '100%'}}>
+                    <SectionTitle>Conversaciones</SectionTitle>
+                <Card style={{ padding: 0 }}>
+                  {threadError && (
+                    <div style={{
+                      margin: 16, padding: '10px 14px',
+                      borderRadius: '0.75rem',
+                      background: 'rgba(186,26,26,0.07)',
+                      border: '1px solid rgba(186,26,26,0.18)',
+                      fontSize: '0.8125rem', color: '#ba1a1a', fontWeight: 600,
+                      display: 'flex', alignItems: 'center',
+                      justifyContent: 'space-between', gap: 8,
+                    }}>
+                      <span>{threadError}</span>
+                      <button
+                        onClick={() => setThreadError(null)}
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer',
+                          color: '#ba1a1a', fontSize: '1rem', lineHeight: 1, flexShrink: 0,
+                        }}
+                      >✕</button>
+                    </div>
+                  )}
+
+                  {threadsLoading ? (
+                    <p style={{
+                      fontSize: '0.875rem', color: '#5a7478',
+                      textAlign: 'center', padding: '32px 0', margin: 0,
+                    }}>
+                      Cargando…
+                    </p>
+                  ) : threads.length === 0 ? (
+                    <p style={{
+                      fontSize: '0.875rem', color: '#5a7478',
+                      fontStyle: 'italic',
+                      textAlign: 'center', padding: '32px 24px', margin: 0,
+                    }}>
+                      Sin comentarios todavía. Empezá la conversación.
+                    </p>
+                  ) : (
+                    <div>
+                      {threads.map((t, i) => {
+                        const isOwn       = t.author_id === myMember?.user_id
+                        const displayName = t.author?.full_name ?? 'Usuario'
+                        const initials    = getInitials(displayName).slice(0, 2)
+                        const avatarUrl   = t.author?.avatar_url ?? null
+                        const wasEdited   = t.updated_at !== t.created_at
+                        const isEditing   = editingThreadId === t.id
+
+                        return (
+                          <div key={t.id}
+                            onClick={() => { if (!isEditing) handleOpenThread(t) }}
+                            style={{
+                              padding: '16px 20px',
+                              borderBottom: i < threads.length - 1 ? '1px solid rgba(10,126,140,0.08)' : 'none',
+                              cursor: isEditing ? 'default' : 'pointer',
+                              transition: 'background 0.15s',
+                            }}
+                            onMouseEnter={(e) => { if (!isEditing) e.currentTarget.style.background = 'rgba(61,199,166,0.04)' }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                          >
+                            {/* Header del hilo */}
+                            <div style={{
+                              display: 'flex', alignItems: 'center', gap: 10,
+                              marginBottom: 8,
+                            }}>
+                              {avatarUrl ? (
+                                <img src={avatarUrl} alt={displayName}
+                                  style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                                />
+                              ) : (
+                                <div style={{
+                                  width: 32, height: 32, borderRadius: '50%',
+                                  background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  color: 'white', fontSize: '0.7rem', fontWeight: 700,
+                                  flexShrink: 0,
+                                }}>
+                                  {initials}
+                                </div>
+                              )}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1A1A2E' }}>
+                                  {displayName}
+                                </div>
+                                <div style={{ fontSize: '0.7rem', color: '#5a7478' }}>
+                                  {formatRelativeTime(t.created_at)}
+                                  {wasEdited && <span style={{ marginLeft: 6, fontStyle: 'italic' }}>(editado)</span>}
+                                </div>
+                              </div>
+                              {isOwn && !isEditing && (
+                                <div style={{ position: 'relative', flexShrink: 0 }}>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setOpenMenuId(openMenuId === t.id ? null : t.id)
+                                    }}
+                                    style={{
+                                      background: 'none', border: 'none',
+                                      cursor: 'pointer', padding: 4, color: '#5a7478',
+                                      display: 'flex', alignItems: 'center',
+                                      borderRadius: '0.4rem',
+                                    }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)' }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                                  >
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <circle cx="12" cy="12" r="1" />
+                                      <circle cx="12" cy="5"  r="1" />
+                                      <circle cx="12" cy="19" r="1" />
+                                    </svg>
+                                  </button>
+                                  {openMenuId === t.id && (
+                                    <>
+                                      <div
+                                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(null) }}
+                                        style={{ position: 'fixed', inset: 0, zIndex: 100 }}
+                                      />
+                                      <div style={{
+                                        position: 'absolute', top: '100%', right: 0,
+                                        background: 'white',
+                                        borderRadius: '0.75rem',
+                                        boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+                                        border: '1px solid rgba(10,126,140,0.08)',
+                                        zIndex: 101, marginTop: 4,
+                                        minWidth: 140, overflow: 'hidden',
+                                      }}>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => { e.stopPropagation(); handleStartEditThread(t) }}
+                                          style={{
+                                            display: 'block', width: '100%',
+                                            padding: '10px 16px', background: 'none',
+                                            border: 'none', cursor: 'pointer',
+                                            textAlign: 'left', fontSize: '0.875rem',
+                                            color: '#1A1A2E', fontFamily: 'inherit',
+                                          }}
+                                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(10,126,140,0.06)' }}
+                                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                                        >
+                                          Editar
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setOpenMenuId(null)
+                                            setDeleteTarget({ type: 'thread', id: t.id })
+                                          }}
+                                          style={{
+                                            display: 'block', width: '100%',
+                                            padding: '10px 16px', background: 'none',
+                                            border: 'none', cursor: 'pointer',
+                                            textAlign: 'left', fontSize: '0.875rem',
+                                            color: '#ba1a1a', fontFamily: 'inherit',
+                                          }}
+                                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(186,26,26,0.06)' }}
+                                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                                        >
+                                          Borrar
+                                        </button>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Contenido del hilo */}
+                            {isEditing ? (
+                              <div style={{ marginLeft: 42 }}>
+                                <textarea
+                                  value={editingDraft}
+                                  onChange={(e) => setEditingDraft(e.target.value)}
+                                  rows={3}
+                                  maxLength={2000}
+                                  style={{
+                                    width: '100%', boxSizing: 'border-box',
+                                    border: '1.5px solid rgba(10,126,140,0.18)',
+                                    borderRadius: '0.75rem', padding: '10px 12px',
+                                    fontSize: '0.875rem', color: '#1A1A2E',
+                                    fontFamily: 'inherit', outline: 'none',
+                                    background: '#FAF8F5', lineHeight: 1.5,
+                                    resize: 'vertical', minHeight: 70,
+                                  }}
+                                />
+                                <div style={{
+                                  display: 'flex', gap: 8, marginTop: 8,
+                                  justifyContent: 'flex-end',
+                                }}>
+                                  <button
+                                    type="button"
+                                    onClick={handleCancelEdit}
+                                    disabled={editingSaving}
+                                    style={{
+                                      background: 'transparent', color: '#5a7478',
+                                      border: '1.5px solid rgba(90,116,120,0.3)',
+                                      borderRadius: 9999, padding: '6px 16px',
+                                      fontSize: '0.8125rem', fontWeight: 600,
+                                      cursor: editingSaving ? 'not-allowed' : 'pointer',
+                                      fontFamily: 'inherit',
+                                    }}
+                                  >
+                                    Cancelar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={handleSaveEditThread}
+                                    disabled={editingSaving || !editingDraft.trim()}
+                                    style={{
+                                      background: editingSaving || !editingDraft.trim()
+                                        ? 'rgba(10,126,140,0.35)'
+                                        : 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                                      color: 'white', border: 'none',
+                                      borderRadius: 9999, padding: '7px 18px',
+                                      fontSize: '0.8125rem', fontWeight: 700,
+                                      cursor: editingSaving || !editingDraft.trim() ? 'not-allowed' : 'pointer',
+                                      fontFamily: 'inherit',
+                                    }}
+                                  >
+                                    {editingSaving ? 'Guardando…' : 'Guardar'}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div style={{ marginLeft: 42 }}>
+                                <p style={{
+                                  fontSize: '0.9375rem', color: '#1A1A2E',
+                                  lineHeight: 1.55, margin: 0,
+                                  whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                                }}>
+                                  {linkifyText(t.content)}
+                                </p>
+
+                                {t.reply_count > 0 && (
+                                  <div style={{
+                                    display: 'inline-flex', alignItems: 'center',
+                                    gap: 6, marginTop: 10,
+                                    padding: '5px 12px',
+                                    borderRadius: 9999,
+                                    background: 'rgba(10,126,140,0.06)',
+                                    color: '#0A7E8C',
+                                    fontSize: '0.75rem', fontWeight: 700,
+                                  }}>
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                                      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                                    </svg>
+                                    <span>
+                                      {t.reply_count} {t.reply_count === 1 ? 'respuesta' : 'respuestas'}
+                                      {t.last_reply_at && ` · última ${formatRelativeTime(t.last_reply_at)}`}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Input inline — crear hilo nuevo */}
                   <div style={{
-                    display: 'flex', alignItems: 'center',
-                    justifyContent: 'space-between', gap: 12,
+                    borderTop: threads.length > 0 || threadsLoading ? '1px solid rgba(10,126,140,0.12)' : 'none',
+                    padding: '14px 20px',
                   }}>
-                    <span style={{ fontSize: '0.875rem', color: '#5a7478', flex: 1 }}>
-                      {sharedCase.status === 'activa'
-                        ? 'Cerrar este tema. Lo podés reabrir más adelante.'
-                        : 'Este tema está cerrado. Podés reabrirlo si volvió a estar activo.'}
-                    </span>
-                    {sharedCase.status === 'activa' ? (
+                    <textarea
+                      value={newThreadContent}
+                      onChange={(e) => setNewThreadContent(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                          e.preventDefault()
+                          handleCreateThread()
+                        }
+                      }}
+                      placeholder="Escribí un comentario para empezar una conversación…"
+                      rows={2}
+                      maxLength={2000}
+                      disabled={threadSubmitting}
+                      style={{
+                        width: '100%', boxSizing: 'border-box',
+                        border: '1.5px solid rgba(10,126,140,0.12)',
+                        borderRadius: '0.75rem', padding: '10px 14px',
+                        fontSize: '0.875rem', color: '#1A1A2E',
+                        fontFamily: 'inherit', outline: 'none',
+                        background: '#FAF8F5', lineHeight: 1.5,
+                        resize: 'vertical', minHeight: 56,
+                        display: 'block', marginBottom: 10,
+                      }}
+                    />
+                    <div style={{
+                      display: 'flex', alignItems: 'center',
+                      justifyContent: 'space-between', gap: 12,
+                    }}>
+                      <span style={{ fontSize: '0.7rem', color: '#5a7478' }}>
+                        {newThreadContent.length}/2000 · Cmd/Ctrl + Enter para enviar
+                      </span>
                       <button
-                        onClick={() => setCloseModalOpen(true)}
+                        type="button"
+                        onClick={handleCreateThread}
+                        disabled={threadSubmitting || !newThreadContent.trim()}
                         style={{
-                          background: 'rgba(186,26,26,0.06)', color: '#ba1a1a',
-                          border: 'none', borderRadius: '0.6rem',
-                          padding: '7px 16px', fontSize: '0.875rem', fontWeight: 700,
-                          cursor: 'pointer', transition: 'background 0.15s',
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(186,26,26,0.14)' }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(186,26,26,0.06)' }}
-                      >
-                        Cerrar tema
-                      </button>
-                    ) : (
-                      <button
-                        onClick={handleReopenCase}
-                        disabled={closingLoading}
-                        style={{
-                          background: 'rgba(10,126,140,0.08)', color: '#0A7E8C',
-                          border: 'none', borderRadius: '0.6rem',
-                          padding: '7px 16px', fontSize: '0.875rem', fontWeight: 700,
-                          cursor: closingLoading ? 'not-allowed' : 'pointer',
-                          opacity: closingLoading ? 0.6 : 1,
-                          transition: 'background 0.15s',
+                          background: threadSubmitting || !newThreadContent.trim()
+                            ? 'rgba(10,126,140,0.35)'
+                            : 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                          color: 'white', border: 'none',
+                          borderRadius: 9999, padding: '8px 20px',
+                          fontSize: '0.875rem', fontWeight: 700,
+                          cursor: threadSubmitting || !newThreadContent.trim() ? 'not-allowed' : 'pointer',
+                          fontFamily: 'inherit',
                         }}
                       >
-                        {closingLoading ? 'Reabriendo…' : 'Reabrir tema'}
+                        {threadSubmitting ? 'Publicando…' : 'Publicar'}
                       </button>
-                    )}
+                    </div>
                   </div>
                 </Card>
+                  </div>
+
+                </div>
+
               </div>
+
             </>
           )}
 
@@ -1812,6 +2647,832 @@ export default function SharedCaseDetailPage({
           </div>
         </>
       )}
+
+      {/* ── Modal: borrar comentario ─────────────────────── */}
+      {deleteTarget && (
+        <>
+          <div
+            onClick={() => !deleting && setDeleteTarget(null)}
+            style={{
+              position: 'fixed', inset: 0,
+              background: 'rgba(0,0,0,0.40)', zIndex: 600,
+            }}
+          />
+          <div style={{
+            position: 'fixed', top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 601, width: 'min(92vw, 420px)',
+            background: '#FFFFFF', borderRadius: '1.5rem',
+            boxShadow: '0 24px 80px rgba(0,0,0,0.20)',
+            padding: '28px',
+          }}>
+            <p style={{
+              fontSize: '1.125rem', fontWeight: 800,
+              color: '#1A1A2E', marginBottom: 8,
+              letterSpacing: '-0.02em',
+            }}>
+              {deleteTarget.type === 'thread'
+                ? '¿Borrar este comentario?'
+                : '¿Borrar esta respuesta?'}
+            </p>
+            <p style={{
+              fontSize: '0.875rem', color: '#5a7478',
+              lineHeight: 1.6, marginBottom: 24,
+            }}>
+              {deleteTarget.type === 'thread'
+                ? 'Se va a borrar el comentario y todas sus respuestas. Esta acción no se puede deshacer.'
+                : 'Se va a borrar la respuesta. Esta acción no se puede deshacer.'}
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                style={{
+                  flex: 1, padding: '11px 0',
+                  background: 'rgba(10,126,140,0.07)',
+                  color: '#0A7E8C', border: 'none', borderRadius: 9999,
+                  fontWeight: 700, fontSize: '0.875rem',
+                  cursor: deleting ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                  opacity: deleting ? 0.5 : 1,
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                disabled={deleting}
+                style={{
+                  flex: 1, padding: '11px 0',
+                  background: deleting
+                    ? 'rgba(186,26,26,0.06)' : 'rgba(186,26,26,0.10)',
+                  color: '#ba1a1a', border: 'none', borderRadius: 9999,
+                  fontWeight: 700, fontSize: '0.875rem',
+                  cursor: deleting ? 'not-allowed' : 'pointer',
+                  opacity: deleting ? 0.6 : 1,
+                  fontFamily: 'inherit',
+                }}
+              >
+                {deleting ? 'Borrando…' : 'Borrar'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════
+          SIDESHEET — HILO DE CONVERSACIÓN
+      ══════════════════════════════════════════════════════════════ */}
+
+      {/* Overlay */}
+      <div
+        onClick={handleCloseThreadSheet}
+        style={{
+          position:      'fixed',
+          inset:         0,
+          background:    'rgba(0,0,0,0.22)',
+          zIndex:        500,
+          opacity:       threadSheetOpen ? 1 : 0,
+          pointerEvents: threadSheetOpen ? 'auto' : 'none',
+          transition:    'opacity 0.3s',
+        }}
+      />
+
+      {/* Panel */}
+      <div
+        style={{
+          position:      'fixed',
+          top:           0,
+          right:         0,
+          width:         480,
+          maxWidth:      '100vw',
+          height:        '100vh',
+          background:    '#f0f4f8',
+          zIndex:        501,
+          transform:     threadSheetOpen ? 'translateX(0)' : 'translateX(100%)',
+          transition:    'transform 0.35s cubic-bezier(0.4,0,0.2,1)',
+          display:       'flex',
+          flexDirection: 'column',
+          boxShadow:     '-6px 0 32px rgba(0,0,0,0.10)',
+        }}
+      >
+        {/* Top bar */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '20px 24px', flexShrink: 0,
+          borderBottom: '1px solid rgba(10,126,140,0.08)',
+          background: '#FFFFFF',
+        }}>
+          <span style={{
+            fontSize: '0.7rem', fontWeight: 700,
+            letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5a7478',
+          }}>
+            Conversación
+          </span>
+          <button
+            onClick={handleCloseThreadSheet}
+            style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'rgba(0,0,0,0.06)', border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#5a7478', fontSize: '1rem',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.11)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)' }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Scrollable body: thread raíz + replies */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+          {currentThread && (() => {
+            const t = currentThread
+            const isOwn = t.author_id === myMember?.user_id
+            const displayName = t.author?.full_name ?? 'Usuario'
+            const initials = getInitials(displayName).slice(0, 2)
+            const avatarUrl = t.author?.avatar_url ?? null
+            const wasEdited = t.updated_at !== t.created_at
+
+            return (
+              <div style={{
+                background: '#FFFFFF', borderRadius: '1rem',
+                padding: '16px 18px', marginBottom: 20,
+                border: '1px solid rgba(10,126,140,0.10)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={displayName}
+                      style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                    />
+                  ) : (
+                    <div style={{
+                      width: 36, height: 36, borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: 'white', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0,
+                    }}>
+                      {initials}
+                    </div>
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1A1A2E' }}>
+                      {displayName}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: '#5a7478' }}>
+                      {formatRelativeTime(t.created_at)}
+                      {wasEdited && <span style={{ marginLeft: 6, fontStyle: 'italic' }}>(editado)</span>}
+                    </div>
+                  </div>
+                  {isOwn && editingThreadId !== t.id && (
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setOpenMenuId(openMenuId === t.id ? null : t.id)
+                        }}
+                        style={{
+                          background: 'none', border: 'none',
+                          cursor: 'pointer', padding: 4, color: '#5a7478',
+                          borderRadius: '0.4rem',
+                        }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="1" />
+                          <circle cx="12" cy="5"  r="1" />
+                          <circle cx="12" cy="19" r="1" />
+                        </svg>
+                      </button>
+                      {openMenuId === t.id && (
+                        <>
+                          <div
+                            onClick={(e) => { e.stopPropagation(); setOpenMenuId(null) }}
+                            style={{ position: 'fixed', inset: 0, zIndex: 510 }}
+                          />
+                          <div style={{
+                            position: 'absolute', top: '100%', right: 0,
+                            background: 'white', borderRadius: '0.75rem',
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+                            border: '1px solid rgba(10,126,140,0.08)',
+                            zIndex: 511, marginTop: 4,
+                            minWidth: 140, overflow: 'hidden',
+                          }}>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleStartEditThread(t) }}
+                              style={{
+                                display: 'block', width: '100%',
+                                padding: '10px 16px', background: 'none',
+                                border: 'none', cursor: 'pointer',
+                                textAlign: 'left', fontSize: '0.875rem',
+                                color: '#1A1A2E', fontFamily: 'inherit',
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(10,126,140,0.06)' }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setOpenMenuId(null)
+                                setDeleteTarget({ type: 'thread', id: t.id })
+                              }}
+                              style={{
+                                display: 'block', width: '100%',
+                                padding: '10px 16px', background: 'none',
+                                border: 'none', cursor: 'pointer',
+                                textAlign: 'left', fontSize: '0.875rem',
+                                color: '#ba1a1a', fontFamily: 'inherit',
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(186,26,26,0.06)' }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                            >
+                              Borrar
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {editingThreadId === t.id ? (
+                  <div>
+                    <textarea
+                      value={editingDraft}
+                      onChange={(e) => setEditingDraft(e.target.value)}
+                      rows={3} maxLength={2000}
+                      style={{
+                        width: '100%', boxSizing: 'border-box',
+                        border: '1.5px solid rgba(10,126,140,0.18)',
+                        borderRadius: '0.75rem', padding: '10px 12px',
+                        fontSize: '0.875rem', color: '#1A1A2E',
+                        fontFamily: 'inherit', outline: 'none',
+                        background: '#FAF8F5', lineHeight: 1.5,
+                        resize: 'vertical', minHeight: 70,
+                      }}
+                    />
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
+                      <button type="button" onClick={handleCancelEdit} disabled={editingSaving}
+                        style={{
+                          background: 'transparent', color: '#5a7478',
+                          border: '1.5px solid rgba(90,116,120,0.3)',
+                          borderRadius: 9999, padding: '6px 16px',
+                          fontSize: '0.8125rem', fontWeight: 600,
+                          cursor: editingSaving ? 'not-allowed' : 'pointer',
+                          fontFamily: 'inherit',
+                        }}
+                      >Cancelar</button>
+                      <button type="button" onClick={handleSaveEditThread}
+                        disabled={editingSaving || !editingDraft.trim()}
+                        style={{
+                          background: editingSaving || !editingDraft.trim()
+                            ? 'rgba(10,126,140,0.35)' : 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                          color: 'white', border: 'none',
+                          borderRadius: 9999, padding: '7px 18px',
+                          fontSize: '0.8125rem', fontWeight: 700,
+                          cursor: editingSaving || !editingDraft.trim() ? 'not-allowed' : 'pointer',
+                          fontFamily: 'inherit',
+                        }}
+                      >{editingSaving ? 'Guardando…' : 'Guardar'}</button>
+                    </div>
+                  </div>
+                ) : (
+                  <p style={{
+                    fontSize: '0.9375rem', color: '#1A1A2E',
+                    lineHeight: 1.55, margin: 0,
+                    whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                  }}>
+                    {linkifyText(t.content)}
+                  </p>
+                )}
+              </div>
+            )
+          })()}
+
+          {replyError && (
+            <div style={{
+              marginBottom: 12, padding: '10px 14px',
+              borderRadius: '0.75rem',
+              background: 'rgba(186,26,26,0.07)',
+              border: '1px solid rgba(186,26,26,0.18)',
+              fontSize: '0.8125rem', color: '#ba1a1a', fontWeight: 600,
+              display: 'flex', alignItems: 'center',
+              justifyContent: 'space-between', gap: 8,
+            }}>
+              <span>{replyError}</span>
+              <button
+                onClick={() => setReplyError(null)}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: '#ba1a1a', fontSize: '1rem', lineHeight: 1, flexShrink: 0,
+                }}
+              >✕</button>
+            </div>
+          )}
+
+          {repliesLoading ? (
+            <p style={{
+              fontSize: '0.8125rem', color: '#5a7478',
+              textAlign: 'center', padding: '16px 0', margin: 0,
+            }}>
+              Cargando respuestas…
+            </p>
+          ) : replies.length === 0 ? (
+            <p style={{
+              fontSize: '0.8125rem', color: '#5a7478',
+              fontStyle: 'italic', textAlign: 'center',
+              padding: '16px 0', margin: 0,
+            }}>
+              Todavía no hay respuestas.
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {replies.map((r) => {
+                const isOwn = r.author_id === myMember?.user_id
+                const displayName = r.author?.full_name ?? 'Usuario'
+                const initials = getInitials(displayName).slice(0, 2)
+                const avatarUrl = r.author?.avatar_url ?? null
+                const wasEdited = r.updated_at !== r.created_at
+                const isEditing = editingReplyId === r.id
+
+                return (
+                  <div key={r.id} style={{
+                    background: '#FFFFFF', borderRadius: '0.85rem',
+                    padding: '12px 14px',
+                    border: '1px solid rgba(10,126,140,0.06)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 8 }}>
+                      {avatarUrl ? (
+                        <img src={avatarUrl} alt={displayName}
+                          style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                        />
+                      ) : (
+                        <div style={{
+                          width: 28, height: 28, borderRadius: '50%',
+                          background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          color: 'white', fontSize: '0.65rem', fontWeight: 700, flexShrink: 0,
+                        }}>
+                          {initials}
+                        </div>
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#1A1A2E' }}>
+                          {displayName}
+                        </div>
+                        <div style={{ fontSize: '0.65rem', color: '#5a7478' }}>
+                          {formatRelativeTime(r.created_at)}
+                          {wasEdited && <span style={{ marginLeft: 6, fontStyle: 'italic' }}>(editado)</span>}
+                        </div>
+                      </div>
+                      {isOwn && !isEditing && (
+                        <div style={{ position: 'relative', flexShrink: 0 }}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setOpenReplyMenuId(openReplyMenuId === r.id ? null : r.id)
+                            }}
+                            style={{
+                              background: 'none', border: 'none',
+                              cursor: 'pointer', padding: 4, color: '#5a7478',
+                              borderRadius: '0.4rem',
+                            }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                              stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <circle cx="12" cy="12" r="1" />
+                              <circle cx="12" cy="5"  r="1" />
+                              <circle cx="12" cy="19" r="1" />
+                            </svg>
+                          </button>
+                          {openReplyMenuId === r.id && (
+                            <>
+                              <div
+                                onClick={(e) => { e.stopPropagation(); setOpenReplyMenuId(null) }}
+                                style={{ position: 'fixed', inset: 0, zIndex: 510 }}
+                              />
+                              <div style={{
+                                position: 'absolute', top: '100%', right: 0,
+                                background: 'white', borderRadius: '0.75rem',
+                                boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+                                border: '1px solid rgba(10,126,140,0.08)',
+                                zIndex: 511, marginTop: 4,
+                                minWidth: 140, overflow: 'hidden',
+                              }}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); handleStartEditReply(r) }}
+                                  style={{
+                                    display: 'block', width: '100%',
+                                    padding: '10px 16px', background: 'none',
+                                    border: 'none', cursor: 'pointer',
+                                    textAlign: 'left', fontSize: '0.875rem',
+                                    color: '#1A1A2E', fontFamily: 'inherit',
+                                  }}
+                                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(10,126,140,0.06)' }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setOpenReplyMenuId(null)
+                                    setDeleteTarget({ type: 'reply', id: r.id })
+                                  }}
+                                  style={{
+                                    display: 'block', width: '100%',
+                                    padding: '10px 16px', background: 'none',
+                                    border: 'none', cursor: 'pointer',
+                                    textAlign: 'left', fontSize: '0.875rem',
+                                    color: '#ba1a1a', fontFamily: 'inherit',
+                                  }}
+                                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(186,26,26,0.06)' }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                                >
+                                  Borrar
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {isEditing ? (
+                      <div>
+                        <textarea
+                          value={editingReplyDraft}
+                          onChange={(e) => setEditingReplyDraft(e.target.value)}
+                          rows={3} maxLength={2000}
+                          style={{
+                            width: '100%', boxSizing: 'border-box',
+                            border: '1.5px solid rgba(10,126,140,0.18)',
+                            borderRadius: '0.6rem', padding: '8px 10px',
+                            fontSize: '0.8125rem', color: '#1A1A2E',
+                            fontFamily: 'inherit', outline: 'none',
+                            background: '#FAF8F5', lineHeight: 1.5,
+                            resize: 'vertical', minHeight: 60,
+                          }}
+                        />
+                        <div style={{ display: 'flex', gap: 8, marginTop: 6, justifyContent: 'flex-end' }}>
+                          <button type="button" onClick={handleCancelEditReply}
+                            disabled={editingReplySaving}
+                            style={{
+                              background: 'transparent', color: '#5a7478',
+                              border: '1.5px solid rgba(90,116,120,0.3)',
+                              borderRadius: 9999, padding: '5px 14px',
+                              fontSize: '0.75rem', fontWeight: 600,
+                              cursor: editingReplySaving ? 'not-allowed' : 'pointer',
+                              fontFamily: 'inherit',
+                            }}
+                          >Cancelar</button>
+                          <button type="button" onClick={handleSaveEditReply}
+                            disabled={editingReplySaving || !editingReplyDraft.trim()}
+                            style={{
+                              background: editingReplySaving || !editingReplyDraft.trim()
+                                ? 'rgba(10,126,140,0.35)' : 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                              color: 'white', border: 'none',
+                              borderRadius: 9999, padding: '6px 16px',
+                              fontSize: '0.75rem', fontWeight: 700,
+                              cursor: editingReplySaving || !editingReplyDraft.trim() ? 'not-allowed' : 'pointer',
+                              fontFamily: 'inherit',
+                            }}
+                          >{editingReplySaving ? 'Guardando…' : 'Guardar'}</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p style={{
+                        fontSize: '0.875rem', color: '#1A1A2E',
+                        lineHeight: 1.5, margin: 0,
+                        whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                      }}>
+                        {linkifyText(r.content)}
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
+              <div ref={repliesEndRef} />
+            </div>
+          )}
+        </div>
+
+        {/* Footer: textarea para responder */}
+        <div style={{
+          borderTop: '1px solid rgba(10,126,140,0.12)',
+          padding: '14px 20px', flexShrink: 0,
+          background: '#FFFFFF',
+        }}>
+          <textarea
+            value={replyInput}
+            onChange={(e) => setReplyInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault()
+                handleCreateReply()
+              }
+            }}
+            placeholder="Escribí una respuesta…"
+            rows={2} maxLength={2000}
+            disabled={replySubmitting}
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              border: '1.5px solid rgba(10,126,140,0.12)',
+              borderRadius: '0.75rem', padding: '10px 14px',
+              fontSize: '0.875rem', color: '#1A1A2E',
+              fontFamily: 'inherit', outline: 'none',
+              background: '#FAF8F5', lineHeight: 1.5,
+              resize: 'vertical', minHeight: 56,
+              display: 'block', marginBottom: 8,
+            }}
+          />
+          <div style={{
+            display: 'flex', alignItems: 'center',
+            justifyContent: 'space-between', gap: 12,
+          }}>
+            <span style={{ fontSize: '0.65rem', color: '#5a7478' }}>
+              {replyInput.length}/2000 · Cmd/Ctrl + Enter
+            </span>
+            <button
+              type="button"
+              onClick={handleCreateReply}
+              disabled={replySubmitting || !replyInput.trim()}
+              style={{
+                background: replySubmitting || !replyInput.trim()
+                  ? 'rgba(10,126,140,0.35)' : 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
+                color: 'white', border: 'none',
+                borderRadius: 9999, padding: '7px 18px',
+                fontSize: '0.8125rem', fontWeight: 700,
+                cursor: replySubmitting || !replyInput.trim() ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              {replySubmitting ? 'Enviando…' : 'Responder'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════
+          SIDESHEET — HISTORIA COMPLETA
+      ══════════════════════════════════════════════════════════════ */}
+
+      {/* Overlay */}
+      <div
+        onClick={() => setHistorySheetOpen(false)}
+        style={{
+          position:      'fixed',
+          inset:         0,
+          background:    'rgba(0,0,0,0.22)',
+          zIndex:        700,
+          opacity:       historySheetOpen ? 1 : 0,
+          pointerEvents: historySheetOpen ? 'auto' : 'none',
+          transition:    'opacity 0.3s',
+        }}
+      />
+
+      {/* Panel */}
+      <div
+        style={{
+          position:      'fixed',
+          top:           0,
+          right:         0,
+          width:         480,
+          maxWidth:      '100vw',
+          height:        '100vh',
+          background:    '#f0f4f8',
+          zIndex:        701,
+          transform:     historySheetOpen ? 'translateX(0)' : 'translateX(100%)',
+          transition:    'transform 0.35s cubic-bezier(0.4,0,0.2,1)',
+          display:       'flex',
+          flexDirection: 'column',
+          boxShadow:     '-6px 0 32px rgba(0,0,0,0.10)',
+        }}
+      >
+        {/* Top bar */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '20px 24px', flexShrink: 0,
+          borderBottom: '1px solid rgba(10,126,140,0.08)',
+          background: '#FFFFFF',
+        }}>
+          <span style={{
+            fontSize: '0.7rem', fontWeight: 700,
+            letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5a7478',
+          }}>
+            Historia
+          </span>
+          <button
+            onClick={() => setHistorySheetOpen(false)}
+            style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'rgba(0,0,0,0.06)', border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#5a7478', fontSize: '1rem',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.11)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)' }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Scrollable body */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+          {history.map((h, i) => (
+            <div key={h.id} style={{
+              padding: '16px 24px',
+              borderBottom: i < history.length - 1 ? '1px solid rgba(10,126,140,0.08)' : 'none',
+            }}>
+              <div className="font-semibold text-[#1A1A2E]" style={{ fontSize: '0.875rem', marginBottom: 2 }}>
+                {h.title}
+              </div>
+              {h.description && (
+                <div style={{ fontSize: '0.8125rem', color: '#5a7478', marginBottom: 4 }}>
+                  {h.task_id ? (
+                    <span>
+                      {h.description.replace(/"([^"]+)"/, '').trim()}{' '}
+                      <span
+                        onClick={() => {
+                          setHistorySheetOpen(false)
+                          router.push(`/case/shared/${id}/tarea/${h.task_id}`)
+                        }}
+                        style={{
+                          color: '#0A7E8C',
+                          textDecoration: 'underline',
+                          textUnderlineOffset: 3,
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {h.description.match(/"([^"]+)"/)?.[1] ?? h.task_id ?? 'ver tarea'}
+                      </span>
+                    </span>
+                  ) : h.document_id ? (
+                    <span>
+                      {h.description.replace(/"([^"]+)"/, '').trim()}{' '}
+                      <span
+                        onClick={() => {
+                          setHistorySheetOpen(false)
+                          router.push(`/case/shared/${id}/documento/${h.document_id}`)
+                        }}
+                        style={{
+                          color: '#0A7E8C',
+                          textDecoration: 'underline',
+                          textUnderlineOffset: 3,
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {h.description.match(/"([^"]+)"/)?.[1] ?? h.document_id ?? 'ver documento'}
+                      </span>
+                    </span>
+                  ) : (
+                    h.description
+                  )}
+                </div>
+              )}
+              <div style={{ fontSize: '0.65rem', color: '#5a7478' }}>
+                {fmtLongDate(h.occurred_at)}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════
+          SIDESHEET — TAREAS FINALIZADAS
+      ══════════════════════════════════════════════════════════════ */}
+
+      <div
+        onClick={() => setDoneTasksSheetOpen(false)}
+        style={{
+          position:      'fixed',
+          inset:         0,
+          background:    'rgba(0,0,0,0.22)',
+          zIndex:        700,
+          opacity:       doneTasksSheetOpen ? 1 : 0,
+          pointerEvents: doneTasksSheetOpen ? 'auto' : 'none',
+          transition:    'opacity 0.3s',
+        }}
+      />
+
+      <div
+        style={{
+          position:      'fixed',
+          top:           0,
+          right:         0,
+          width:         480,
+          maxWidth:      '100vw',
+          height:        '100vh',
+          background:    '#f0f4f8',
+          zIndex:        701,
+          transform:     doneTasksSheetOpen ? 'translateX(0)' : 'translateX(100%)',
+          transition:    'transform 0.35s cubic-bezier(0.4,0,0.2,1)',
+          display:       'flex',
+          flexDirection: 'column',
+          boxShadow:     '-6px 0 32px rgba(0,0,0,0.10)',
+        }}
+      >
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '20px 24px', flexShrink: 0,
+          borderBottom: '1px solid rgba(10,126,140,0.08)',
+          background: '#FFFFFF',
+        }}>
+          <span style={{
+            fontSize: '0.7rem', fontWeight: 700,
+            letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5a7478',
+          }}>
+            Tareas finalizadas
+          </span>
+          <button
+            onClick={() => setDoneTasksSheetOpen(false)}
+            style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'rgba(0,0,0,0.06)', border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#5a7478', fontSize: '1rem',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.11)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)' }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+          {(() => {
+            const doneTasks = tasks.filter(t => t.status === 'completada')
+            if (doneTasks.length === 0) {
+              return (
+                <p style={{
+                  fontSize: '0.875rem', color: '#5a7478',
+                  fontStyle: 'italic', padding: '20px 24px', margin: 0,
+                }}>
+                  Sin tareas finalizadas todavía.
+                </p>
+              )
+            }
+            return doneTasks.map((t, i, arr) => {
+              const contact = t.assigned_contact_id ? contactById.get(t.assigned_contact_id) : null
+              let avInitials = '', avBg = ''
+              if (t.assigned_to_user) {
+                avInitials = 'Yo'; avBg = 'linear-gradient(135deg, #0A7E8C, #2ECDA7)'
+              } else if (contact) {
+                avInitials = (contact.initials ?? getInitials(contact.name)).slice(0, 2)
+                avBg = 'linear-gradient(135deg, #f4ab66, #E8913A)'
+              }
+              return (
+                <div
+                  key={t.id}
+                  className="flex items-center cursor-pointer"
+                  onClick={() => {
+                    setDoneTasksSheetOpen(false)
+                    router.push(`/case/shared/${id}/tarea/${t.id}`)
+                  }}
+                  style={{
+                    gap: 14, padding: '14px 24px',
+                    borderBottom: i < arr.length - 1 ? '1px solid rgba(10,126,140,0.08)' : 'none',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(61,199,166,0.04)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div style={{
+                      fontSize: '0.875rem',
+                      color: '#5a7478',
+                      fontWeight: 400,
+                      textDecoration: 'line-through',
+                      textDecorationColor: 'rgba(90,116,120,0.5)',
+                    }}>
+                      {t.title}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: '#5a7478', marginTop: 2 }}>
+                      {t.due_date ? `Era para el ${fmtLongDate(t.due_date)}` : 'Sin fecha'}
+                    </div>
+                  </div>
+                  {avInitials && (
+                    <div className="rounded-full flex items-center justify-center flex-shrink-0 text-white"
+                      style={{ width: 24, height: 24, fontSize: '0.62rem', fontWeight: 700, background: avBg, opacity: 0.65 }}>
+                      {avInitials}
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          })()}
+        </div>
+      </div>
     </>
   )
 }

@@ -1341,31 +1341,6 @@ export default function CirculoPage() {
                         {ctxQuestion}
                       </p>
 
-                      {ctxSuggestions.length > 0 && !ctxLoading && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-                          {ctxSuggestions.map((s, i) => (
-                            <button
-                              key={i}
-                              type="button"
-                              onClick={() => handleCtxSubmit(s)}
-                              disabled={ctxLoading}
-                              style={{
-                                padding: '7px 16px', borderRadius: 9999,
-                                border: '1.5px solid rgba(10,126,140,0.25)',
-                                background: 'white', color: '#0A7E8C',
-                                fontSize: '0.875rem', fontWeight: 600,
-                                cursor: 'pointer', fontFamily: 'inherit',
-                                transition: 'background 0.15s',
-                              }}
-                              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(10,126,140,0.06)' }}
-                              onMouseLeave={e => { e.currentTarget.style.background = 'white' }}
-                            >
-                              {s}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
                       {ctxLoading && (
                         <div style={{ display: 'flex', gap: 5, alignItems: 'center', marginBottom: 14 }}>
                           {[0, 1, 2].map(i => (

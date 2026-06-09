@@ -69,6 +69,106 @@ function IconChevronRight() {
   )
 }
 
+// ── Resolved Crisis Card ──────────────────────────────────────────────────────
+
+function ResolvedCaseCard({ c }: { c: CaseWithProgress }) {
+  return (
+    <Link
+      href={`/case/${c.id}`}
+      className="block no-underline transition-all"
+      style={{
+        background:    'rgba(10,126,140,0.04)',
+        borderRadius:  '1rem',
+        padding:       '16px 20px',
+        marginBottom:  12,
+        color:         'inherit',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = 'rgba(10,126,140,0.07)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'rgba(10,126,140,0.04)'
+      }}
+    >
+      <div className="flex justify-between items-start" style={{ marginBottom: 4 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h3
+            style={{
+              fontSize: '0.9375rem',
+              fontWeight: 600,
+              color: '#5a7478',
+              marginBottom: 2,
+              letterSpacing: '-0.005em',
+            }}
+          >
+            {c.name}
+          </h3>
+        </div>
+        <span
+          className="flex-shrink-0"
+          style={{ color: '#5a7478', marginLeft: 12 }}
+        >
+          <IconChevronRight />
+        </span>
+      </div>
+
+      <div style={{ fontSize: '0.65rem', color: '#5a7478' }}>
+        Inicio: {fmtLongDate(c.started_at)}
+        {c.category ? ` · ${c.category}` : ''}
+      </div>
+    </Link>
+  )
+}
+
+// ── Resolved Shared Case Card ─────────────────────────────────────────────────
+
+function ResolvedSharedCaseCard({ sc }: { sc: SharedCase }) {
+  return (
+    <Link
+      href={`/case/shared/${sc.id}`}
+      className="block no-underline transition-all"
+      style={{
+        background:    'rgba(10,126,140,0.04)',
+        borderRadius:  '1rem',
+        padding:       '16px 20px',
+        marginBottom:  12,
+        color:         'inherit',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = 'rgba(10,126,140,0.07)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'rgba(10,126,140,0.04)'
+      }}
+    >
+      <div className="flex justify-between items-start" style={{ marginBottom: 4 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h3
+            style={{
+              fontSize: '0.9375rem',
+              fontWeight: 600,
+              color: '#5a7478',
+              marginBottom: 2,
+              letterSpacing: '-0.005em',
+            }}
+          >
+            {sc.name}
+          </h3>
+        </div>
+        <span className="flex-shrink-0" style={{ color: '#5a7478', marginLeft: 12 }}>
+          <IconChevronRight />
+        </span>
+      </div>
+
+      <div style={{ fontSize: '0.65rem', color: '#5a7478' }}>
+        Inicio: {fmtLongDate(sc.created_at)}
+        {' · '}
+        {sc.member_count} {sc.member_count === 1 ? 'miembro' : 'miembros'}
+      </div>
+    </Link>
+  )
+}
+
 // ── Crisis Card ────────────────────────────────────────────────────────────────
 
 function CaseCard({ c, isActive }: { c: CaseWithProgress; isActive: boolean }) {
@@ -525,31 +625,6 @@ export default function CaseListPage() {
                       {ctxQuestion}
                     </p>
 
-                    {ctxSuggestions.length > 0 && !ctxLoading && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-                        {ctxSuggestions.map((s, i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => handleCtxSubmit(s)}
-                            disabled={ctxLoading}
-                            style={{
-                              padding: '7px 16px', borderRadius: 9999,
-                              border: '1.5px solid rgba(10,126,140,0.25)',
-                              background: 'white', color: '#0A7E8C',
-                              fontSize: '0.875rem', fontWeight: 600,
-                              cursor: 'pointer', fontFamily: 'inherit',
-                              transition: 'background 0.15s',
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(10,126,140,0.06)' }}
-                            onMouseLeave={e => { e.currentTarget.style.background = 'white' }}
-                          >
-                            {s}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
                     {ctxLoading && (
                       <div style={{ display: 'flex', gap: 5, alignItems: 'center', marginBottom: 14 }}>
                         {[0, 1, 2].map(i => (
@@ -852,7 +927,7 @@ export default function CaseListPage() {
                 <div>
                   {resolved.length > 0 ? (
                     resolved.map((c) => (
-                      <CaseCard key={c.id} c={c} isActive={false} />
+                      <ResolvedCaseCard key={c.id} c={c} />
                     ))
                   ) : (
                     <div style={{
@@ -871,7 +946,7 @@ export default function CaseListPage() {
                 <div>
                   {resolvedShared.length > 0 ? (
                     resolvedShared.map((sc) => (
-                      <SharedCaseCard key={sc.id} sc={sc} />
+                      <ResolvedSharedCaseCard key={sc.id} sc={sc} />
                     ))
                   ) : (
                     <div style={{
