@@ -43,6 +43,7 @@ export default function OnboardingPage() {
   // ── Agent ─────────────────────────────────────────────────────────────────
   const [userId, setUserId] = useState('')
   const [createdCaseId, setCreatedCaseId] = useState<string | null>(null)
+  const [creatingCase, setCreatingCase] = useState(false)
 
   // ── Splash animation ──────────────────────────────────────────────────────
   const [ringsPhase, setRingsPhase]     = useState<RingsPhase>('hidden')
@@ -285,6 +286,16 @@ export default function OnboardingPage() {
       return
     }
 
+    // Guard: si ya estamos creando, o si ya se creó el tema (usuario
+    // volvió atrás y reentró al paso 2), no duplicar.
+    if (creatingCase) return
+    if (createdCaseId) {
+      setStep(3)
+      return
+    }
+
+    setCreatingCase(true)
+
     // 1. Generar título con IA
     let title = crisis.trim().slice(0, 80)  // fallback al texto crudo
     try {
@@ -343,6 +354,7 @@ export default function OnboardingPage() {
       }
     }
 
+    setCreatingCase(false)
     setStep(3)
   }
 
@@ -1034,7 +1046,8 @@ export default function OnboardingPage() {
                   onNext={handleStep2Next}
                   showExit={true}
                   onExit={() => setExitModalOpen(true)}
-                  nextDisabled={!crisis.trim()}
+                  nextDisabled={!crisis.trim() || creatingCase}
+                  nextLabel={creatingCase ? 'Creando…' : 'Continuar'}
                 />
               </div>
             )}

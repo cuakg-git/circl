@@ -1104,6 +1104,10 @@ export default function SharedCaseDetailPage({
           .order-4 { order: 4 !important; }
           .header-main-row { flex-direction: column !important; align-items: stretch !important; }
           .header-actions { margin-top: 16px !important; justify-content: flex-start !important; }
+          .header-dropdown {
+            right: auto !important;
+            left: 0 !important;
+          }
         }
         @keyframes typingDot {
           0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
@@ -1570,7 +1574,7 @@ export default function SharedCaseDetailPage({
 
                         {/* Dropdown */}
                         {membersMenuOpen && (
-                          <div style={{
+                          <div className="header-dropdown" style={{
                             position: 'absolute', top: '100%', right: 0,
                             background: 'white',
                             borderRadius: '0.85rem',
@@ -1764,7 +1768,7 @@ export default function SharedCaseDetailPage({
                         </button>
 
                         {headerMenuOpen && (
-                          <div style={{
+                          <div className="header-dropdown" style={{
                             position: 'absolute', top: '100%', right: 0,
                             background: 'white',
                             borderRadius: '0.85rem',
