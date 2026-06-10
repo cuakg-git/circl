@@ -9,6 +9,7 @@ import {
   SkeletonStyles, SkeletonText, SkeletonAvatar,
   SkeletonCard, SkeletonBase,
 } from '@/components/Skeleton'
+import ContextStripDrawer from '@/components/ContextStripDrawer'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -462,14 +463,8 @@ export default function CirculoPage() {
   const [loading,      setLoading]      = useState(true)
   const [userCtx,      setUserCtx]      = useState<UserContext | null>(null)
   const [regenerating, setRegenerating] = useState(false)
-  const [ctxOpen,      setCtxOpen]      = useState(true)
-  const [ctxQuestion,    setCtxQuestion]    = useState<string | null>(null)
-  const [ctxSuggestions, setCtxSuggestions] = useState<string[]>([])
-  const [ctxInput,       setCtxInput]       = useState('')
-  const [ctxLoading,     setCtxLoading]     = useState(false)
-  const [ctxDone,        setCtxDone]        = useState(false)
-  const [ctxTurn,        setCtxTurn]        = useState(1)
-  const [ctxError,       setCtxError]       = useState<string | null>(null)
+  const [ctxLoading, setCtxLoading] = useState(false)
+  const [ctxError,   setCtxError]   = useState<string | null>(null)
   const [contacts,     setContacts]     = useState<Contact[]>([])
   const [avatarUrls,  setAvatarUrls]  = useState<Record<string, string>>({})
   const [suggestions,        setSuggestions]        = useState<Suggestion[]>([])
@@ -665,34 +660,6 @@ export default function CirculoPage() {
     window.dispatchEvent(new CustomEvent('mhiru:context-stale'))
   }
 
-  // ── Init chat "Lo que sé de tu círculo" ─────────────────────────────────────
-
-  useEffect(() => {
-    if (loading) return
-    async function initChat() {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        const accessToken = session?.access_token ?? ''
-        const res = await fetch('/api/user-context/chat/init?dimension=circle_summary', {
-          headers: { 'Authorization': `Bearer ${accessToken}` },
-        })
-        const json = await res.json()
-        if (res.ok) {
-          setCtxQuestion(json.question)
-          setCtxSuggestions(json.suggestions ?? [])
-        }
-      } catch {
-        setCtxQuestion('¿Hay alguien que esté apareciendo más en tu día a día últimamente?')
-        setCtxSuggestions([
-          'Sí, alguien cercano',
-          'Más bien gente del trabajo',
-          'Nadie en particular',
-        ])
-      }
-    }
-    initChat()
-  }, [loading])
-
   // ── Regen event listeners ────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -716,14 +683,15 @@ export default function CirculoPage() {
     }
   }, [])
 
-  // ── Context chat submit ───────────────────────────────────────────────────────
+  // ── Context submit (single-shot) ─────────────────────────────────────────────
 
-  async function handleCtxSubmit(response: string) {
-    if (!response.trim() || ctxLoading || ctxDone) return
+  async function handleSendNovedad(text: string) {
+    const message = text.trim()
+    if (!message || ctxLoading) return
+
     setRegenerating(true)
     setCtxLoading(true)
     setCtxError(null)
-    setCtxInput('')
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -732,39 +700,29 @@ export default function CirculoPage() {
       const res = await fetch('/api/user-context/chat', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type':  'application/json',
           'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           dimension:        'circle_summary',
-          current_question: ctxQuestion,
-          user_response:    response,
-          turn:             ctxTurn,
+          current_question: null,
+          user_response:    message,
+          turn:             1,
         }),
       })
 
       const json = await res.json()
+
       if (!res.ok) {
         setCtxError(json.error ?? 'Hubo un error. Intentá de nuevo.')
-        setCtxLoading(false)
         return
       }
 
-      setUserCtx(prev => prev
-        ? { ...prev, circle_summary: json.new_summary }
-        : { circle_summary: json.new_summary }
-      )
-
-      const newTurn = ctxTurn + 1
-      setCtxTurn(newTurn)
-
-      if (json.next_question && newTurn <= 3) {
-        setCtxQuestion(json.next_question)
-        setCtxSuggestions(json.suggestions ?? [])
-      } else {
-        setCtxDone(true)
-        setCtxSuggestions([])
-        setCtxQuestion(null)
+      if (json.new_summary) {
+        setUserCtx(prev => prev
+          ? { ...prev, circle_summary: json.new_summary }
+          : { circle_summary: json.new_summary }
+        )
       }
     } catch {
       setCtxError('No se pudo conectar. Intentá de nuevo.')
@@ -1032,6 +990,43 @@ export default function CirculoPage() {
             className="flex flex-col items-center"
             style={{ gap: 28, minWidth: 0 }}
           >
+            {/* ── Lo que sé del círculo ─────────────────────────────────── */}
+            <div style={{ width: '100%', }}>
+              {ctxError && (
+                <div style={{
+                  marginBottom: 12,
+                  padding: '8px 14px',
+                  borderRadius: '0.75rem',
+                  background: 'rgba(186,26,26,0.07)',
+                  border: '1px solid rgba(186,26,26,0.18)',
+                  fontSize: '0.8125rem',
+                  color: '#ba1a1a',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                }}>
+                  <span>{ctxError}</span>
+                  <button
+                    onClick={() => setCtxError(null)}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: '#ba1a1a', fontSize: '1rem', lineHeight: 1,
+                    }}
+                  >✕</button>
+                </div>
+              )}
+              <ContextStripDrawer
+                contextText={userCtx?.circle_summary ?? null}
+                onSendNovedad={handleSendNovedad}
+                isLoadingContext={regenerating}
+                isSendingNovedad={ctxLoading}
+                drawerTitle="Lo que sé de tu círculo"
+                emptyStateLabel="Mhiru todavía no tiene contexto sobre tu círculo."
+              />
+            </div>
+
             {/* ── Left: Orbit stage ───────────────────────────────────────── */}
             <div
               ref={orbitWrapRef}
@@ -1275,163 +1270,6 @@ export default function CirculoPage() {
               </div>
             )}
             {/* ── fin sugerencias ──────────────────────────────────────────── */}
-
-            {/* ── Lo que sé del círculo (con minichat) ───────────────── */}
-            <div style={{
-              width: '100%',
-              maxWidth: 800,
-              background: '#FFFFFF',
-              borderRadius: '1.5rem',
-              boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
-              overflow: 'hidden',
-            }}>
-              <div style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                padding: '14px 24px',
-                borderBottom: '1px solid rgba(10,126,140,0.08)',
-              }}>
-                <span style={{
-                  fontSize: '0.7rem', fontWeight: 700,
-                  letterSpacing: '0.12em', textTransform: 'uppercase',
-                  color: '#5a7478',
-                }}>
-                  Lo que sé de tu círculo
-                </span>
-              </div>
-
-              {/* Summary actual */}
-              {(userCtx?.circle_summary || regenerating) && (
-                regenerating
-                  ? <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(10,126,140,0.08)', background: 'rgba(10,126,140,0.03)' }}>
-                      <SkeletonBase width="95%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
-                      <SkeletonBase width="80%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
-                      <SkeletonBase width="60%" height={13} style={{ borderRadius: 6 }} />
-                    </div>
-                  : <p style={{
-                      fontSize: '0.8125rem',
-                      color: '#5a7478',
-                      lineHeight: 1.55,
-                      margin: 0,
-                      padding: '16px 24px',
-                      borderBottom: '1px solid rgba(10,126,140,0.08)',
-                      background: 'rgba(10,126,140,0.03)',
-                    }}>
-                      {userCtx!.circle_summary}
-                    </p>
-              )}
-
-              {/* Minichat */}
-              <div style={{ padding: '16px 24px' }}>
-                  {ctxDone ? (
-                    <p style={{
-                      fontSize: '0.875rem', color: '#5a7478',
-                      fontStyle: 'italic', margin: 0,
-                    }}>
-                      Ya tengo bastante contexto sobre tu círculo. Volvé cuando
-                      quieras actualizar.
-                    </p>
-                  ) : ctxQuestion ? (
-                    <>
-                      <p style={{
-                        fontSize: '0.9375rem', fontWeight: 600,
-                        color: '#1A1A2E', marginBottom: 14, marginTop: 0,
-                      }}>
-                        {ctxQuestion}
-                      </p>
-
-                      {ctxLoading && (
-                        <div style={{ display: 'flex', gap: 5, alignItems: 'center', marginBottom: 14 }}>
-                          {[0, 1, 2].map(i => (
-                            <span key={i} style={{
-                              width: 7, height: 7, borderRadius: '50%',
-                              background: '#0A7E8C', display: 'inline-block',
-                              animation: `typingDot 1.2s ease-in-out ${i * 0.2}s infinite`,
-                            }} />
-                          ))}
-                        </div>
-                      )}
-
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                        <textarea
-                          value={ctxInput}
-                          onChange={e => setCtxInput(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault()
-                              handleCtxSubmit(ctxInput)
-                            }
-                          }}
-                          disabled={ctxLoading || ctxDone}
-                          placeholder="O escribí tu respuesta…"
-                          rows={1}
-                          style={{
-                            flex: 1,
-                            border: '1.5px solid rgba(10,126,140,0.12)',
-                            borderRadius: '1rem',
-                            padding: '10px 14px',
-                            fontSize: '0.875rem',
-                            lineHeight: 1.5,
-                            resize: 'none',
-                            outline: 'none',
-                            fontFamily: 'inherit',
-                            color: '#1A1A2E',
-                            background: '#FAF8F5',
-                            minHeight: 42,
-                            maxHeight: 100,
-                            opacity: ctxLoading ? 0.5 : 1,
-                          }}
-                          onFocus={e => { e.currentTarget.style.borderColor = '#0A7E8C' }}
-                          onBlur={e  => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)' }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleCtxSubmit(ctxInput)}
-                          disabled={ctxLoading || !ctxInput.trim() || ctxDone}
-                          style={{
-                            width: 42, height: 42, borderRadius: '50%',
-                            border: 'none',
-                            cursor: (ctxLoading || !ctxInput.trim() || ctxDone) ? 'not-allowed' : 'pointer',
-                            background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                            display: 'flex', alignItems: 'center',
-                            justifyContent: 'center', flexShrink: 0,
-                            opacity: (ctxLoading || !ctxInput.trim() || ctxDone) ? 0.4 : 1,
-                          }}
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24"
-                            fill="none" stroke="white"
-                            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="22" y1="2" x2="11" y2="13" />
-                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                          </svg>
-                        </button>
-                      </div>
-
-                      {ctxError && (
-                        <div style={{
-                          marginTop: 10, padding: '8px 14px',
-                          borderRadius: '0.75rem',
-                          background: 'rgba(186,26,26,0.07)',
-                          border: '1px solid rgba(186,26,26,0.18)',
-                          fontSize: '0.8125rem', color: '#ba1a1a', fontWeight: 600,
-                          display: 'flex', alignItems: 'center',
-                          justifyContent: 'space-between', gap: 8,
-                        }}>
-                          <span>{ctxError}</span>
-                          <button
-                            onClick={() => setCtxError(null)}
-                            style={{
-                              background: 'none', border: 'none', cursor: 'pointer',
-                              color: '#ba1a1a', fontSize: '1rem', lineHeight: 1,
-                            }}
-                          >✕</button>
-                        </div>
-                      )}
-                    </>
-                  ) : null}
-              </div>
-            </div>
 
             {/* ── Tabla de contactos ───────────────────────────────────────── */}
             {totalContacts === 0 ? (

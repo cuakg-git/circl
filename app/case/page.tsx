@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
 import { supabase } from '@/lib/supabase'
 import { SkeletonStyles, SkeletonText, SkeletonCard, SkeletonBase } from '@/components/Skeleton'
+import ContextStripDrawer from '@/components/ContextStripDrawer'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -285,15 +286,10 @@ export default function CaseListPage() {
   const [sharedCases, setSharedCases] = useState<SharedCase[]>([])
   const [loading,     setLoading]     = useState(true)
 
-  const [userCtx,        setUserCtx]        = useState<UserContext | null>(null)
-  const [regenerating,   setRegenerating]   = useState(false)
-  const [ctxQuestion,    setCtxQuestion]    = useState<string | null>(null)
-  const [ctxSuggestions, setCtxSuggestions] = useState<string[]>([])
-  const [ctxInput,       setCtxInput]       = useState('')
-  const [ctxLoading,     setCtxLoading]     = useState(false)
-  const [ctxDone,        setCtxDone]        = useState(false)
-  const [ctxTurn,        setCtxTurn]        = useState(1)
-  const [ctxError,       setCtxError]       = useState<string | null>(null)
+  const [userCtx,      setUserCtx]      = useState<UserContext | null>(null)
+  const [regenerating, setRegenerating] = useState(false)
+  const [ctxLoading,   setCtxLoading]   = useState(false)
+  const [ctxError,     setCtxError]     = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -407,40 +403,12 @@ export default function CaseListPage() {
     }
   }, [])
 
-  // ── Init chat ──────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (loading) return
-    async function initChat() {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        const accessToken = session?.access_token ?? ''
-        const res = await fetch('/api/user-context/chat/init?dimension=themes_summary', {
-          headers: { 'Authorization': `Bearer ${accessToken}` },
-        })
-        const json = await res.json()
-        if (res.ok) {
-          setCtxQuestion(json.question)
-          setCtxSuggestions(json.suggestions ?? [])
-        }
-      } catch {
-        setCtxQuestion('¿Hay algún tema que te esté ocupando más la cabeza últimamente?')
-        setCtxSuggestions([
-          'Sí, una situación reciente',
-          'Algo que viene de hace tiempo',
-          'Nada en particular',
-        ])
-      }
-    }
-    initChat()
-  }, [loading])
-
-  // ── Context chat submit ────────────────────────────────────────────────────
-  async function handleCtxSubmit(response: string) {
-    if (!response.trim() || ctxLoading || ctxDone) return
+  // ── Context submit (single-shot) ──────────────────────────────────────────
+  async function handleCtxSubmit(text: string) {
+    if (!text.trim() || ctxLoading) return
     setRegenerating(true)
     setCtxLoading(true)
     setCtxError(null)
-    setCtxInput('')
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -449,39 +417,28 @@ export default function CaseListPage() {
       const res = await fetch('/api/user-context/chat', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type':  'application/json',
           'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           dimension:        'themes_summary',
-          current_question: ctxQuestion,
-          user_response:    response,
-          turn:             ctxTurn,
+          current_question: null,
+          user_response:    text,
+          turn:             1,
         }),
       })
 
       const json = await res.json()
       if (!res.ok) {
         setCtxError(json.error ?? 'Hubo un error. Intentá de nuevo.')
-        setCtxLoading(false)
         return
       }
 
-      setUserCtx(prev => prev
-        ? { ...prev, themes_summary: json.new_summary }
-        : { themes_summary: json.new_summary }
-      )
-
-      const newTurn = ctxTurn + 1
-      setCtxTurn(newTurn)
-
-      if (json.next_question && newTurn <= 3) {
-        setCtxQuestion(json.next_question)
-        setCtxSuggestions(json.suggestions ?? [])
-      } else {
-        setCtxDone(true)
-        setCtxSuggestions([])
-        setCtxQuestion(null)
+      if (json.new_summary) {
+        setUserCtx(prev => prev
+          ? { ...prev, themes_summary: json.new_summary }
+          : { themes_summary: json.new_summary }
+        )
       }
     } catch {
       setCtxError('No se pudo conectar. Intentá de nuevo.')
@@ -564,157 +521,34 @@ export default function CaseListPage() {
 
           {/* ── Lo que sé de tus temas ─────────────────────────── */}
           {!loading && (
-            <div style={{ 
-              margin: '0 auto 32px',
-              background: '#FFFFFF',
-              borderRadius: '1.5rem',
-              boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
-              overflow: 'hidden',
-            }}>
-              <div style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                padding: '14px 24px',
-                borderBottom: '1px solid rgba(10,126,140,0.08)',
-              }}>
-                <span style={{
-                  fontSize: '0.7rem', fontWeight: 700,
-                  letterSpacing: '0.12em', textTransform: 'uppercase',
-                  color: '#5a7478',
+            <div style={{ marginBottom: 32 }}>
+              {ctxError && (
+                <div style={{
+                  marginBottom: 12, padding: '8px 14px',
+                  borderRadius: '0.75rem',
+                  background: 'rgba(186,26,26,0.07)',
+                  border: '1px solid rgba(186,26,26,0.18)',
+                  fontSize: '0.8125rem', color: '#ba1a1a', fontWeight: 600,
+                  display: 'flex', alignItems: 'center',
+                  justifyContent: 'space-between', gap: 8,
                 }}>
-                  Lo que sé de tus temas
-                </span>
-              </div>
-
-              {(userCtx?.themes_summary || regenerating) && (
-                regenerating
-                  ? <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(10,126,140,0.08)', background: 'rgba(10,126,140,0.03)' }}>
-                      <SkeletonBase width="95%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
-                      <SkeletonBase width="80%" height={13} style={{ borderRadius: 6, marginBottom: 8 }} />
-                      <SkeletonBase width="60%" height={13} style={{ borderRadius: 6 }} />
-                    </div>
-                  : <p style={{
-                      fontSize: '0.8125rem',
-                      color: '#5a7478',
-                      lineHeight: 1.55,
-                      margin: 0,
-                      padding: '16px 24px',
-                      borderBottom: '1px solid rgba(10,126,140,0.08)',
-                      background: 'rgba(10,126,140,0.03)',
-                    }}>
-                      {userCtx!.themes_summary}
-                    </p>
+                  <span>{ctxError}</span>
+                  <button
+                    onClick={() => setCtxError(null)}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: '#ba1a1a', fontSize: '1rem', lineHeight: 1,
+                    }}
+                  >✕</button>
+                </div>
               )}
-
-              <div style={{ padding: '16px 24px' }}>
-                {ctxDone ? (
-                  <p style={{
-                    fontSize: '0.875rem', color: '#5a7478',
-                    fontStyle: 'italic', margin: 0,
-                  }}>
-                    Ya tengo bastante contexto sobre tus temas. Volvé cuando
-                    quieras actualizar.
-                  </p>
-                ) : ctxQuestion ? (
-                  <>
-                    <p style={{
-                      fontSize: '0.9375rem', fontWeight: 600,
-                      color: '#1A1A2E', marginBottom: 14, marginTop: 0,
-                    }}>
-                      {ctxQuestion}
-                    </p>
-
-                    {ctxLoading && (
-                      <div style={{ display: 'flex', gap: 5, alignItems: 'center', marginBottom: 14 }}>
-                        {[0, 1, 2].map(i => (
-                          <span key={i} style={{
-                            width: 7, height: 7, borderRadius: '50%',
-                            background: '#0A7E8C', display: 'inline-block',
-                            animation: `typingDot 1.2s ease-in-out ${i * 0.2}s infinite`,
-                          }} />
-                        ))}
-                      </div>
-                    )}
-
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                      <textarea
-                        value={ctxInput}
-                        onChange={e => setCtxInput(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault()
-                            handleCtxSubmit(ctxInput)
-                          }
-                        }}
-                        disabled={ctxLoading || ctxDone}
-                        placeholder="O escribí tu respuesta…"
-                        rows={1}
-                        style={{
-                          flex: 1,
-                          border: '1.5px solid rgba(10,126,140,0.12)',
-                          borderRadius: '1rem',
-                          padding: '10px 14px',
-                          fontSize: '0.875rem',
-                          lineHeight: 1.5,
-                          resize: 'none',
-                          outline: 'none',
-                          fontFamily: 'inherit',
-                          color: '#1A1A2E',
-                          background: '#FAF8F5',
-                          minHeight: 42,
-                          maxHeight: 100,
-                          opacity: ctxLoading ? 0.5 : 1,
-                        }}
-                        onFocus={e => { e.currentTarget.style.borderColor = '#0A7E8C' }}
-                        onBlur={e  => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)' }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleCtxSubmit(ctxInput)}
-                        disabled={ctxLoading || !ctxInput.trim() || ctxDone}
-                        style={{
-                          width: 42, height: 42, borderRadius: '50%',
-                          border: 'none',
-                          cursor: (ctxLoading || !ctxInput.trim() || ctxDone) ? 'not-allowed' : 'pointer',
-                          background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                          display: 'flex', alignItems: 'center',
-                          justifyContent: 'center', flexShrink: 0,
-                          opacity: (ctxLoading || !ctxInput.trim() || ctxDone) ? 0.4 : 1,
-                        }}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24"
-                          fill="none" stroke="white"
-                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="22" y1="2" x2="11" y2="13" />
-                          <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                        </svg>
-                      </button>
-                    </div>
-
-                    {ctxError && (
-                      <div style={{
-                        marginTop: 10, padding: '8px 14px',
-                        borderRadius: '0.75rem',
-                        background: 'rgba(186,26,26,0.07)',
-                        border: '1px solid rgba(186,26,26,0.18)',
-                        fontSize: '0.8125rem', color: '#ba1a1a', fontWeight: 600,
-                        display: 'flex', alignItems: 'center',
-                        justifyContent: 'space-between', gap: 8,
-                      }}>
-                        <span>{ctxError}</span>
-                        <button
-                          onClick={() => setCtxError(null)}
-                          style={{
-                            background: 'none', border: 'none', cursor: 'pointer',
-                            color: '#ba1a1a', fontSize: '1rem', lineHeight: 1,
-                          }}
-                        >✕</button>
-                      </div>
-                    )}
-                  </>
-                ) : null}
-              </div>
+              <ContextStripDrawer
+                contextText={userCtx?.themes_summary || null}
+                onSendNovedad={handleCtxSubmit}
+                isSendingNovedad={ctxLoading || regenerating}
+                drawerTitle="Lo que sé de tus temas"
+                emptyStateLabel="Mhiru todavía no tiene contexto de tus temas."
+              />
             </div>
           )}
 

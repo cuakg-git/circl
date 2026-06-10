@@ -14,7 +14,7 @@ type Props = {
   /** Está enviando una novedad. */
   isSendingNovedad?: boolean
   /** Label custom para el estado vacío (si no se pasa, usa
-   *  "Mhiru todavía no tiene contexto de este tema."). */
+   *  "Todavía no tengo contexto de este tema."). */
   emptyStateLabel?: string
   /** Título del drawer (si no se pasa, usa "Lo que sé del tema"). */
   drawerTitle?: string

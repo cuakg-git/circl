@@ -9,6 +9,7 @@ import {
   SkeletonStyles, SkeletonText, SkeletonAvatar,
   SkeletonCard, SkeletonBase,
 } from '@/components/Skeleton'
+import ContextStripDrawer from '@/components/ContextStripDrawer'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -292,8 +293,6 @@ const SS_SELECT_STYLE: React.CSSProperties = {
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
-const AGENT_ENDPOINT = process.env.NEXT_PUBLIC_AGENT_ENDPOINT as string
-
 export default function GestionPage() {
   const [id, setId] = useState<string | null>(null)
   const router  = useRouter()
@@ -310,26 +309,9 @@ export default function GestionPage() {
   const [labels, setLabels] = useState<Topic[]>([])
   const [taskDocCounts, setTaskDocCounts] = useState<Map<string, number>>(new Map())
 
-  // ── Contexto / minichat ───────────────────────────────────────────────────────
-  const [aiSummary,  setAiSummary]  = useState('')
-  const [ctxEditing, setCtxEditing] = useState(false)
-  const [ctxDraft,   setCtxDraft]   = useState('')
-  const [ctxSaving,  setCtxSaving]  = useState(false)
-  const [ctxSaved,   setCtxSaved]   = useState(false)
-  const [chatOpen,   setChatOpen]   = useState(true)
-  const [chatMsgs,   setChatMsgs]   = useState<{ id: number; from: 'mhiru' | 'user'; text: string }[]>([])
-  const [chatInput,  setChatInput]  = useState('')
-  const [isTyping,   setIsTyping]   = useState(false)
-  const [agentTurns, setAgentTurns] = useState(0)
-  const chatMsgId  = useRef(0)
-  const chatLogRef = useRef<HTMLDivElement>(null)
-  const MAX_TURNS  = 3
-
-  const [chatQuestion,    setChatQuestion]    = useState<string | null>(null)
-  const [chatSuggestions, setChatSuggestions] = useState<string[]>([])
-  const [chatDone,        setChatDone]        = useState(false)
-
-  const [ctxOpen, setCtxOpen] = useState(true)
+  // ── Contexto ─────────────────────────────────────────────────────────────────
+  const [aiSummary, setAiSummary] = useState('')
+  const [isTyping,  setIsTyping]  = useState(false)
 
   // ── Participantes ─────────────────────────────────────────────────────────────
   const [caseContacts, setCaseContacts] = useState<{
@@ -536,133 +518,43 @@ export default function GestionPage() {
     await reloadHistory()
   }, [id, reloadHistory])
 
-  // ── Auto-scroll chat ──────────────────────────────────────────────────────────
+  // ── Context submit (single-shot) ──────────────────────────────────────────
 
-  useEffect(() => {
-    const el = chatLogRef.current
-    if (el) el.scrollTop = el.scrollHeight
-  }, [chatMsgs, isTyping])
+  const handleSendNovedad = useCallback(async (message: string) => {
+    const text = message.trim()
+    if (!text || isTyping || !id) return
 
-  // ── Initialize chat on mount ───────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (crisis && !loading) {
-      handleOpenChat()
-    }
-  }, [crisis, loading])
-
-  // ── Agent helpers ─────────────────────────────────────────────────────────────
-
-  const sendToAgent = useCallback(async (message: string): Promise<string | null> => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return null
-    try {
-      const res = await fetch(AGENT_ENDPOINT, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ user_id: user.id, message, case_id: id }),
-      })
-      if (!res.ok) return null
-      const data = await res.json()
-      return data.reply ?? null
-    } catch { return null }
-  }, [id])
-
-  async function handleOpenChat() {
-    setChatOpen(true)
-    setChatMsgs([])
-    setAgentTurns(0)
-    setChatDone(false)
-    setChatQuestion(null)
-    setChatSuggestions([])
     setIsTyping(true)
 
-    const { data: { session } } = await supabase.auth.getSession()
-    const accessToken = session?.access_token ?? ''
-
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token ?? ''
+
       const res = await fetch('/api/case/generate-context', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type':  'application/json',
           'Authorization': `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ case_id: id, mode: 'chat_init' }),
+        body: JSON.stringify({
+          case_id:               id,
+          mode:                  'chat_update',
+          user_message:          text,
+          conversation_history:  [{ from: 'user', text }],
+        }),
       })
+
       const data = await res.json()
-      setChatQuestion(data.question ?? '¿Hay novedades sobre este tema?')
-      setChatSuggestions(data.suggestions ?? [])
-    } catch {
-      setChatQuestion('¿Hay novedades sobre este tema?')
-      setChatSuggestions(['Hubo novedades', 'Todo sigue igual', 'Quiero actualizar el resumen'])
+
+      if (data.summary) {
+        setAiSummary(data.summary)
+      }
+    } catch (error) {
+      console.error('Send novedad error:', error)
+    } finally {
+      setIsTyping(false)
     }
-
-    setIsTyping(false)
-  }
-
-  const handleChatSubmit = useCallback(async (message: string) => {
-    const text = message.trim()
-    if (!text || isTyping || chatDone) return
-
-    setChatMsgs(prev => [...prev, { id: ++chatMsgId.current, from: 'user', text }])
-    setChatQuestion(null)
-    setChatSuggestions([])
-    setChatInput('')
-    setIsTyping(true)
-
-    const reply = await sendToAgent(text)
-    setIsTyping(false)
-
-    if (reply) {
-      setChatMsgs(prev => [...prev, { id: ++chatMsgId.current, from: 'mhiru', text: reply }])
-    }
-
-    const newTurns = agentTurns + 1
-    setAgentTurns(newTurns)
-
-    if (newTurns >= MAX_TURNS) {
-      supabase.auth.getSession().then(async ({ data: { session } }) => {
-        const accessToken = session?.access_token ?? ''
-        const res = await fetch('/api/case/generate-context', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({ case_id: id }),
-        })
-        const data = await res.json()
-        if (data.summary) {
-          setAiSummary(data.summary)
-          setCtxDraft(data.summary)
-        }
-        setTimeout(() => {
-          setChatMsgs(prev => [...prev, {
-            id: ++chatMsgId.current,
-            from: 'mhiru',
-            text: '¡Listo! Actualicé el contexto del tema con lo que charlamos.',
-          }])
-          setChatDone(true)
-        }, 500)
-      })
-    }
-  }, [chatInput, isTyping, chatDone, agentTurns, sendToAgent, id])
-
-  async function handleSaveContext() {
-    if (ctxSaving) return
-    setCtxSaving(true)
-    const { error } = await supabase
-      .from('cases')
-      .update({ ai_summary: ctxDraft })
-      .eq('id', id)
-    setCtxSaving(false)
-    if (!error) {
-      setAiSummary(ctxDraft)
-      setCtxEditing(false)
-      setCtxSaved(true)
-      setTimeout(() => setCtxSaved(false), 2000)
-    }
-  }
+  }, [id, isTyping])
 
   // ── Sidesheet helpers ─────────────────────────────────────────────────────────
 
@@ -1253,273 +1145,16 @@ export default function GestionPage() {
             </div>
           )}
 
-          {/* ── Lo que sé ────────────────────────────────────────────────── */}
+          {/* ── Lo que sé ─────────────────────────────────────────────── */}
           {crisis && (
             <div style={{ marginBottom: 32 }}>
-              <div style={{
-                background: '#FFFFFF',
-                borderRadius: '1.5rem',
-                boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
-                marginTop: 20, overflow: 'hidden',
-                textAlign: 'left',
-              }}>
-                {/* ── Header colapsable ── */}
-                <button
-                  type="button"
-                  onClick={() => setCtxOpen(prev => !prev)}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '14px 20px',
-                    background: 'none',
-                    border: 'none',
-                    borderBottom: '1px solid rgba(10,126,140,0.08)',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                  }}
-                >
-                  <span style={{
-                    fontSize: '0.7rem', fontWeight: 700,
-                    letterSpacing: '0.12em', textTransform: 'uppercase',
-                    color: '#5a7478',
-                  }}>
-                    Lo que sé
-                  </span>
-                  <svg
-                    width="16" height="16" viewBox="0 0 24 24"
-                    fill="none" stroke="#5a7478"
-                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                    style={{
-                      flexShrink: 0,
-                      transition: 'transform 0.2s',
-                      transform: ctxOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
-                    }}
-                  >
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </button>
-
-                {/* ── Párrafo de contexto — colapsable ── */}
-                {ctxOpen && aiSummary && (
-                  <p style={{
-                    fontSize: '0.8125rem',
-                    color: '#5a7478',
-                    lineHeight: 1.55,
-                    margin: 0,
-                    padding: '16px 20px',
-                    borderBottom: '1px solid rgba(10,126,140,0.08)',
-                    background: 'rgba(10,126,140,0.03)',
-                  }}>
-                    {aiSummary}
-                  </p>
-                )}
-
-                {/* ── Minichat — siempre visible ── */}
-                <div style={{ padding: '16px 20px' }}>
-                  {!chatOpen ? (
-                    <>
-                      {ctxEditing ? (
-                        <>
-                          <textarea
-                            value={ctxDraft}
-                            onChange={e => setCtxDraft(e.target.value)}
-                            rows={4}
-                            style={{
-                              width: '100%', boxSizing: 'border-box',
-                              resize: 'vertical', minHeight: 80,
-                              border: '1.5px solid rgba(10,126,140,0.12)',
-                              borderRadius: '0.75rem', padding: '12px',
-                              fontSize: '0.875rem', color: '#1A1A2E',
-                              fontFamily: 'inherit', outline: 'none',
-                              background: '#FAF8F5', lineHeight: 1.6,
-                              display: 'block', marginBottom: 12,
-                            }}
-                          />
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }}>
-                            <button onClick={() => { setCtxEditing(false); setCtxDraft(aiSummary) }}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer',
-                                fontSize: '0.8125rem', color: '#5a7478', fontFamily: 'inherit' }}>
-                              Cancelar
-                            </button>
-                            <button onClick={handleSaveContext} disabled={ctxSaving}
-                              style={{
-                                background: ctxSaving ? 'rgba(10,126,140,0.35)'
-                                  : 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                                color: '#fff', border: 'none', borderRadius: 9999,
-                                padding: '8px 20px', fontSize: '0.875rem', fontWeight: 700,
-                                cursor: ctxSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                              }}>
-                              {ctxSaving ? 'Guardando…' : 'Guardar'}
-                            </button>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          {aiSummary ? (
-                            <p style={{
-                              fontSize: '0.9375rem', color: '#1A1A2E',
-                              lineHeight: 1.7, whiteSpace: 'pre-wrap', margin: 0, marginBottom: 16,
-                            }}>
-                              {aiSummary}
-                            </p>
-                          ) : (
-                            <p style={{ fontSize: '0.875rem', color: '#5a7478', marginBottom: 16 }}>
-                              Todavía no hay contexto registrado para este tema.
-                            </p>
-                          )}
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    <div>
-                      {chatDone ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <p style={{
-                            fontSize: '0.8125rem', color: '#5a7478',
-                            fontStyle: 'italic', margin: 0, flex: 1, textAlign: 'left',
-                          }}>
-                            Contexto actualizado. Podés cerrar este chat.
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setChatOpen(false)
-                              setChatDone(false)
-                              setChatMsgs([])
-                              setAgentTurns(0)
-                            }}
-                            style={{
-                              padding: '6px 14px', borderRadius: 9999,
-                              border: '1.5px solid rgba(10,126,140,0.25)',
-                              background: 'white', color: '#0A7E8C',
-                              fontSize: '0.8125rem', fontWeight: 600,
-                              cursor: 'pointer', flexShrink: 0,
-                              fontFamily: 'inherit',
-                            }}
-                          >
-                            Cerrar
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          {/* Pregunta actual */}
-                          {isTyping ? (
-                            <div style={{ display: 'flex', gap: 5, alignItems: 'center', marginBottom: 16 }}>
-                              {[0, 1, 2].map(i => (
-                                <span key={i} style={{
-                                  width: 7, height: 7, borderRadius: '50%',
-                                  background: '#0A7E8C', display: 'inline-block',
-                                  animation: `typingDot 1.2s ease-in-out ${i * 0.2}s infinite`,
-                                }} />
-                              ))}
-                            </div>
-                          ) : chatQuestion && (
-                            <p style={{
-                              fontSize: '0.875rem', fontWeight: 600,
-                              color: '#1A1A2E', marginBottom: 12, marginTop: 0,
-                              textAlign: 'left',
-                            }}>
-                              {chatQuestion}
-                            </p>
-                          )}
-
-                          {/* Mensajes del chat */}
-                          {chatMsgs.length > 0 && (
-                            <div
-                              ref={chatLogRef}
-                              style={{
-                                maxHeight: 180, overflowY: 'auto',
-                                display: 'flex', flexDirection: 'column',
-                                gap: 8, marginBottom: 12,
-                              }}
-                            >
-                              {chatMsgs.map(msg => (
-                                <div key={msg.id} style={{
-                                  display: 'flex',
-                                  justifyContent: msg.from === 'user' ? 'flex-end' : 'flex-start',
-                                }}>
-                                  <div style={{
-                                    maxWidth: '80%', padding: '8px 13px',
-                                    borderRadius: msg.from === 'user'
-                                      ? '1.2rem 1.2rem 0.3rem 1.2rem'
-                                      : '1.2rem 1.2rem 1.2rem 0.3rem',
-                                    background: msg.from === 'user'
-                                      ? 'linear-gradient(135deg, #0A7E8C, #2ECDA7)'
-                                      : 'rgba(10,126,140,0.08)',
-                                    color: msg.from === 'user' ? '#fff' : '#1A1A2E',
-                                    fontSize: '0.875rem', lineHeight: 1.5,
-                                  }}>
-                                    {msg.text}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Input libre */}
-                          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                            <textarea
-                              value={chatInput}
-                              onChange={e => setChatInput(e.target.value)}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                  e.preventDefault()
-                                  handleChatSubmit(chatInput)
-                                }
-                              }}
-                              disabled={isTyping || chatDone}
-                              placeholder={chatDone ? 'Contexto actualizado' : 'O escribí tu respuesta…'}
-                              rows={1}
-                              style={{
-                                flex: 1,
-                                border: '1.5px solid rgba(10,126,140,0.12)',
-                                borderRadius: '1rem',
-                                padding: '10px 14px',
-                                fontSize: '0.875rem',
-                                lineHeight: 1.5,
-                                resize: 'none',
-                                outline: 'none',
-                                fontFamily: 'inherit',
-                                color: '#1A1A2E',
-                                background: '#FAF8F5',
-                                minHeight: 42,
-                                maxHeight: 100,
-                                opacity: (isTyping || chatDone) ? 0.5 : 1,
-                              }}
-                              onFocus={e => { e.currentTarget.style.borderColor = '#0A7E8C' }}
-                              onBlur={e => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)' }}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleChatSubmit(chatInput)}
-                              disabled={isTyping || !chatInput.trim() || chatDone}
-                              style={{
-                                width: 42, height: 42, borderRadius: '50%',
-                                border: 'none',
-                                cursor: (isTyping || !chatInput.trim() || chatDone)
-                                  ? 'not-allowed' : 'pointer',
-                                background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                                display: 'flex', alignItems: 'center',
-                                justifyContent: 'center', flexShrink: 0,
-                                opacity: (isTyping || !chatInput.trim() || chatDone) ? 0.4 : 1,
-                              }}
-                            >
-                              <svg width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor"
-                                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <line x1="22" y1="2" x2="11" y2="13" />
-                                <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                              </svg>
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
+              <ContextStripDrawer
+                contextText={aiSummary || null}
+                onSendNovedad={handleSendNovedad}
+                isSendingNovedad={isTyping}
+                drawerTitle="Lo que sé"
+                emptyStateLabel="Mhiru todavía no tiene contexto de este tema."
+              />
             </div>
           )}
 

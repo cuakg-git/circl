@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
 import { supabase } from '@/lib/supabase'
+import ContextStripDrawer from '@/components/ContextStripDrawer'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -281,17 +282,8 @@ export default function TareaDetailSharedPage({
     name: string; reason: string
   } | null>(null)
 
-  // Minichat
-  const [chatMessages,    setChatMessages]    = useState<
-    { role: 'agent' | 'user'; content: string }[]
-  >([])
-  const [chatInput,       setChatInput]       = useState('')
-  const [chatLoading,     setChatLoading]     = useState(false)
-  const [chatQuestion,    setChatQuestion]    = useState<string | null>(null)
-  const [chatSuggestions, setChatSuggestions] = useState<string[]>([])
-  const [chatDone,        setChatDone]        = useState(false)
-
-  const [ctxOpen, setCtxOpen] = useState(true)
+  // Minichat (estado simplificado para drawer)
+  const [chatLoading, setChatLoading] = useState(false)
 
   // ── Load ──────────────────────────────────────────────────────────────────────
 
@@ -343,9 +335,6 @@ export default function TareaDetailSharedPage({
       setTask(t)
       setTaskContext(t.context ?? null)
 
-      setChatQuestion('Hay alguna novedad con esta tarea')
-      setChatSuggestions(['Todo sigue igual', 'Cambió la fecha', 'Ya la hice'])
-
       setTitleVal(t.title)
       setDescVal(t.description ?? '')
       setDateVal(t.due_date ?? '')
@@ -390,10 +379,6 @@ export default function TareaDetailSharedPage({
           .then(json => {
             if (json.context)            setTaskContext(json.context)
             if (json.suggested_assignee) setSuggestedAssignee(json.suggested_assignee)
-            if (json.next_question) {
-              setChatQuestion(json.next_question)
-              setChatSuggestions(json.suggestions ?? [])
-            }
           })
           .catch(e => console.error('[tarea-shared-detail] init context error:', e))
       }
@@ -572,15 +557,6 @@ export default function TareaDetailSharedPage({
     setChatLoading(true)
     setSuggestedAssignee(null)
 
-    const newHistory = userMessage
-      ? [...chatMessages, { role: 'user' as const, content: userMessage }]
-      : chatMessages
-
-    if (userMessage) {
-      setChatMessages(newHistory)
-      setChatInput('')
-    }
-
     try {
       const res = await fetch('/api/task-context', {
         method:  'POST',
@@ -589,29 +565,20 @@ export default function TareaDetailSharedPage({
           task_id:      taskId,
           user_id:      userId,
           user_message: userMessage ?? null,
-          chat_history: newHistory,
+          chat_history: userMessage
+            ? [{ role: 'user' as const, content: userMessage }]
+            : [],
         }),
       })
       const json = await res.json()
 
+      // Actualizar contexto
       if (json.context) setTaskContext(json.context)
 
-      if (json.context && userMessage) {
-        setChatMessages(prev => [...prev, { role: 'agent', content: json.context }])
-      }
-
+      // Sugerencias
       if (json.suggested_assignee) setSuggestedAssignee(json.suggested_assignee)
 
-      if (json.next_question) {
-        setChatQuestion(json.next_question)
-        setChatSuggestions(json.suggestions ?? [])
-        setChatDone(false)
-      } else {
-        setChatQuestion(null)
-        setChatSuggestions([])
-        setChatDone(true)
-      }
-
+      // Aplicar field_updates automáticamente
       if (json.field_updates && Object.keys(json.field_updates).length > 0) {
         const fu = json.field_updates
 
@@ -657,7 +624,7 @@ export default function TareaDetailSharedPage({
     }
   }
 
-  async function handleChatSubmit(message: string) {
+  async function handleSendNovedad(message: string) {
     if (!message.trim() || chatLoading) return
     await callTaskContext(message.trim())
   }
@@ -1347,212 +1314,15 @@ export default function TareaDetailSharedPage({
                   {isDone ? 'Completada' : 'Pendiente'}
                 </span>
 
-                {/* Card Lo que sé */}
-                <div style={{
-                  background: '#FFFFFF',
-                  borderRadius: '1.5rem',
-                  boxShadow: '0 4px 24px rgba(10,126,140,0.08)',
-                  marginTop: 20, overflow: 'hidden',
-                  textAlign: 'left',
-                }}>
-                  <button
-                    type="button"
-                    onClick={() => setCtxOpen(prev => !prev)}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '14px 20px',
-                      background: 'none',
-                      border: 'none',
-                      borderBottom: '1px solid rgba(10,126,140,0.08)',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
-                  >
-                    <span style={{
-                      fontSize: '0.7rem', fontWeight: 700,
-                      letterSpacing: '0.12em', textTransform: 'uppercase',
-                      color: '#5a7478',
-                    }}>
-                      Lo que sé
-                    </span>
-                    <svg
-                      width="16" height="16" viewBox="0 0 24 24"
-                      fill="none" stroke="#5a7478"
-                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                      style={{
-                        flexShrink: 0,
-                        transition: 'transform 0.2s',
-                        transform: ctxOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
-                      }}
-                    >
-                      <polyline points="6 9 12 15 18 9" />
-                    </svg>
-                  </button>
-
-                  {/* Context paragraph that collapses */}
-                  {ctxOpen && taskContext && (
-                    <p style={{
-                      fontSize: '0.8125rem',
-                      color: '#5a7478',
-                      lineHeight: 1.55,
-                      margin: 0,
-                      padding: '16px 20px',
-                      borderBottom: '1px solid rgba(10,126,140,0.08)',
-                      background: 'rgba(10,126,140,0.03)',
-                    }}>
-                      {taskContext}
-                    </p>
-                  )}
-
-                  {/* Minichat div that always renders */}
-                  <div style={{ padding: '16px 20px' }}>
-                    {/* Minichat */}
-                    {chatDone ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <p style={{
-                          fontSize: '0.8125rem', color: '#5a7478',
-                          fontStyle: 'italic', margin: 0, flex: 1, textAlign: 'left',
-                        }}>
-                          Por ahora ya tengo bastante contexto sobre esta tarea.
-                          Volvé cuando haya novedades.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setChatDone(false)
-                            setChatMessages([])
-                            setChatQuestion('Hay alguna novedad con esta tarea')
-                            setChatSuggestions(['Todo sigue igual', 'Cambió la fecha', 'Ya la hice'])
-                          }}
-                          style={{
-                            padding: '6px 14px', borderRadius: 9999,
-                            border: '1.5px solid rgba(10,126,140,0.25)',
-                            background: 'white', color: '#0A7E8C',
-                            fontSize: '0.8125rem', fontWeight: 600,
-                            cursor: 'pointer', flexShrink: 0,
-                            fontFamily: 'inherit', transition: 'background 0.15s',
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(10,126,140,0.06)' }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = 'white' }}
-                        >
-                          Reintentar
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        {chatQuestion && (
-                          <p style={{
-                            fontSize: '0.875rem', fontWeight: 600,
-                            color: '#1A1A2E', marginBottom: 12, marginTop: 0,
-                            textAlign: 'left',
-                          }}>
-                            {chatQuestion}?
-                          </p>
-                        )}
-
-                        {chatSuggestions.length > 0 && (
-                          <div style={{
-                            display: 'flex', flexWrap: 'wrap', gap: 8,
-                            marginBottom: 12,
-                          }}>
-                            {chatSuggestions.map((s, i) => (
-                              <button
-                                key={i}
-                                type="button"
-                                onClick={() => handleChatSubmit(s)}
-                                disabled={chatLoading}
-                                style={{
-                                  padding: '6px 14px', borderRadius: 9999,
-                                  border: '1.5px solid rgba(10,126,140,0.25)',
-                                  background: 'white', color: '#0A7E8C',
-                                  fontSize: '0.8125rem', fontWeight: 600,
-                                  cursor: chatLoading ? 'not-allowed' : 'pointer',
-                                  opacity: chatLoading ? 0.5 : 1,
-                                  transition: 'background 0.15s',
-                                  fontFamily: 'inherit',
-                                }}
-                                onMouseEnter={(e) => {
-                                  if (!chatLoading)
-                                    e.currentTarget.style.background = 'rgba(10,126,140,0.06)'
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.background = 'white'
-                                }}
-                              >
-                                {s}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                          <textarea
-                            value={chatInput}
-                            onChange={(e) => setChatInput(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault()
-                                handleChatSubmit(chatInput)
-                              }
-                            }}
-                            disabled={chatLoading}
-                            placeholder="O escribí tu respuesta…"
-                            rows={1}
-                            style={{
-                              flex: 1,
-                              border: '1.5px solid rgba(10,126,140,0.12)',
-                              borderRadius: '1rem',
-                              padding: '10px 14px',
-                              fontSize: '0.875rem',
-                              lineHeight: 1.5,
-                              resize: 'none',
-                              outline: 'none',
-                              fontFamily: 'inherit',
-                              color: '#1A1A2E',
-                              background: '#FAF8F5',
-                              minHeight: 42,
-                              maxHeight: 100,
-                              transition: 'border-color 0.2s',
-                            }}
-                            onFocus={(e) => { e.currentTarget.style.borderColor = '#0A7E8C' }}
-                            onBlur={(e)  => { e.currentTarget.style.borderColor = 'rgba(10,126,140,0.12)' }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleChatSubmit(chatInput)}
-                            disabled={chatLoading || !chatInput.trim()}
-                            style={{
-                              width: 42, height: 42, borderRadius: '50%',
-                              border: 'none',
-                              cursor: chatLoading || !chatInput.trim()
-                                ? 'not-allowed' : 'pointer',
-                              background: 'linear-gradient(135deg, #0A7E8C, #2ECDA7)',
-                              color: 'white',
-                              display: 'flex', alignItems: 'center',
-                              justifyContent: 'center', flexShrink: 0,
-                              opacity: chatLoading || !chatInput.trim() ? 0.4 : 1,
-                              transition: 'opacity 0.15s',
-                            }}
-                          >
-                            {chatLoading ? (
-                              <span style={{ fontSize: 10 }}>…</span>
-                            ) : (
-                              <svg width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor"
-                                strokeWidth="2" strokeLinecap="round"
-                                strokeLinejoin="round">
-                                <line x1="22" y1="2" x2="11" y2="13" />
-                                <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                              </svg>
-                            )}
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
+                {/* Lo que sé */}
+                <div style={{ marginTop: 20 }}>
+                  <ContextStripDrawer
+                    contextText={taskContext}
+                    onSendNovedad={handleSendNovedad}
+                    isSendingNovedad={chatLoading}
+                    drawerTitle="Lo que sé sobre esta tarea"
+                    emptyStateLabel="Mhiru todavía no tiene contexto sobre esta tarea."
+                  />
                 </div>
               </div>
 
